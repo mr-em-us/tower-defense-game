@@ -66,6 +66,10 @@ export function findPath(grid: GridState, targetSide: PlayerSide): GridCell[] | 
       const ny = y + dir.y;
       if (nx < 0 || nx >= GRID.WIDTH || ny < 0 || ny >= GRID.HEIGHT) continue;
 
+      // Enemies stay on their target side (spawn zone is shared)
+      if (targetSide === PlayerSide.LEFT && nx > CENTER_SPAWN.X_MAX) continue;
+      if (targetSide === PlayerSide.RIGHT && nx < CENTER_SPAWN.X_MIN) continue;
+
       const nkey = cellKey(nx, ny);
       if (visited[nkey]) continue;
       if (grid.cells[ny][nx] === CellType.TOWER) continue;

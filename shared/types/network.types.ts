@@ -1,8 +1,8 @@
-import { GameState, GridCell, TowerType, PlayerSide, GamePhase } from './game.types.js';
+import { GameState, GridCell, TowerType, PlayerSide, GamePhase, GameMode } from './game.types.js';
 
 // Client -> Server messages
 export type ClientMessage =
-  | { type: 'JOIN_GAME'; playerName: string }
+  | { type: 'JOIN_GAME'; playerName: string; gameMode: GameMode }
   | { type: 'PLACE_TOWER'; position: GridCell; towerType: TowerType }
   | { type: 'UPGRADE_TOWER'; towerId: string }
   | { type: 'SELL_TOWER'; towerId: string }

@@ -1,4 +1,4 @@
-import { GameState, GamePhase, Enemy, EnemyType, PlayerSide } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, GameMode, Enemy, EnemyType, PlayerSide } from '../../shared/types/game.types.js';
 import { ENEMY_STATS } from '../../shared/types/constants.js';
 import { findPath } from '../../shared/logic/pathfinding.js';
 import { v4 as uuid } from 'uuid';
@@ -67,11 +67,19 @@ export class WaveSystem {
     const definition = getWaveDefinition(state.waveNumber);
     this.waveQueue = [];
 
+    // In single player, only spawn enemies toward the player's side
+    const singlePlayerSide = state.gameMode === GameMode.SINGLE
+      ? Object.values(state.players)[0]?.side ?? PlayerSide.LEFT
+      : null;
+
     for (const entry of definition) {
       for (let i = 0; i < entry.count; i++) {
-        // Each enemy goes towards both sides
-        this.waveQueue.push({ type: entry.type, side: PlayerSide.LEFT, delay: entry.interval });
-        this.waveQueue.push({ type: entry.type, side: PlayerSide.RIGHT, delay: entry.interval });
+        if (singlePlayerSide) {
+          this.waveQueue.push({ type: entry.type, side: singlePlayerSide, delay: entry.interval });
+        } else {
+          this.waveQueue.push({ type: entry.type, side: PlayerSide.LEFT, delay: entry.interval });
+          this.waveQueue.push({ type: entry.type, side: PlayerSide.RIGHT, delay: entry.interval });
+        }
       }
     }
 

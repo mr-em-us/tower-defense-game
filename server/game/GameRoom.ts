@@ -1,7 +1,7 @@
 import { WebSocket } from 'ws';
 import { v4 as uuid } from 'uuid';
 import {
-  GameState, GamePhase, Player, PlayerSide,
+  GameState, GamePhase, GameMode, Player, PlayerSide,
   CellType, TowerType, Tower,
 } from '../../shared/types/game.types.js';
 import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, PRICE_ESCALATION } from '../../shared/types/constants.js';
@@ -27,13 +27,17 @@ export class GameRoom {
   private towerSystem = new TowerSystem();
   private projectileSystem = new ProjectileSystem();
 
-  constructor() {
+  constructor(gameMode: GameMode = GameMode.MULTI) {
     this.roomId = uuid();
-    this.state = this.createInitialState();
-    log(`Room ${this.roomId} created`);
+    this.state = this.createInitialState(gameMode);
+    log(`Room ${this.roomId} created (${gameMode})`);
   }
 
-  private createInitialState(): GameState {
+  get gameMode(): GameMode {
+    return this.state.gameMode;
+  }
+
+  private createInitialState(gameMode: GameMode): GameState {
     const cells: CellType[][] = [];
     for (let y = 0; y < GRID.HEIGHT; y++) {
       cells.push(new Array(GRID.WIDTH).fill(CellType.EMPTY));
@@ -41,6 +45,7 @@ export class GameRoom {
 
     return {
       roomId: this.roomId,
+      gameMode,
       phase: GamePhase.WAITING,
       waveNumber: 0,
       phaseTimeRemaining: 0,
@@ -96,7 +101,9 @@ export class GameRoom {
 
     log(`Player ${newPlayerId} joined room ${this.roomId} as ${side}`);
 
-    if (Object.keys(this.state.players).length === 2) {
+    const playerCount = Object.keys(this.state.players).length;
+    const neededPlayers = this.state.gameMode === GameMode.SINGLE ? 1 : 2;
+    if (playerCount >= neededPlayers) {
       this.startGame();
     }
 
@@ -121,7 +128,8 @@ export class GameRoom {
   }
 
   isFull(): boolean {
-    return this.connections.size >= 2;
+    const max = this.state.gameMode === GameMode.SINGLE ? 1 : 2;
+    return this.connections.size >= max;
   }
 
   isEmpty(): boolean {

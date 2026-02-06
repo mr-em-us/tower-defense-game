@@ -26,6 +26,11 @@ export enum GamePhase {
   GAME_OVER = 'GAME_OVER',
 }
 
+export enum GameMode {
+  SINGLE = 'SINGLE',
+  MULTI = 'MULTI',
+}
+
 export enum PlayerSide {
   LEFT = 'LEFT',
   RIGHT = 'RIGHT',
@@ -99,6 +104,7 @@ export interface GridState {
 
 export interface GameState {
   roomId: string;
+  gameMode: GameMode;
   phase: GamePhase;
   waveNumber: number;
   phaseTimeRemaining: number;

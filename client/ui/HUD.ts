@@ -1,4 +1,4 @@
-import { GamePhase, TowerType } from '../../shared/types/game.types.js';
+import { GamePhase, GameMode, TowerType } from '../../shared/types/game.types.js';
 import { TOWER_STATS } from '../../shared/types/constants.js';
 import { TOWER_CHARS, TOWER_LABELS } from '../rendering/AsciiArt.js';
 import { GameClient } from '../game/GameClient.js';
@@ -43,20 +43,32 @@ export class HUD {
     }
 
     if (state.phase === GamePhase.WAITING) {
-      this.showLobby(state.startingCredits);
+      if (state.gameMode === GameMode.SINGLE) {
+        this.showOverlay('Starting game...');
+      } else {
+        this.showLobby(state.startingCredits);
+      }
       return;
     }
 
     if (state.phase === GamePhase.GAME_OVER) {
       const playerId = this.gameClient.getPlayerId();
       const myTowers = Object.values(state.towers).filter(t => t.ownerId === playerId).length;
-      const oppTowers = Object.values(state.towers).filter(t => t.ownerId !== playerId).length;
-      const won = myTowers > 0 && oppTowers === 0;
-      this.showOverlay(
-        `${won ? 'VICTORY!' : 'DEFEAT'}\n` +
-        `Wave ${state.waveNumber} | Your towers: ${myTowers} | Opponent: ${oppTowers}\n` +
-        'Refresh to play again',
-      );
+      if (state.gameMode === GameMode.SINGLE) {
+        this.showOverlay(
+          `GAME OVER\n` +
+          `Survived to wave ${state.waveNumber} | Towers remaining: ${myTowers}\n` +
+          'Refresh to play again',
+        );
+      } else {
+        const oppTowers = Object.values(state.towers).filter(t => t.ownerId !== playerId).length;
+        const won = myTowers > 0 && oppTowers === 0;
+        this.showOverlay(
+          `${won ? 'VICTORY!' : 'DEFEAT'}\n` +
+          `Wave ${state.waveNumber} | Your towers: ${myTowers} | Opponent: ${oppTowers}\n` +
+          'Refresh to play again',
+        );
+      }
       return;
     }
 
@@ -84,7 +96,9 @@ export class HUD {
     }
 
     clearChildren(this.hudRight);
-    this.hudRight.appendChild(span(`Opp: ${oppCredits}c`, 'opacity:0.6'));
+    if (state.gameMode !== GameMode.SINGLE) {
+      this.hudRight.appendChild(span(`Opp: ${oppCredits}c`, 'opacity:0.6'));
+    }
   }
 
   private updateTowerBar(state: import('../../shared/types/game.types.js').GameState): void {

@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuid } from 'uuid';
 import { GameRoom } from './game/GameRoom.js';
 import { ClientMessage } from '../shared/types/network.types.js';
+import { GameMode } from '../shared/types/game.types.js';
 import { log } from './utils/logger.js';
 import http from 'http';
 import fs from 'fs';
@@ -40,14 +41,17 @@ const httpServer = http.createServer((req, res) => {
 // --- WebSocket server ---
 const wss = new WebSocketServer({ server: httpServer });
 
-// Single room for now (extend to RoomManager later)
-let currentRoom: GameRoom | null = null;
+// Room management
+let currentMultiRoom: GameRoom | null = null;
 
-function getOrCreateRoom(): GameRoom {
-  if (!currentRoom || currentRoom.isFull()) {
-    currentRoom = new GameRoom();
+function getOrCreateRoom(gameMode: GameMode): GameRoom {
+  if (gameMode === GameMode.SINGLE) {
+    return new GameRoom(GameMode.SINGLE);
   }
-  return currentRoom;
+  if (!currentMultiRoom || currentMultiRoom.isFull()) {
+    currentMultiRoom = new GameRoom(GameMode.MULTI);
+  }
+  return currentMultiRoom;
 }
 
 wss.on('connection', (ws: WebSocket) => {
@@ -65,7 +69,8 @@ wss.on('connection', (ws: WebSocket) => {
     }
 
     if (msg.type === 'JOIN_GAME') {
-      room = getOrCreateRoom();
+      const gameMode = msg.gameMode || GameMode.MULTI;
+      room = getOrCreateRoom(gameMode);
       const result = room.addPlayer(playerId, ws);
 
       if (result) {
@@ -92,8 +97,8 @@ wss.on('connection', (ws: WebSocket) => {
     log(`Connection closed: ${playerId}`);
     if (room) {
       room.removePlayer(playerId);
-      if (room.isEmpty()) {
-        currentRoom = null;
+      if (room.isEmpty() && room === currentMultiRoom) {
+        currentMultiRoom = null;
       }
     }
   });

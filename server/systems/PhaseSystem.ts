@@ -30,6 +30,9 @@ export class PhaseSystem {
   transitionToCombat(state: GameState): void {
     state.phase = GamePhase.COMBAT;
     state.phaseTimeRemaining = 0;
+    // Sentinel so PhaseSystem doesn't immediately bounce back to BUILD
+    // before WaveSystem gets a chance to populate the queue
+    state.waveEnemiesRemaining = 1;
 
     // Refill all tower ammo at wave start
     for (const tower of Object.values(state.towers)) {

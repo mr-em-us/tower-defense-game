@@ -1,4 +1,4 @@
-import { GameState, PlayerSide, TowerType, GridCell, GamePhase } from '../../shared/types/game.types.js';
+import { GameState, GameMode, PlayerSide, TowerType, GridCell, GamePhase } from '../../shared/types/game.types.js';
 import { ServerMessage } from '../../shared/types/network.types.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { TOWER_STATS, PRICE_ESCALATION } from '../../shared/types/constants.js';
@@ -44,8 +44,8 @@ export class GameClient {
     network.onMessage((msg) => this.handleMessage(msg));
   }
 
-  joinGame(playerName = 'Player'): void {
-    this.network.send({ type: 'JOIN_GAME', playerName });
+  joinGame(gameMode: GameMode, playerName = 'Player'): void {
+    this.network.send({ type: 'JOIN_GAME', playerName, gameMode });
   }
 
   getState(): GameState | null {

@@ -10,9 +10,9 @@ const HUD_HEIGHT = 48;
 
 function getServerUrl(): string {
   const host = window.location.hostname || 'localhost';
-  const port = window.location.port || '8080';
+  const port = window.location.port;
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${protocol}://${host}:${port}`;
+  return port ? `${protocol}://${host}:${port}` : `${protocol}://${host}`;
 }
 
 function showModeMenu(): Promise<GameMode> {
@@ -32,6 +32,14 @@ function showModeMenu(): Promise<GameMode> {
   });
 }
 
+function applyResponsiveScaling(canvas: HTMLCanvasElement): void {
+  const gameWidth = GRID.WIDTH * GRID.CELL_SIZE;
+  const availWidth = window.innerWidth;
+  const scale = Math.min(1, availWidth / gameWidth);
+  canvas.style.transformOrigin = 'top center';
+  canvas.style.transform = scale < 1 ? `scale(${scale})` : '';
+}
+
 async function main(): Promise<void> {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
   const ctx = canvas.getContext('2d')!;
@@ -39,6 +47,9 @@ async function main(): Promise<void> {
   canvas.width = GRID.WIDTH * GRID.CELL_SIZE;
   canvas.height = GRID.HEIGHT * GRID.CELL_SIZE;
   canvas.style.marginTop = `${HUD_HEIGHT}px`;
+
+  applyResponsiveScaling(canvas);
+  window.addEventListener('resize', () => applyResponsiveScaling(canvas));
 
   const gameMode = await showModeMenu();
 

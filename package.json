@@ -11,7 +11,8 @@
     "start": "node dist/server/server/index.js",
     "dev:server": "npx tsx server/index.ts",
     "dev:client": "npx esbuild client/main.ts --bundle --outfile=dist/client/bundle.js --format=esm --platform=browser --tsconfig=tsconfig.client.json --watch --servedir=dist/client",
-    "dev": "npm run build && concurrently \"npm run dev:server\" \"npm run dev:client\""
+    "dev": "npm run build && concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "tunnel": "npm run build && concurrently \"npm start\" \"npx localtunnel --port 8080\""
   },
   "dependencies": {
     "ws": "^8.16.0",

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Tower Defense</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -28,6 +28,12 @@
     <div id="overlay" class="hidden">
       <div id="overlay-content"></div>
     </div>
+  </div>
+  <div id="rotate-prompt">
+    <div class="rotate-icon">&#x21BB;</div>
+    <div>Rotate your device to landscape</div>
+    <div style="font-size:13px;opacity:0.6">This game works best in landscape mode</div>
+    <button onclick="this.parentElement.style.display='none'">Play anyway</button>
   </div>
   <script type="module" src="bundle.js"></script>
 </body>

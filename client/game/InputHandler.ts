@@ -36,8 +36,11 @@ export class InputHandler {
   }
 
   private pixelToGrid(px: number, py: number): { x: number; y: number } | null {
-    const gx = Math.floor((px - this.canvasRect.left) / GRID.CELL_SIZE);
-    const gy = Math.floor((py - this.canvasRect.top) / GRID.CELL_SIZE);
+    // Account for CSS scaling: map screen coords to canvas buffer coords
+    const scaleX = this.canvas.width / this.canvasRect.width;
+    const scaleY = this.canvas.height / this.canvasRect.height;
+    const gx = Math.floor((px - this.canvasRect.left) * scaleX / GRID.CELL_SIZE);
+    const gy = Math.floor((py - this.canvasRect.top) * scaleY / GRID.CELL_SIZE);
     if (gx < 0 || gx >= GRID.WIDTH || gy < 0 || gy >= GRID.HEIGHT) return null;
     return { x: gx, y: gy };
   }

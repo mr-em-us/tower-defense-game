@@ -6,7 +6,7 @@ import { InputHandler } from './game/InputHandler.js';
 import { Renderer } from './rendering/Renderer.js';
 import { HUD } from './ui/HUD.js';
 
-const HUD_HEIGHT = 48;
+const HUD_HEIGHT = window.innerWidth <= 900 ? 36 : 48;
 
 function getServerUrl(): string {
   const host = window.location.hostname || 'localhost';
@@ -34,10 +34,12 @@ function showModeMenu(): Promise<GameMode> {
 
 function applyResponsiveScaling(canvas: HTMLCanvasElement): void {
   const gameWidth = GRID.WIDTH * GRID.CELL_SIZE;
+  const gameHeight = GRID.HEIGHT * GRID.CELL_SIZE;
   const availWidth = window.innerWidth;
-  const scale = Math.min(1, availWidth / gameWidth);
-  canvas.style.transformOrigin = 'top center';
-  canvas.style.transform = scale < 1 ? `scale(${scale})` : '';
+  const availHeight = window.innerHeight - HUD_HEIGHT - 70;
+  const scale = Math.min(1, availWidth / gameWidth, availHeight / gameHeight);
+  canvas.style.width = `${gameWidth * scale}px`;
+  canvas.style.height = `${gameHeight * scale}px`;
 }
 
 async function main(): Promise<void> {

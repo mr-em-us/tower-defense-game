@@ -36,10 +36,11 @@ function applyResponsiveScaling(canvas: HTMLCanvasElement): void {
   const gameWidth = GRID.WIDTH * GRID.CELL_SIZE;
   const gameHeight = GRID.HEIGHT * GRID.CELL_SIZE;
   const availWidth = window.innerWidth;
-  const availHeight = window.innerHeight - HUD_HEIGHT - 70;
+  const availHeight = window.innerHeight;
   const scale = Math.min(1, availWidth / gameWidth, availHeight / gameHeight);
   canvas.style.width = `${gameWidth * scale}px`;
   canvas.style.height = `${gameHeight * scale}px`;
+  canvas.style.marginTop = `${Math.max(0, (availHeight - gameHeight * scale) / 2)}px`;
 }
 
 async function main(): Promise<void> {
@@ -48,7 +49,6 @@ async function main(): Promise<void> {
 
   canvas.width = GRID.WIDTH * GRID.CELL_SIZE;
   canvas.height = GRID.HEIGHT * GRID.CELL_SIZE;
-  canvas.style.marginTop = `${HUD_HEIGHT}px`;
 
   applyResponsiveScaling(canvas);
   window.addEventListener('resize', () => applyResponsiveScaling(canvas));

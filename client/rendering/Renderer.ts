@@ -173,8 +173,8 @@ export class Renderer {
       }
       ctx.fillRect(tower.position.x * cs + 1, tower.position.y * cs + 1, cs - 2, cs - 2);
 
-      // Tower character - dim if out of ammo
-      ctx.fillStyle = tower.ammo > 0 ? VISUAL.FG_COLOR : 'rgba(255, 255, 255, 0.35)';
+      // Tower character - dim if out of ammo (walls don't use ammo, never dim)
+      ctx.fillStyle = (tower.ammo > 0 || tower.type === TowerType.WALL) ? VISUAL.FG_COLOR : 'rgba(255, 255, 255, 0.35)';
       ctx.font = `bold ${cs - 4}px ${VISUAL.FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -203,8 +203,8 @@ export class Renderer {
         ctx.fillRect(barX, barY, barW * hpRatio, barH);
       }
 
-      // Ammo count (left side of tower during combat)
-      if (isOwn && state.phase === GamePhase.COMBAT) {
+      // Ammo count (left side of tower during combat) - skip for walls
+      if (isOwn && state.phase === GamePhase.COMBAT && tower.maxAmmo > 0) {
         const ammoRatio = tower.ammo / tower.maxAmmo;
         const dotY = tower.position.y * cs + 2;
         const dotX = tower.position.x * cs + 2;

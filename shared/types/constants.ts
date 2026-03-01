@@ -97,6 +97,22 @@ export const TOWER_STATS: Record<TowerType, {
     incomePerTurn: 7,
     maintenancePerTurn: 3,
   },
+  [TowerType.WALL]: {
+    cost: 25,
+    damage: 0,
+    range: 0,
+    fireRate: 0,
+    upgradeCostMultiplier: 1.3,
+    upgradeStatMultiplier: 1.0,
+    splashRadius: 0,
+    slowAmount: 0,
+    slowDuration: 0,
+    maxHealth: 150,
+    maxAmmo: 0,
+    ammoCostPerRound: 0,
+    incomePerTurn: 0,
+    maintenancePerTurn: 0,
+  },
 };
 
 export const ENEMY_STATS: Record<EnemyType, {
@@ -122,7 +138,7 @@ export const GOAL_ROWS = [12, 13, 14, 15, 16, 17];
 export const CENTER_SPAWN = {
   X_MIN: 29,
   X_MAX: 30,
-  Y_ROWS: [14, 15],
+  Y_ROWS: [14],
 } as const;
 
 export const PROJECTILE_SPEED = 12;
@@ -143,11 +159,13 @@ export const VISUAL = {
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
   startingHealth: 500,
   startingCredits: 2000,
-  firstWaveEnemies: 60,
+  firstWaveEnemies: 15,
   difficultyCurve: [
     1.0, 1.0, 1.1, 1.2, 1.3,
     1.5, 1.7, 1.9, 2.1, 2.4,
     2.7, 3.0, 3.4, 3.8, 4.2,
     4.7, 5.2, 5.8, 6.5, 7.2,
   ],
+  towerOverrides: {},
+  enemyOverrides: {},
 };

@@ -24,30 +24,35 @@ function getDifficultyMultiplier(waveNumber: number, curve: number[]): number {
 
 function getWaveDefinition(waveNumber: number, settings: GameSettings): WaveEntry[] {
   const entries: { type: EnemyType; count: number }[] = [];
-  const base = waveNumber;
 
-  // Scale factor from settings.firstWaveEnemies relative to default of 60
-  const countScale = settings.firstWaveEnemies / 60;
+  // Difficulty ratio: how much harder this wave is relative to wave 1
+  const diffRatio = getDifficultyMultiplier(waveNumber, settings.difficultyCurve)
+                  / getDifficultyMultiplier(1, settings.difficultyCurve);
 
-  // Get difficulty multiplier from curve (interpolate/extrapolate)
-  const diffMult = getDifficultyMultiplier(waveNumber, settings.difficultyCurve);
+  // Total enemy count grows linearly per wave, scaled by firstWaveEnemies and difficulty curve.
+  // Wave 1 ≈ firstWaveEnemies, then grows ~20% per wave plus difficulty curve acceleration.
+  const baseCount = settings.firstWaveEnemies * (1 + (waveNumber - 1) * 0.2) * diffRatio;
 
-  // Basic enemies every wave - scale by both countScale and diffMult
-  entries.push({ type: EnemyType.BASIC, count: Math.round((4 + base * 2) * 10 * countScale * (diffMult / getDifficultyMultiplier(1, settings.difficultyCurve))) });
+  // Distribute among enemy types based on wave progression
+  let basicPct = 1.0;
+  if (waveNumber >= 3) basicPct -= 0.30; // fast takes 30%
+  if (waveNumber >= 5) basicPct -= 0.15; // tanks take 15%
 
-  // Fast enemies from wave 3
+  entries.push({ type: EnemyType.BASIC, count: Math.max(1, Math.round(baseCount * basicPct)) });
+
+  // Fast enemies from wave 3 (30% of total)
   if (waveNumber >= 3) {
-    entries.push({ type: EnemyType.FAST, count: Math.round((2 + base) * 10 * countScale * (diffMult / getDifficultyMultiplier(1, settings.difficultyCurve))) });
+    entries.push({ type: EnemyType.FAST, count: Math.max(1, Math.round(baseCount * 0.30)) });
   }
 
-  // Tanks from wave 5
+  // Tanks from wave 5 (15% of total)
   if (waveNumber >= 5) {
-    entries.push({ type: EnemyType.TANK, count: Math.round(Math.floor(base / 2) * 10 * countScale * (diffMult / getDifficultyMultiplier(1, settings.difficultyCurve))) });
+    entries.push({ type: EnemyType.TANK, count: Math.max(1, Math.round(baseCount * 0.15)) });
   }
 
   // Boss every 10 waves
   if (waveNumber > 0 && waveNumber % 10 === 0) {
-    entries.push({ type: EnemyType.BOSS, count: 10 });
+    entries.push({ type: EnemyType.BOSS, count: Math.max(1, Math.ceil(waveNumber / 10)) });
   }
 
   const totalEnemies = entries.reduce((sum, e) => sum + e.count, 0);
@@ -125,7 +130,11 @@ export class WaveSystem {
   private spawnEnemy(state: GameState, type: EnemyType, targetSide: PlayerSide): void {
     const stats = ENEMY_STATS[type];
     const hpScale = getDifficultyMultiplier(state.waveNumber, state.settings.difficultyCurve);
-    const hp = Math.round(stats.health * hpScale);
+    const overrides = state.settings.enemyOverrides?.[type];
+    const hp = Math.round(stats.health * hpScale * (overrides?.health ?? 1));
+    const speed = stats.speed * (overrides?.speed ?? 1);
+    const creditValue = Math.round(stats.creditValue * (overrides?.creditValue ?? 1));
+    const contactDamage = stats.contactDamage * (overrides?.contactDamage ?? 1);
 
     const path = findPath(state.grid, targetSide);
     if (!path || path.length === 0) return;
@@ -139,8 +148,8 @@ export class WaveSystem {
       targetSide,
       health: hp,
       maxHealth: hp,
-      speed: stats.speed,
-      creditValue: stats.creditValue,
+      speed,
+      creditValue,
       path,
       pathIndex: 0,
       spawnDelay: 0,

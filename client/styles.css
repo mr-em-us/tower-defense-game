@@ -220,6 +220,116 @@ body {
   opacity: 0.8;
 }
 
+/* Difficulty indicator on mode menu */
+.menu-difficulty {
+  margin-top: 24px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: center;
+  font-size: 14px;
+}
+
+.menu-difficulty:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.menu-difficulty.hidden {
+  display: none;
+}
+
+#menu-difficulty-label {
+  opacity: 0.6;
+}
+
+#menu-difficulty-value {
+  font-weight: 500;
+  margin-left: 8px;
+  color: #4A9EFF;
+}
+
+/* Saved presets section */
+.settings-saved-presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.settings-save-btn {
+  border-style: dashed !important;
+  opacity: 0.7;
+}
+
+.settings-saved-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: rgba(74, 158, 255, 0.15);
+  border: 1px solid rgba(74, 158, 255, 0.3);
+  border-radius: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: #4A9EFF;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.settings-saved-chip:hover {
+  background: rgba(74, 158, 255, 0.25);
+}
+
+.settings-saved-chip-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-saved-chip-del {
+  opacity: 0.5;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.settings-saved-chip-del:hover {
+  opacity: 1;
+  color: #EF4444;
+}
+
+.settings-save-input-wrap {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  justify-content: center;
+}
+
+.settings-save-input {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  padding: 6px 10px;
+  width: 160px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: #fff;
+  outline: none;
+}
+
+.settings-save-input:focus {
+  border-color: #4A9EFF;
+}
+
 /* Settings Panel */
 #settings-panel {
   position: fixed;
@@ -391,6 +501,324 @@ body {
   background: rgba(0, 200, 80, 0.5);
 }
 
+/* Difficulty display */
+.settings-difficulty {
+  font-size: 18px;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+}
+
+.settings-difficulty-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #4A9EFF;
+}
+
+.settings-difficulty-delta {
+  font-size: 14px;
+  margin-left: 10px;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+/* Tab bar */
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.settings-tab {
+  padding: 8px 20px;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.settings-tab:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.settings-tab.active {
+  background: rgba(74, 158, 255, 0.2);
+  border-color: #4A9EFF;
+  color: #fff;
+}
+
+/* Tab content area */
+.settings-tab-content {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Override sections (tower/enemy groups) */
+.settings-override-section {
+  margin-bottom: 16px;
+}
+
+.settings-section-header {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  letter-spacing: 1px;
+}
+
+/* Slider rows */
+.settings-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.settings-slider-row .settings-field-label {
+  min-width: 90px;
+  font-size: 12px;
+}
+
+.settings-slider {
+  flex: 1;
+  min-width: 80px;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4A9EFF;
+  cursor: pointer;
+  border: 2px solid #fff;
+}
+
+.settings-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #4A9EFF;
+  cursor: pointer;
+  border: 2px solid #fff;
+}
+
+.settings-slider:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.settings-slider-value {
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 36px;
+  text-align: right;
+  color: #4A9EFF;
+}
+
+.settings-slider-preview {
+  font-size: 11px;
+  opacity: 0.5;
+  min-width: 70px;
+  text-align: right;
+}
+
+/* Username Panel */
+.username-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 30, 60, 0.95);
+  backdrop-filter: blur(10px);
+}
+
+.username-panel.hidden {
+  display: none;
+}
+
+.username-title {
+  font-size: 36px;
+  font-weight: 500;
+  letter-spacing: 3px;
+  margin-bottom: 24px;
+}
+
+.username-input {
+  font-family: "DM Mono", monospace;
+  font-size: 18px;
+  padding: 12px 16px;
+  width: 300px;
+  max-width: 80vw;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  text-align: center;
+  border-radius: 4px;
+  margin: 20px 0;
+}
+
+.username-input:focus {
+  border-color: #4A9EFF;
+  outline: none;
+}
+
+.username-input.shake {
+  animation: shake 0.3s;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+.username-play-btn {
+  margin-top: 10px;
+}
+
+/* Leaderboard Panel */
+.leaderboard-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(0, 30, 60, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.leaderboard-panel.hidden {
+  display: none;
+}
+
+.leaderboard-title {
+  font-size: 36px;
+  font-weight: 500;
+  letter-spacing: 3px;
+  margin-bottom: 24px;
+}
+
+.leaderboard-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.leaderboard-tab {
+  font-family: "DM Mono", monospace;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+}
+
+.leaderboard-tab.active {
+  background: rgba(74, 158, 255, 0.3);
+  color: white;
+  border-color: #4A9EFF;
+}
+
+.leaderboard-table-wrap {
+  width: 100%;
+  max-width: 700px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "DM Mono", monospace;
+  font-size: 13px;
+  color: white;
+}
+
+.leaderboard-table th {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.leaderboard-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.leaderboard-table tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.leaderboard-challenge-btn {
+  font-family: "DM Mono", monospace;
+  font-size: 11px;
+  padding: 4px 8px;
+  background: rgba(74, 158, 255, 0.2);
+  color: #4A9EFF;
+  border: 1px solid rgba(74, 158, 255, 0.3);
+  cursor: pointer;
+}
+
+.leaderboard-challenge-btn:hover {
+  background: rgba(74, 158, 255, 0.4);
+}
+
+.leaderboard-back-btn {
+  margin-top: 16px;
+}
+
+.difficulty-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.difficulty-badge.easy {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ADE80;
+}
+
+.difficulty-badge.normal {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.difficulty-badge.hard {
+  background: rgba(239, 68, 68, 0.2);
+  color: #EF4444;
+}
+
+.difficulty-badge.custom {
+  background: rgba(150, 150, 150, 0.2);
+  color: #999;
+}
+
 /* --- Mobile responsive --- */
 @media (max-width: 900px) {
   body {
@@ -488,6 +916,38 @@ body {
   .settings-start-btn {
     padding: 12px 30px;
     font-size: 14px;
+  }
+
+  .settings-difficulty {
+    font-size: 14px;
+  }
+
+  .settings-difficulty-value {
+    font-size: 18px;
+  }
+
+  .settings-tab {
+    padding: 6px 14px;
+    font-size: 11px;
+  }
+
+  .settings-tab-content {
+    max-height: 300px;
+  }
+
+  .settings-slider-row {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .settings-slider-row .settings-field-label {
+    min-width: 70px;
+    font-size: 11px;
+  }
+
+  .settings-slider-preview {
+    font-size: 10px;
+    min-width: 60px;
   }
 }
 

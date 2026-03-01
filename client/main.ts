@@ -1,11 +1,14 @@
 import { GRID, DEFAULT_GAME_SETTINGS } from '../shared/types/constants.js';
 import { GameMode, GameSettings } from '../shared/types/game.types.js';
+import { computeDifficultyFactor, getDifficultyLabel } from '../shared/utils/difficulty.js';
 import { NetworkClient } from './network/NetworkClient.js';
 import { GameClient } from './game/GameClient.js';
 import { InputHandler } from './game/InputHandler.js';
 import { Renderer } from './rendering/Renderer.js';
 import { HUD } from './ui/HUD.js';
 import { SettingsPanel } from './ui/SettingsPanel.js';
+import { UsernamePanel } from './ui/UsernamePanel.js';
+import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
 
 const HUD_HEIGHT = window.innerWidth <= 900 ? 36 : 48;
 
@@ -20,11 +23,34 @@ function getServerUrl(): string {
 
 let currentSettings: GameSettings = { ...DEFAULT_GAME_SETTINGS };
 const settingsPanel = new SettingsPanel('settings-panel');
+const usernamePanel = new UsernamePanel('username-panel');
+const leaderboardPanel = new LeaderboardPanel('leaderboard-panel', (settings: GameSettings) => {
+  leaderboardPanel.hide();
+  settingsPanel.showReadOnly(settings);
+});
+
+function updateDifficultyIndicator(): void {
+  const el = document.getElementById('menu-difficulty')!;
+  const label = document.getElementById('menu-difficulty-label')!;
+  const value = document.getElementById('menu-difficulty-value')!;
+
+  const diffLabel = getDifficultyLabel(currentSettings);
+  if (diffLabel === 'Normal') {
+    el.classList.add('hidden');
+    return;
+  }
+
+  const factor = computeDifficultyFactor(currentSettings);
+  label.textContent = diffLabel + ':';
+  value.textContent = factor.toFixed(2) + 'x';
+  el.classList.remove('hidden');
+}
 
 function showModeMenu(): Promise<GameMode> {
   return new Promise((resolve) => {
     const menu = document.getElementById('mode-menu')!;
     menu.classList.remove('hidden');
+    updateDifficultyIndicator();
 
     const onSingle = () => {
       menu.classList.add('hidden');
@@ -40,20 +66,46 @@ function showModeMenu(): Promise<GameMode> {
       menu.classList.add('hidden');
       currentSettings = await settingsPanel.show(currentSettings);
       menu.classList.remove('hidden');
+      updateDifficultyIndicator();
+    };
+    const onLeaderboard = () => {
+      menu.classList.add('hidden');
+      leaderboardPanel.show();
+
+      const panel = document.getElementById('leaderboard-panel')!;
+      const observer = new MutationObserver(() => {
+        if (panel.classList.contains('hidden')) {
+          observer.disconnect();
+          menu.classList.remove('hidden');
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
+    };
+    const onDifficultyClick = async () => {
+      menu.classList.add('hidden');
+      currentSettings = await settingsPanel.show(currentSettings);
+      menu.classList.remove('hidden');
+      updateDifficultyIndicator();
     };
 
     const btnSingle = document.getElementById('btn-single')!;
     const btnMulti = document.getElementById('btn-multi')!;
     const btnSettings = document.getElementById('btn-settings')!;
+    const btnLeaderboard = document.getElementById('btn-leaderboard')!;
+    const diffIndicator = document.getElementById('menu-difficulty')!;
 
     btnSingle.addEventListener('click', onSingle);
     btnMulti.addEventListener('click', onMulti);
     btnSettings.addEventListener('click', onSettings);
+    btnLeaderboard.addEventListener('click', onLeaderboard);
+    diffIndicator.addEventListener('click', onDifficultyClick);
 
     function cleanup() {
       btnSingle.removeEventListener('click', onSingle);
       btnMulti.removeEventListener('click', onMulti);
       btnSettings.removeEventListener('click', onSettings);
+      btnLeaderboard.removeEventListener('click', onLeaderboard);
+      diffIndicator.removeEventListener('click', onDifficultyClick);
     }
   });
 }
@@ -79,6 +131,8 @@ async function main(): Promise<void> {
   applyResponsiveScaling(canvas);
   window.addEventListener('resize', () => applyResponsiveScaling(canvas));
 
+  const playerName = await usernamePanel.show();
+  settingsPanel.setUsername(playerName);
   const gameMode = await showModeMenu();
 
   const network = new NetworkClient(getServerUrl());
@@ -88,7 +142,7 @@ async function main(): Promise<void> {
   const hud = new HUD(gameClient);
 
   await network.connect();
-  gameClient.joinGame(gameMode, 'Player', currentSettings);
+  gameClient.joinGame(gameMode, playerName, currentSettings);
 
   let lastTime = performance.now();
 

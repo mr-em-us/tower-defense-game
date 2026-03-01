@@ -10,15 +10,22 @@
 </head>
 <body>
   <div id="app">
-    <div id="mode-menu">
+    <div id="mode-menu" class="hidden">
       <div class="menu-title">TOWER DEFENSE</div>
       <div class="menu-subtitle">Select Mode</div>
       <div class="menu-buttons">
         <button id="btn-single" class="menu-btn">Single Player</button>
         <button id="btn-multi" class="menu-btn">Multiplayer</button>
       </div>
+      <div id="menu-difficulty" class="menu-difficulty hidden">
+        <span id="menu-difficulty-label"></span>
+        <span id="menu-difficulty-value"></span>
+      </div>
       <button id="btn-settings" class="menu-btn settings-trigger">Settings</button>
+      <button id="btn-leaderboard" class="menu-btn settings-trigger">Leaderboard</button>
     </div>
+    <div id="username-panel" class="hidden"></div>
+    <div id="leaderboard-panel" class="hidden"></div>
     <div id="settings-panel" class="hidden"></div>
     <canvas id="game-canvas"></canvas>
     <div id="hud">

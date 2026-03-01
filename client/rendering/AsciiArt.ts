@@ -6,6 +6,7 @@ export const TOWER_CHARS: Record<TowerType, string> = {
   [TowerType.SNIPER]: 'I',
   [TowerType.SPLASH]: '*',
   [TowerType.SLOW]: '~',
+  [TowerType.WALL]: 'W',
 };
 
 export const TOWER_LABELS: Record<TowerType, string> = {
@@ -13,6 +14,7 @@ export const TOWER_LABELS: Record<TowerType, string> = {
   [TowerType.SNIPER]: 'Sniper',
   [TowerType.SPLASH]: 'Splash',
   [TowerType.SLOW]: 'Slow',
+  [TowerType.WALL]: 'Wall',
 };
 
 // Enemy ASCII chars - cycle for animation

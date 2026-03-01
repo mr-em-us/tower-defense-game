@@ -3,12 +3,14 @@ import { v4 as uuid } from 'uuid';
 import { GameRoom } from './game/GameRoom.js';
 import { ClientMessage } from '../shared/types/network.types.js';
 import { GameMode } from '../shared/types/game.types.js';
+import { LeaderboardStore } from './data/LeaderboardStore.js';
 import { log } from './utils/logger.js';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
 
 const PORT = parseInt(process.env.PORT || '8080', 10);
+const leaderboardStore = new LeaderboardStore();
 
 // --- Simple HTTP server to serve client files ---
 const DIST_CLIENT = path.resolve('dist/client');
@@ -22,7 +24,28 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 const httpServer = http.createServer((req, res) => {
-  let filePath = path.join(DIST_CLIENT, req.url === '/' ? 'index.html' : req.url!);
+  const url = new URL(req.url!, `http://localhost:${PORT}`);
+
+  // --- Leaderboard API routes ---
+  if (url.pathname === '/api/leaderboard' && req.method === 'GET') {
+    const mode = (url.searchParams.get('mode') || 'SINGLE') as GameMode;
+    const data = leaderboardStore.getLeaderboard(mode);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(data));
+    return;
+  }
+
+  if (url.pathname === '/api/leaderboard/history' && req.method === 'GET') {
+    const mode = (url.searchParams.get('mode') || 'SINGLE') as GameMode;
+    const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+    const data = leaderboardStore.getHistory(mode, limit);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(data));
+    return;
+  }
+
+  // --- Static file serving ---
+  let filePath = path.join(DIST_CLIENT, url.pathname === '/' ? 'index.html' : url.pathname);
 
   const ext = path.extname(filePath);
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
@@ -74,7 +97,10 @@ wss.on('connection', (ws: WebSocket) => {
       if (msg.settings) {
         room.applySettings(msg.settings);
       }
-      const result = room.addPlayer(playerId, ws);
+      room.onGameOver = (results) => {
+        for (const r of results) leaderboardStore.addResult(r);
+      };
+      const result = room.addPlayer(playerId, ws, msg.playerName || 'Player');
 
       if (result) {
         // Use the actual playerId (may differ from generated one on reconnect)

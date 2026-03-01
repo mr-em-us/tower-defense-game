@@ -7,6 +7,8 @@ import {
 import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION, DEFAULT_GAME_SETTINGS } from '../../shared/types/constants.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { ClientMessage, ServerMessage } from '../../shared/types/network.types.js';
+import { GameResultRecord } from '../../shared/types/leaderboard.types.js';
+import { computeDifficultyFactor } from '../../shared/utils/difficulty.js';
 import { PhaseSystem } from '../systems/PhaseSystem.js';
 import { WaveSystem } from '../systems/WaveSystem.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
@@ -20,6 +22,8 @@ export class GameRoom {
   private connections = new Map<string, WebSocket>();
   private disconnectedSlots = new Map<PlayerSide, Player>();
   private loopInterval: ReturnType<typeof setInterval> | null = null;
+
+  onGameOver: ((results: GameResultRecord[]) => void) | null = null;
 
   private phaseSystem = new PhaseSystem();
   private waveSystem = new WaveSystem();
@@ -78,7 +82,7 @@ export class GameRoom {
 
   // --- Connection management ---
 
-  addPlayer(newPlayerId: string, ws: WebSocket): { playerId: string; side: PlayerSide } | null {
+  addPlayer(newPlayerId: string, ws: WebSocket, playerName: string): { playerId: string; side: PlayerSide } | null {
     // Check for reconnection to a disconnected slot
     for (const [side, savedPlayer] of this.disconnectedSlots) {
       const reconnectId = savedPlayer.id;
@@ -107,6 +111,7 @@ export class GameRoom {
 
     const player: Player = {
       id: newPlayerId,
+      name: playerName,
       side,
       credits: this.state.settings.startingCredits,
       health: this.state.settings.startingHealth,
@@ -208,6 +213,24 @@ export class GameRoom {
       finalWave: this.state.waveNumber,
     });
     this.stopLoop();
+
+    if (this.onGameOver) {
+      const results: GameResultRecord[] = [];
+      for (const player of Object.values(this.state.players)) {
+        results.push({
+          id: uuid(),
+          timestamp: Date.now(),
+          playerName: player.name,
+          gameMode: this.state.gameMode,
+          waveReached: this.state.waveNumber,
+          playerHealth: Math.max(0, player.health),
+          settings: structuredClone(this.state.settings),
+          difficultyFactor: computeDifficultyFactor(this.state.settings),
+          adjustedScore: Math.round(this.state.waveNumber * computeDifficultyFactor(this.state.settings) * 100) / 100,
+        });
+      }
+      this.onGameOver(results);
+    }
   }
 
   // --- Message handling ---
@@ -273,26 +296,27 @@ export class GameRoom {
       return;
     }
 
+    const overrides = this.state.settings.towerOverrides?.[type];
     const tower: Tower = {
       id: uuid(),
       type,
       position: { x, y },
       ownerId: playerId,
       level: 1,
-      damage: stats.damage,
-      range: stats.range,
-      fireRate: stats.fireRate,
+      damage: Math.round(stats.damage * (overrides?.damage ?? 1)),
+      range: +(stats.range * (overrides?.range ?? 1)).toFixed(1),
+      fireRate: +(stats.fireRate * (overrides?.fireRate ?? 1)).toFixed(2),
       lastFireTime: 0,
       targetId: null,
-      health: stats.maxHealth,
-      maxHealth: stats.maxHealth,
-      ammo: stats.maxAmmo,
-      maxAmmo: stats.maxAmmo,
+      health: Math.round(stats.maxHealth * (overrides?.maxHealth ?? 1)),
+      maxHealth: Math.round(stats.maxHealth * (overrides?.maxHealth ?? 1)),
+      ammo: Math.round(stats.maxAmmo * (overrides?.maxAmmo ?? 1)),
+      maxAmmo: Math.round(stats.maxAmmo * (overrides?.maxAmmo ?? 1)),
     };
 
     player.credits -= actualCost;
     // Track purchase for dynamic pricing (not BASIC)
-    if (type !== TowerType.BASIC) {
+    if (type !== TowerType.BASIC && type !== TowerType.WALL) {
       this.state.globalPurchaseCounts[type] = (this.state.globalPurchaseCounts[type] ?? 0) + 1;
     }
     this.state.towers[tower.id] = tower;
@@ -330,13 +354,13 @@ export class GameRoom {
     tower.damage = Math.round(tower.damage * stats.upgradeStatMultiplier);
     tower.range = +(tower.range * 1.1).toFixed(1);
     tower.fireRate = +(tower.fireRate * 1.1).toFixed(2);
-    tower.maxHealth = Math.round(tower.maxHealth * 1.2);
+    tower.maxHealth = Math.round(tower.maxHealth * (tower.type === TowerType.WALL ? 1.3 : 1.2));
     tower.health = tower.maxHealth;
     tower.maxAmmo = Math.round(tower.maxAmmo * 1.15);
     tower.ammo = tower.maxAmmo;
 
-    // Track upgrade for dynamic pricing (not BASIC)
-    if (tower.type !== TowerType.BASIC) {
+    // Track upgrade for dynamic pricing (not BASIC/WALL)
+    if (tower.type !== TowerType.BASIC && tower.type !== TowerType.WALL) {
       this.state.globalPurchaseCounts[tower.type] = (this.state.globalPurchaseCounts[tower.type] ?? 0) + 1;
     }
   }
@@ -353,6 +377,17 @@ export class GameRoom {
     log(`Player ${playerId} set starting credits to ${credits} in room ${this.roomId}`);
   }
 
+  private validateOverrideValues(overrides: Record<string, unknown> | undefined): boolean {
+    if (!overrides || typeof overrides !== 'object') return true; // absent is fine
+    for (const typeOverrides of Object.values(overrides)) {
+      if (!typeOverrides || typeof typeOverrides !== 'object') continue;
+      for (const val of Object.values(typeOverrides as Record<string, unknown>)) {
+        if (typeof val !== 'number' || val < 0.1 || val > 5.0) return false;
+      }
+    }
+    return true;
+  }
+
   private handleSetGameSettings(playerId: string, settings: GameSettings): void {
     if (this.state.phase !== GamePhase.WAITING) return;
 
@@ -364,6 +399,8 @@ export class GameRoom {
     for (const val of settings.difficultyCurve) {
       if (typeof val !== 'number' || val < 0.1 || val > 20.0) return;
     }
+    if (!this.validateOverrideValues(settings.towerOverrides as unknown as Record<string, unknown>)) return;
+    if (!this.validateOverrideValues(settings.enemyOverrides as unknown as Record<string, unknown>)) return;
 
     this.state.settings = settings;
 
@@ -554,9 +591,11 @@ export class GameRoom {
   // --- Dynamic pricing ---
 
   private getDynamicPrice(type: TowerType, baseCost: number): number {
-    if (type === TowerType.BASIC) return baseCost;
+    const costMult = this.state.settings.towerOverrides?.[type]?.cost ?? 1;
+    const adjusted = Math.round(baseCost * costMult);
+    if (type === TowerType.BASIC || type === TowerType.WALL) return adjusted;
     const count = this.state.globalPurchaseCounts[type] ?? 0;
-    return Math.round(baseCost * (1 + count * PRICE_ESCALATION));
+    return Math.round(adjusted * (1 + count * PRICE_ESCALATION));
   }
 
   // --- Networking ---

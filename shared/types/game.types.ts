@@ -10,6 +10,7 @@ export enum TowerType {
   SNIPER = 'SNIPER',
   SPLASH = 'SPLASH',
   SLOW = 'SLOW',
+  WALL = 'WALL',
 }
 
 export enum EnemyType {
@@ -91,6 +92,7 @@ export interface Projectile {
 
 export interface Player {
   id: string;
+  name: string;
   side: PlayerSide;
   credits: number;
   health: number;
@@ -123,12 +125,32 @@ export interface GameState {
   settings: GameSettings;
 }
 
+export interface TowerStatOverrides {
+  cost: number;          // multiplier on base cost, default 1.0
+  damage: number;        // multiplier on base damage
+  range: number;         // multiplier on base range
+  fireRate: number;      // multiplier on base fireRate
+  maxHealth: number;     // multiplier on base maxHealth
+  maxAmmo: number;       // multiplier on base maxAmmo
+}
+
+export interface EnemyStatOverrides {
+  health: number;        // multiplier on base health, default 1.0
+  speed: number;         // multiplier on base speed
+  creditValue: number;   // multiplier on base creditValue
+  contactDamage: number; // multiplier on base contactDamage
+}
+
 export interface GameSettings {
   startingHealth: number;      // default 500
   startingCredits: number;     // default 2000
-  firstWaveEnemies: number;    // default 60 (base enemy count for wave 1)
+  firstWaveEnemies: number;    // default 15 (base enemy count for wave 1)
   // 20 difficulty multiplier values for waves 1-20.
   // Each value scales enemy count AND hp for that wave.
   // 1.0 = normal baseline. Beyond wave 20, extrapolate from last segment.
   difficultyCurve: number[];
+  // Per-tower stat multipliers (all default to 1.0 if absent)
+  towerOverrides: Partial<Record<TowerType, Partial<TowerStatOverrides>>>;
+  // Per-enemy stat multipliers (all default to 1.0 if absent)
+  enemyOverrides: Partial<Record<EnemyType, Partial<EnemyStatOverrides>>>;
 }

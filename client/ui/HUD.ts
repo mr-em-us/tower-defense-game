@@ -2,7 +2,7 @@ import { GamePhase, GameMode, TowerType, PlayerSide } from '../../shared/types/g
 import { TOWER_STATS, SELL_REFUND_RATIO } from '../../shared/types/constants.js';
 import { TOWER_CHARS, TOWER_LABELS } from '../rendering/AsciiArt.js';
 import { GameClient } from '../game/GameClient.js';
-const TOWER_TYPES = [TowerType.BASIC, TowerType.SNIPER, TowerType.SPLASH, TowerType.SLOW];
+const TOWER_TYPES = [TowerType.BASIC, TowerType.SNIPER, TowerType.SPLASH, TowerType.SLOW, TowerType.WALL];
 
 function span(text: string, style?: string): HTMLSpanElement {
   const el = document.createElement('span');
@@ -56,7 +56,7 @@ export class HUD {
         this.showOverlay(
           `GAME OVER\n` +
           `Survived to wave ${state.waveNumber} | HP: ${Math.ceil(myHp.current)}/${myHp.max}\n` +
-          'Refresh to play again',
+          'Refresh to play again \u2022 Results saved to Leaderboard',
         );
       } else {
         const oppHp = this.gameClient.getOpponentHealth();
@@ -64,7 +64,7 @@ export class HUD {
         this.showOverlay(
           `${won ? 'VICTORY!' : 'DEFEAT'}\n` +
           `Wave ${state.waveNumber} | Your HP: ${Math.ceil(myHp.current)} | Opponent HP: ${Math.ceil(oppHp.current)}\n` +
-          'Refresh to play again',
+          'Refresh to play again \u2022 Results saved to Leaderboard',
         );
       }
       return;

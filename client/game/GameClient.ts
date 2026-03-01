@@ -114,7 +114,7 @@ export class GameClient {
   }
 
   getDynamicPrice(type: TowerType): number {
-    if (!this.gameState || type === TowerType.BASIC) return TOWER_STATS[type].cost;
+    if (!this.gameState || type === TowerType.BASIC || type === TowerType.WALL) return TOWER_STATS[type].cost;
     const count = this.gameState.globalPurchaseCounts[type] ?? 0;
     return Math.round(TOWER_STATS[type].cost * (1 + count * PRICE_ESCALATION));
   }

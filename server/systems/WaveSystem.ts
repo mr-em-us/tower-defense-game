@@ -62,7 +62,13 @@ export class WaveSystem {
     this.spawnTimer -= dt;
     while (this.spawnTimer <= 0 && this.waveQueue.length > 0) {
       const entry = this.waveQueue.shift()!;
-      this.spawnEnemy(state, entry.type, entry.side);
+      if (entry.side === ('BOTH' as PlayerSide)) {
+        // Multiplayer: spawn one enemy for each side simultaneously
+        this.spawnEnemy(state, entry.type, PlayerSide.LEFT);
+        this.spawnEnemy(state, entry.type, PlayerSide.RIGHT);
+      } else {
+        this.spawnEnemy(state, entry.type, entry.side);
+      }
       state.waveEnemiesRemaining = this.waveQueue.length;
       if (this.waveQueue.length > 0) {
         this.spawnTimer += this.waveQueue[0].delay;
@@ -85,13 +91,13 @@ export class WaveSystem {
         if (singlePlayerSide) {
           this.waveQueue.push({ type: entry.type, side: singlePlayerSide, delay: entry.interval });
         } else {
-          this.waveQueue.push({ type: entry.type, side: PlayerSide.LEFT, delay: entry.interval });
-          this.waveQueue.push({ type: entry.type, side: PlayerSide.RIGHT, delay: entry.interval });
+          // In multiplayer, use BOTH to signal spawning for both sides simultaneously
+          this.waveQueue.push({ type: entry.type, side: 'BOTH' as PlayerSide, delay: entry.interval });
         }
       }
     }
 
-    // Shuffle so enemies aren't perfectly alternating
+    // Shuffle spawn order for variety
     for (let i = this.waveQueue.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [this.waveQueue[i], this.waveQueue[j]] = [this.waveQueue[j], this.waveQueue[i]];

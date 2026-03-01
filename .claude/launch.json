@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tower-defense",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dist/server/server/index.js"],
+      "port": 8080
+    }
+  ]
+}

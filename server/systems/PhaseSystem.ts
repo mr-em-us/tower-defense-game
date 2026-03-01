@@ -32,12 +32,6 @@ export class PhaseSystem {
     // before WaveSystem gets a chance to populate the queue
     state.waveEnemiesRemaining = 1;
 
-    // Refill all tower ammo at wave start
-    for (const tower of Object.values(state.towers)) {
-      const stats = TOWER_STATS[tower.type];
-      tower.ammo = stats.maxAmmo;
-    }
-
     for (const player of Object.values(state.players)) {
       player.isReady = false;
     }

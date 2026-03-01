@@ -1,5 +1,5 @@
-import { GamePhase, GameMode, TowerType } from '../../shared/types/game.types.js';
-import { TOWER_STATS } from '../../shared/types/constants.js';
+import { GamePhase, GameMode, TowerType, PlayerSide } from '../../shared/types/game.types.js';
+import { TOWER_STATS, SELL_REFUND_RATIO } from '../../shared/types/constants.js';
 import { TOWER_CHARS, TOWER_LABELS } from '../rendering/AsciiArt.js';
 import { GameClient } from '../game/GameClient.js';
 
@@ -82,12 +82,28 @@ export class HUD {
     const side = this.gameClient.getPlayerSide();
 
     const myHp = this.gameClient.getMyHealth();
+    const hpColor = myHp.current > myHp.max * 0.5 ? 'color:#4ADE80' : myHp.current > myHp.max * 0.25 ? 'color:#FBBF24' : 'color:#EF4444';
+
+    // Place each player's info on their own side of the screen
+    const myPanel = side === PlayerSide.RIGHT ? this.hudRight : this.hudLeft;
+    const oppPanel = side === PlayerSide.RIGHT ? this.hudLeft : this.hudRight;
 
     clearChildren(this.hudLeft);
-    this.hudLeft.appendChild(span(side === 'LEFT' ? '< You' : 'You >'));
-    const hpColor = myHp.current > myHp.max * 0.5 ? 'color:#4ADE80' : myHp.current > myHp.max * 0.25 ? 'color:#FBBF24' : 'color:#EF4444';
-    this.hudLeft.appendChild(span(`${Math.ceil(myHp.current)}HP`, hpColor));
-    this.hudLeft.appendChild(span(`${Math.floor(credits)}c`, credits > 0 ? 'color:#4ADE80' : 'color:#EF4444'));
+    clearChildren(this.hudRight);
+
+    // My info on my side
+    myPanel.appendChild(span(side === PlayerSide.LEFT ? '< You' : 'You >'));
+    myPanel.appendChild(span(`${Math.ceil(myHp.current)}HP`, hpColor));
+    myPanel.appendChild(span(`${Math.floor(credits)}c`, credits > 0 ? 'color:#4ADE80' : 'color:#EF4444'));
+
+    // Opponent info on their side (multiplayer only)
+    if (state.gameMode !== GameMode.SINGLE) {
+      const oppHp = this.gameClient.getOpponentHealth();
+      const oppSide = side === PlayerSide.LEFT ? '>' : '<';
+      oppPanel.appendChild(span(`${oppSide} Opp`, 'opacity:0.6'));
+      oppPanel.appendChild(span(`${Math.ceil(oppHp.current)}HP`, 'opacity:0.6'));
+      oppPanel.appendChild(span(`${Math.floor(oppCredits)}c`, 'opacity:0.6'));
+    }
 
     clearChildren(this.hudCenter);
     if (state.phase === GamePhase.BUILD) {
@@ -96,13 +112,6 @@ export class HUD {
       this.hudCenter.appendChild(span(`BUILD  ${readyCount}/${players.length} ready`, 'font-weight:500'));
     } else {
       this.hudCenter.appendChild(span(`WAVE ${state.waveNumber}`, 'font-weight:500'));
-    }
-
-    clearChildren(this.hudRight);
-    if (state.gameMode !== GameMode.SINGLE) {
-      const oppHp = this.gameClient.getOpponentHealth();
-      this.hudRight.appendChild(span(`Opp: ${Math.ceil(oppHp.current)}HP`, 'opacity:0.6'));
-      this.hudRight.appendChild(span(`${Math.floor(oppCredits)}c`, 'opacity:0.6'));
     }
   }
 
@@ -114,9 +123,11 @@ export class HUD {
 
     const credits = this.gameClient.getMyCredits();
     const isBuild = state.phase === GamePhase.BUILD;
+    const isBuildOrCombat = state.phase === GamePhase.BUILD || state.phase === GamePhase.COMBAT;
     const selected = this.gameClient.clientState.selectedTowerType;
+    const activeTool = this.gameClient.clientState.activeTool;
 
-    // Update button costs with dynamic pricing
+    // Update tower placement button states
     for (const type of TOWER_TYPES) {
       const btn = document.getElementById(`tower-btn-${type}`) as HTMLElement;
       if (!btn) continue;
@@ -124,29 +135,153 @@ export class HUD {
       const dynamicCost = this.gameClient.getDynamicPrice(type);
       const canAfford = credits >= dynamicCost;
 
-      // Update displayed cost
       const costEl = btn.querySelector('.cost');
       if (costEl) costEl.textContent = `${dynamicCost}c`;
 
-      btn.classList.toggle('selected', selected === type);
+      btn.classList.toggle('selected', activeTool === 'place' && selected === type);
       btn.classList.toggle('disabled', !isBuild || !canAfford);
+    }
+
+    // Brush tool button
+    const brushBtn = document.getElementById('brush-btn');
+    if (brushBtn) {
+      brushBtn.classList.toggle('selected', activeTool === 'brush');
     }
 
     const readyBtn = document.getElementById('ready-btn');
     if (readyBtn) readyBtn.style.display = isBuild ? '' : 'none';
 
+    // Restock All button — visible when any tower needs ammo
+    const restockAllBtn = document.getElementById('restock-all-btn');
+    if (restockAllBtn) {
+      let totalRestockCost = 0;
+      const playerId = this.gameClient.getPlayerId();
+      for (const tower of Object.values(state.towers)) {
+        if (tower.ownerId !== playerId || tower.ammo >= tower.maxAmmo) continue;
+        const stats = TOWER_STATS[tower.type];
+        totalRestockCost += Math.round((tower.maxAmmo - tower.ammo) * stats.ammoCostPerRound);
+      }
+      if (totalRestockCost > 0 && isBuildOrCombat) {
+        restockAllBtn.style.display = '';
+        restockAllBtn.textContent = `Restock All (${totalRestockCost}c)`;
+      } else {
+        restockAllBtn.style.display = 'none';
+      }
+    }
+
+    // Selected tower actions
+    const selectedIds = this.gameClient.clientState.selectedTowerIds;
     const upgradeBtn = document.getElementById('upgrade-btn');
     const sellBtn = document.getElementById('sell-btn');
-    const towerId = this.gameClient.clientState.selectedTowerId;
+    const repairBtn = document.getElementById('repair-btn');
+    const restockBtn = document.getElementById('restock-btn');
 
-    if (upgradeBtn && sellBtn) {
-      if (towerId && isBuild && state.towers[towerId]) {
-        upgradeBtn.style.display = '';
-        sellBtn.style.display = '';
-      } else {
-        upgradeBtn.style.display = 'none';
-        sellBtn.style.display = 'none';
+    if (selectedIds.length === 1) {
+      // Single tower selected
+      const towerId = selectedIds[0];
+      const tower = state.towers[towerId];
+
+      if (upgradeBtn && sellBtn) {
+        if (tower && isBuild) {
+          upgradeBtn.style.display = '';
+          upgradeBtn.textContent = 'Upgrade';
+          sellBtn.style.display = '';
+          sellBtn.textContent = 'Sell';
+        } else {
+          upgradeBtn.style.display = 'none';
+          sellBtn.style.display = 'none';
+        }
       }
+
+      if (repairBtn) {
+        if (tower && isBuildOrCombat) {
+          const repairCost = this.gameClient.getRepairCost(towerId);
+          if (repairCost !== null && repairCost > 0) {
+            repairBtn.style.display = '';
+            repairBtn.textContent = `Repair (${repairCost}c)`;
+          } else {
+            repairBtn.style.display = 'none';
+          }
+        } else {
+          repairBtn.style.display = 'none';
+        }
+      }
+
+      if (restockBtn) {
+        if (tower && isBuildOrCombat) {
+          const restockCost = this.gameClient.getRestockCost(towerId);
+          if (restockCost !== null && restockCost > 0) {
+            restockBtn.style.display = '';
+            restockBtn.textContent = `Restock (${restockCost}c)`;
+          } else {
+            restockBtn.style.display = 'none';
+          }
+        } else {
+          restockBtn.style.display = 'none';
+        }
+      }
+    } else if (selectedIds.length > 1) {
+      // Multi-select: show bulk action buttons
+      const towers = selectedIds.map(id => state.towers[id]).filter(Boolean);
+
+      if (upgradeBtn) {
+        if (isBuild && towers.length > 0) {
+          upgradeBtn.style.display = '';
+          upgradeBtn.textContent = `Upgrade All (${towers.length})`;
+        } else {
+          upgradeBtn.style.display = 'none';
+        }
+      }
+
+      if (sellBtn) {
+        if (isBuild && towers.length > 0) {
+          let totalSell = 0;
+          for (const t of towers) {
+            const stats = TOWER_STATS[t.type];
+            let invested = stats.cost;
+            for (let lvl = 1; lvl < t.level; lvl++) invested += Math.round(stats.cost * stats.upgradeCostMultiplier * lvl);
+            totalSell += Math.round(invested * SELL_REFUND_RATIO);
+          }
+          sellBtn.style.display = '';
+          sellBtn.textContent = `Sell All (${totalSell}c)`;
+        } else {
+          sellBtn.style.display = 'none';
+        }
+      }
+
+      if (repairBtn) {
+        let totalRepair = 0;
+        for (const id of selectedIds) {
+          const cost = this.gameClient.getRepairCost(id);
+          if (cost !== null && cost > 0) totalRepair += cost;
+        }
+        if (totalRepair > 0 && isBuildOrCombat) {
+          repairBtn.style.display = '';
+          repairBtn.textContent = `Repair All (${totalRepair}c)`;
+        } else {
+          repairBtn.style.display = 'none';
+        }
+      }
+
+      if (restockBtn) {
+        let totalRestock = 0;
+        for (const id of selectedIds) {
+          const cost = this.gameClient.getRestockCost(id);
+          if (cost !== null && cost > 0) totalRestock += cost;
+        }
+        if (totalRestock > 0 && isBuildOrCombat) {
+          restockBtn.style.display = '';
+          restockBtn.textContent = `Restock All (${totalRestock}c)`;
+        } else {
+          restockBtn.style.display = 'none';
+        }
+      }
+    } else {
+      // No tower selected
+      if (upgradeBtn) upgradeBtn.style.display = 'none';
+      if (sellBtn) sellBtn.style.display = 'none';
+      if (repairBtn) repairBtn.style.display = 'none';
+      if (restockBtn) restockBtn.style.display = 'none';
     }
   }
 
@@ -176,11 +311,33 @@ export class HUD {
 
       btn.addEventListener('click', () => {
         this.gameClient.selectTowerType(type);
-        this.gameClient.clientState.selectedTowerId = null;
       });
 
       this.towerBar.appendChild(btn);
     }
+
+    // Brush tool button
+    const brushBtn = document.createElement('button');
+    brushBtn.id = 'brush-btn';
+    brushBtn.className = 'tower-btn';
+    const brushArt = document.createElement('span');
+    brushArt.className = 'art';
+    brushArt.textContent = '+';
+    const brushLabel = document.createElement('span');
+    brushLabel.textContent = 'Brush';
+    brushBtn.appendChild(brushArt);
+    brushBtn.appendChild(brushLabel);
+    brushBtn.addEventListener('click', () => {
+      const cs = this.gameClient.clientState;
+      if (cs.activeTool === 'brush') {
+        cs.activeTool = 'place';
+      } else {
+        cs.activeTool = 'brush';
+        cs.selectedTowerIds = [];
+        cs.selectedTowerType = null;
+      }
+    });
+    this.towerBar.appendChild(brushBtn);
 
     // Ready button
     const readyBtn = document.createElement('button');
@@ -190,6 +347,15 @@ export class HUD {
     readyBtn.addEventListener('click', () => this.gameClient.readyForWave());
     this.towerBar.appendChild(readyBtn);
 
+    // Restock All button
+    const restockAllBtn = document.createElement('button');
+    restockAllBtn.id = 'restock-all-btn';
+    restockAllBtn.className = 'action-btn';
+    restockAllBtn.textContent = 'Restock All';
+    restockAllBtn.style.display = 'none';
+    restockAllBtn.addEventListener('click', () => this.gameClient.restockAll());
+    this.towerBar.appendChild(restockAllBtn);
+
     // Upgrade button
     const upgradeBtn = document.createElement('button');
     upgradeBtn.id = 'upgrade-btn';
@@ -197,8 +363,9 @@ export class HUD {
     upgradeBtn.textContent = 'Upgrade';
     upgradeBtn.style.display = 'none';
     upgradeBtn.addEventListener('click', () => {
-      const id = this.gameClient.clientState.selectedTowerId;
-      if (id) this.gameClient.upgradeTower(id);
+      for (const id of this.gameClient.clientState.selectedTowerIds) {
+        this.gameClient.upgradeTower(id);
+      }
     });
     this.towerBar.appendChild(upgradeBtn);
 
@@ -209,14 +376,39 @@ export class HUD {
     sellBtn.textContent = 'Sell';
     sellBtn.style.display = 'none';
     sellBtn.addEventListener('click', () => {
-      const id = this.gameClient.clientState.selectedTowerId;
-      if (id) {
+      for (const id of this.gameClient.clientState.selectedTowerIds) {
         this.gameClient.sellTower(id);
-        this.gameClient.clientState.selectedTowerId = null;
-        this.gameClient.clientState.selectedTowerType = TowerType.BASIC;
       }
+      this.gameClient.clientState.selectedTowerIds = [];
+      this.gameClient.clientState.selectedTowerType = TowerType.BASIC;
     });
     this.towerBar.appendChild(sellBtn);
+
+    // Repair button
+    const repairBtn = document.createElement('button');
+    repairBtn.id = 'repair-btn';
+    repairBtn.className = 'action-btn';
+    repairBtn.textContent = 'Repair';
+    repairBtn.style.display = 'none';
+    repairBtn.addEventListener('click', () => {
+      for (const id of this.gameClient.clientState.selectedTowerIds) {
+        this.gameClient.repairTower(id);
+      }
+    });
+    this.towerBar.appendChild(repairBtn);
+
+    // Restock button (per-tower or multi)
+    const restockBtn = document.createElement('button');
+    restockBtn.id = 'restock-btn';
+    restockBtn.className = 'action-btn';
+    restockBtn.textContent = 'Restock';
+    restockBtn.style.display = 'none';
+    restockBtn.addEventListener('click', () => {
+      for (const id of this.gameClient.clientState.selectedTowerIds) {
+        this.gameClient.restockTower(id);
+      }
+    });
+    this.towerBar.appendChild(restockBtn);
   }
 
   private showLobby(currentCredits: number): void {

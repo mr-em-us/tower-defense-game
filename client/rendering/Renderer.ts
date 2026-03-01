@@ -1,7 +1,7 @@
 import {
   GameState, GamePhase, PlayerSide, TowerType, CellType, GridCell,
 } from '../../shared/types/game.types.js';
-import { GRID, VISUAL, TOWER_STATS, SELL_REFUND_RATIO, CENTER_SPAWN, PRICE_ESCALATION } from '../../shared/types/constants.js';
+import { GRID, VISUAL, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, CENTER_SPAWN, PRICE_ESCALATION } from '../../shared/types/constants.js';
 import { findPath } from '../../shared/logic/pathfinding.js';
 import { TOWER_CHARS, getEnemyChar } from './AsciiArt.js';
 import { GameClient } from '../game/GameClient.js';
@@ -23,6 +23,7 @@ export class Renderer {
     const W = GRID.WIDTH * GRID.CELL_SIZE;
     const H = GRID.HEIGHT * GRID.CELL_SIZE;
 
+    // Clear entire canvas (before zoom)
     ctx.fillStyle = VISUAL.BG_COLOR;
     ctx.fillRect(0, 0, W, H);
 
@@ -31,6 +32,12 @@ export class Renderer {
       return;
     }
 
+    // --- Game world (zoomed) ---
+    const { zoom, panOffset } = this.gameClient.clientState;
+    ctx.save();
+    ctx.translate(panOffset.x, panOffset.y);
+    ctx.scale(zoom, zoom);
+
     this.drawGrid(state);
     this.drawPathPreview(state);
     this.drawTowers(state);
@@ -38,6 +45,12 @@ export class Renderer {
     this.drawProjectiles(state);
     this.drawShellParticles();
     this.drawHoverPreview(state);
+    this.drawSelectedTowerRange(state);
+    this.drawBrushPreview(state);
+
+    ctx.restore();
+
+    // --- HUD overlays (not zoomed, fixed to screen) ---
     this.drawSelectedTowerInfo(state);
     this.drawAmmoBar(state);
     this.drawWaveProgress(state);
@@ -142,13 +155,21 @@ export class Renderer {
     const ctx = this.ctx;
     const cs = GRID.CELL_SIZE;
     const playerId = this.gameClient.getPlayerId();
+    const selectedIds = this.gameClient.clientState.selectedTowerIds;
 
     for (const tower of Object.values(state.towers)) {
       const cx = tower.position.x * cs + cs / 2;
       const cy = tower.position.y * cs + cs / 2;
 
       const isOwn = tower.ownerId === playerId;
-      ctx.fillStyle = isOwn ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 200, 200, 0.1)';
+      const isSelected = selectedIds.includes(tower.id);
+
+      // Background highlight
+      if (isSelected) {
+        ctx.fillStyle = 'rgba(74, 222, 128, 0.2)';
+      } else {
+        ctx.fillStyle = isOwn ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 200, 200, 0.1)';
+      }
       ctx.fillRect(tower.position.x * cs + 1, tower.position.y * cs + 1, cs - 2, cs - 2);
 
       // Tower character - dim if out of ammo
@@ -181,7 +202,7 @@ export class Renderer {
         ctx.fillRect(barX, barY, barW * hpRatio, barH);
       }
 
-      // Ammo dots (left side of tower) - small dots showing remaining ammo
+      // Ammo count (left side of tower during combat)
       if (isOwn && state.phase === GamePhase.COMBAT) {
         const ammoRatio = tower.ammo / tower.maxAmmo;
         const dotY = tower.position.y * cs + 2;
@@ -191,15 +212,6 @@ export class Renderer {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillText(`${tower.ammo}`, dotX, dotY);
-      }
-
-      // Range circle when targeting
-      if (tower.targetId && state.phase === GamePhase.COMBAT) {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.lineWidth = 0.5;
-        ctx.beginPath();
-        ctx.arc(cx, cy, tower.range * cs, 0, Math.PI * 2);
-        ctx.stroke();
       }
     }
   }
@@ -268,11 +280,13 @@ export class Renderer {
     const W = GRID.WIDTH * cs;
     const side = this.gameClient.getPlayerSide();
 
-    const killed = state.waveEnemiesKilled;
-    const total = state.waveEnemiesTotal;
-    const alive = Object.keys(state.enemies).length;
+    // Per-player stats: filter enemies targeting this player's side
+    const mySide = side ?? PlayerSide.LEFT;
+    const total = state.waveEnemiesTotal; // each queue entry spawns one per side
+    const alive = Object.values(state.enemies).filter(e => e.targetSide === mySide).length;
     const remaining = state.waveEnemiesRemaining;
-    const progress = killed / total;
+    const cleared = Math.max(0, total - alive - remaining);
+    const progress = total > 0 ? cleared / total : 0;
 
     // Position on the player's side, below the ammo bar
     const barW = 160;
@@ -297,7 +311,7 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(
-      `DEFEATED ${killed}/${total}  ALIVE ${alive}  QUEUE ${remaining}`,
+      `CLEARED ${cleared}/${total}  ALIVE ${alive}  QUEUE ${remaining}`,
       barX + barW / 2,
       barY + barH + 2,
     );
@@ -355,84 +369,218 @@ export class Renderer {
   // --- Hover preview ---
 
   private drawHoverPreview(state: GameState): void {
-    const cell = this.gameClient.clientState.hoveredCell;
-    const towerType = this.gameClient.clientState.selectedTowerType;
+    const cs = this.gameClient.clientState;
+    const cell = cs.hoveredCell;
 
-    if (!cell || !towerType || state.phase !== GamePhase.BUILD) return;
+    // Tower placement preview (only during build with place tool)
+    if (cell && cs.selectedTowerType && cs.activeTool === 'place' && state.phase === GamePhase.BUILD) {
+      const cellSize = GRID.CELL_SIZE;
+      const canPlace = this.gameClient.canPlaceAt(cell);
+      const ctx = this.ctx;
 
-    const cs = GRID.CELL_SIZE;
-    const canPlace = this.gameClient.canPlaceAt(cell);
+      ctx.fillStyle = canPlace ? 'rgba(74, 222, 128, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+      ctx.fillRect(cell.x * cellSize, cell.y * cellSize, cellSize, cellSize);
+
+      ctx.fillStyle = canPlace ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 100, 100, 0.5)';
+      ctx.font = `bold ${cellSize - 4}px ${VISUAL.FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(TOWER_CHARS[cs.selectedTowerType], cell.x * cellSize + cellSize / 2, cell.y * cellSize + cellSize / 2);
+
+      if (canPlace) {
+        const stats = TOWER_STATS[cs.selectedTowerType];
+        ctx.strokeStyle = 'rgba(74, 222, 128, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cell.x * cellSize + cellSize / 2, cell.y * cellSize + cellSize / 2, stats.range * cellSize, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // --- Brush preview circle (drawn in world space, zoomed) ---
+
+  private drawBrushPreview(state: GameState): void {
+    const cs = this.gameClient.clientState;
+    if (cs.activeTool !== 'brush') return;
+    if (state.phase !== GamePhase.BUILD && state.phase !== GamePhase.COMBAT) return;
+
+    const cell = cs.hoveredCell;
+    if (!cell) return;
+
     const ctx = this.ctx;
+    const cellSize = GRID.CELL_SIZE;
+    const centerX = cell.x * cellSize + cellSize / 2;
+    const centerY = cell.y * cellSize + cellSize / 2;
+    const radius = cs.brushRadius * cellSize;
 
-    ctx.fillStyle = canPlace ? 'rgba(74, 222, 128, 0.2)' : 'rgba(239, 68, 68, 0.2)';
-    ctx.fillRect(cell.x * cs, cell.y * cs, cs, cs);
+    // Check if any own towers are in the brush radius
+    const playerId = this.gameClient.getPlayerId();
+    let hasTowersInRange = false;
+    for (const tower of Object.values(state.towers)) {
+      if (tower.ownerId !== playerId) continue;
+      const dx = tower.position.x - cell.x;
+      const dy = tower.position.y - cell.y;
+      if (Math.sqrt(dx * dx + dy * dy) <= cs.brushRadius) {
+        if (tower.health < tower.maxHealth || tower.ammo < tower.maxAmmo) {
+          hasTowersInRange = true;
+          break;
+        }
+      }
+    }
 
-    ctx.fillStyle = canPlace ? 'rgba(255, 255, 255, 0.5)' : 'rgba(255, 100, 100, 0.5)';
-    ctx.font = `bold ${cs - 4}px ${VISUAL.FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(TOWER_CHARS[towerType], cell.x * cs + cs / 2, cell.y * cs + cs / 2);
+    // Draw circle
+    ctx.strokeStyle = hasTowersInRange ? 'rgba(74, 222, 128, 0.5)' : 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
-    if (canPlace) {
-      const stats = TOWER_STATS[towerType];
-      ctx.strokeStyle = 'rgba(74, 222, 128, 0.3)';
-      ctx.lineWidth = 1;
+    // Fill
+    ctx.fillStyle = hasTowersInRange ? 'rgba(74, 222, 128, 0.05)' : 'rgba(255, 255, 255, 0.02)';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // --- Selected tower range (drawn in world space, zoomed) ---
+
+  private drawSelectedTowerRange(state: GameState): void {
+    const selectedIds = this.gameClient.clientState.selectedTowerIds;
+    if (selectedIds.length === 0) return;
+
+    const ctx = this.ctx;
+    const cs = GRID.CELL_SIZE;
+
+    for (const towerId of selectedIds) {
+      const tower = state.towers[towerId];
+      if (!tower) continue;
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(cell.x * cs + cs / 2, cell.y * cs + cs / 2, stats.range * cs, 0, Math.PI * 2);
+      ctx.arc(
+        tower.position.x * cs + cs / 2,
+        tower.position.y * cs + cs / 2,
+        tower.range * cs, 0, Math.PI * 2,
+      );
       ctx.stroke();
     }
   }
 
-  // --- Selected tower info ---
+  // --- Selected tower info (drawn in screen space, not zoomed) ---
 
   private drawSelectedTowerInfo(state: GameState): void {
-    const towerId = this.gameClient.clientState.selectedTowerId;
-    if (!towerId) return;
-
-    const tower = state.towers[towerId];
-    if (!tower) return;
+    const selectedIds = this.gameClient.clientState.selectedTowerIds;
+    if (selectedIds.length === 0) return;
 
     const ctx = this.ctx;
     const cs = GRID.CELL_SIZE;
 
-    // Range circle
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(
-      tower.position.x * cs + cs / 2,
-      tower.position.y * cs + cs / 2,
-      tower.range * cs, 0, Math.PI * 2,
-    );
-    ctx.stroke();
+    if (selectedIds.length === 1) {
+      // Single tower info panel
+      const tower = state.towers[selectedIds[0]];
+      if (!tower) return;
 
-    // Info panel
-    const stats = TOWER_STATS[tower.type];
-    const baseUpgradeCost = Math.round(stats.cost * stats.upgradeCostMultiplier * tower.level);
-    const upgradeCost = tower.type !== TowerType.BASIC
-      ? Math.round(baseUpgradeCost * (1 + (state.globalPurchaseCounts[tower.type] ?? 0) * PRICE_ESCALATION))
-      : baseUpgradeCost;
-    let totalInvested = stats.cost;
-    for (let lvl = 1; lvl < tower.level; lvl++) {
-      totalInvested += Math.round(stats.cost * stats.upgradeCostMultiplier * lvl);
+      const stats = TOWER_STATS[tower.type];
+      const baseUpgradeCost = Math.round(stats.cost * stats.upgradeCostMultiplier * tower.level);
+      const upgradeCost = tower.type !== TowerType.BASIC
+        ? Math.round(baseUpgradeCost * (1 + (state.globalPurchaseCounts[tower.type] ?? 0) * PRICE_ESCALATION))
+        : baseUpgradeCost;
+      let totalInvested = stats.cost;
+      for (let lvl = 1; lvl < tower.level; lvl++) {
+        totalInvested += Math.round(stats.cost * stats.upgradeCostMultiplier * lvl);
+      }
+      const sellValue = Math.round(totalInvested * SELL_REFUND_RATIO);
+
+      const hasDamage = tower.health < tower.maxHealth;
+      const needsAmmo = tower.ammo < tower.maxAmmo;
+      let lines = 6;
+      if (hasDamage) lines++;
+      if (needsAmmo) lines++;
+      const panelH = 16 * lines + 4;
+      const panelX = 10;
+      const panelY = GRID.HEIGHT * cs - panelH - 10;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(panelX, panelY, 240, panelH);
+
+      ctx.fillStyle = VISUAL.FG_COLOR;
+      ctx.font = `13px ${VISUAL.FONT}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+
+      let y = panelY + 6;
+      ctx.fillText(`Lvl ${tower.level} ${tower.type}`, panelX + 8, y); y += 16;
+      ctx.fillText(`DMG: ${tower.damage}  RNG: ${tower.range}`, panelX + 8, y); y += 16;
+      ctx.fillText(`HP: ${Math.ceil(tower.health)}/${tower.maxHealth}  AMMO: ${tower.ammo}/${tower.maxAmmo}`, panelX + 8, y); y += 16;
+      ctx.fillText(`Income: +${stats.incomePerTurn}c  Maint: -${stats.maintenancePerTurn}c`, panelX + 8, y); y += 16;
+      ctx.fillText(`Upgrade: ${upgradeCost}c  Sell: ${sellValue}c`, panelX + 8, y); y += 16;
+      ctx.fillText(`Ammo cost: ${stats.ammoCostPerRound}c/round`, panelX + 8, y); y += 16;
+
+      if (hasDamage) {
+        const damageRatio = 1 - tower.health / tower.maxHealth;
+        const repairCost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+        ctx.fillStyle = '#FBBF24';
+        ctx.fillText(`Repair: ${repairCost}c`, panelX + 8, y); y += 16;
+      }
+
+      if (needsAmmo) {
+        const restockCost = Math.round((tower.maxAmmo - tower.ammo) * stats.ammoCostPerRound);
+        ctx.fillStyle = '#60A5FA';
+        ctx.fillText(`Restock: ${restockCost}c`, panelX + 8, y);
+      }
+    } else {
+      // Multi-select summary panel
+      const towers = selectedIds.map(id => state.towers[id]).filter(Boolean);
+      if (towers.length === 0) return;
+
+      let totalRepairCost = 0;
+      let totalRestockCost = 0;
+      let totalSellValue = 0;
+
+      for (const t of towers) {
+        const stats = TOWER_STATS[t.type];
+        // Repair cost
+        if (t.health < t.maxHealth) {
+          const damageRatio = 1 - t.health / t.maxHealth;
+          totalRepairCost += Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+        }
+        // Restock cost
+        if (t.ammo < t.maxAmmo) {
+          totalRestockCost += Math.round((t.maxAmmo - t.ammo) * stats.ammoCostPerRound);
+        }
+        // Sell value
+        let invested = stats.cost;
+        for (let lvl = 1; lvl < t.level; lvl++) {
+          invested += Math.round(stats.cost * stats.upgradeCostMultiplier * lvl);
+        }
+        totalSellValue += Math.round(invested * SELL_REFUND_RATIO);
+      }
+
+      const panelH = 68;
+      const panelX = 10;
+      const panelY = GRID.HEIGHT * cs - panelH - 10;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(panelX, panelY, 240, panelH);
+
+      ctx.fillStyle = VISUAL.FG_COLOR;
+      ctx.font = `13px ${VISUAL.FONT}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+
+      ctx.fillText(`${towers.length} towers selected`, panelX + 8, panelY + 6);
+      ctx.fillText(`Sell value: ${totalSellValue}c`, panelX + 8, panelY + 22);
+      if (totalRepairCost > 0) {
+        ctx.fillStyle = '#FBBF24';
+        ctx.fillText(`Total repair: ${totalRepairCost}c`, panelX + 8, panelY + 38);
+      }
+      if (totalRestockCost > 0) {
+        ctx.fillStyle = '#60A5FA';
+        ctx.fillText(`Total restock: ${totalRestockCost}c`, panelX + 8, panelY + 54);
+      }
     }
-    const sellValue = Math.round(totalInvested * SELL_REFUND_RATIO);
-
-    const panelX = 10;
-    const panelY = GRID.HEIGHT * cs - 110;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(panelX, panelY, 220, 100);
-
-    ctx.fillStyle = VISUAL.FG_COLOR;
-    ctx.font = `13px ${VISUAL.FONT}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`Lvl ${tower.level} ${tower.type}`, panelX + 8, panelY + 6);
-    ctx.fillText(`DMG: ${tower.damage}  RNG: ${tower.range}`, panelX + 8, panelY + 22);
-    ctx.fillText(`HP: ${Math.ceil(tower.health)}/${tower.maxHealth}  AMMO: ${tower.ammo}/${tower.maxAmmo}`, panelX + 8, panelY + 38);
-    ctx.fillText(`Income: +${stats.incomePerTurn}c  Maint: -${stats.maintenancePerTurn}c`, panelX + 8, panelY + 54);
-    ctx.fillText(`Upgrade: ${upgradeCost}c  Sell: ${sellValue}c`, panelX + 8, panelY + 70);
-    ctx.fillText(`Ammo cost: ${stats.ammoCostPerRound}c/round`, panelX + 8, panelY + 86);
   }
 
   // --- Error message ---

@@ -4,7 +4,7 @@ import {
   GameState, GamePhase, GameMode, Player, PlayerSide,
   CellType, TowerType, Tower,
 } from '../../shared/types/game.types.js';
-import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, PRICE_ESCALATION } from '../../shared/types/constants.js';
+import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION } from '../../shared/types/constants.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { ClientMessage, ServerMessage } from '../../shared/types/network.types.js';
 import { PhaseSystem } from '../systems/PhaseSystem.js';
@@ -209,6 +209,18 @@ export class GameRoom {
       case 'SELL_TOWER':
         this.handleSellTower(playerId, msg.towerId);
         break;
+      case 'REPAIR_TOWER':
+        this.handleRepairTower(playerId, msg.towerId);
+        break;
+      case 'RESTOCK_TOWER':
+        this.handleRestockTower(playerId, msg.towerId);
+        break;
+      case 'RESTOCK_ALL':
+        this.handleRestockAll(playerId);
+        break;
+      case 'BRUSH_REPAIR':
+        this.handleBrushRepair(playerId, msg.center, msg.radius);
+        break;
       case 'READY_FOR_WAVE':
         this.phaseSystem.handlePlayerReady(this.state, playerId);
         break;
@@ -350,6 +362,152 @@ export class GameRoom {
 
     this.state.grid.cells[tower.position.y][tower.position.x] = CellType.EMPTY;
     delete this.state.towers[towerId];
+  }
+
+  private handleRepairTower(playerId: string, towerId: string): void {
+    const player = this.state.players[playerId];
+    const tower = this.state.towers[towerId];
+    if (!player || !tower) return;
+
+    if (tower.ownerId !== playerId) {
+      this.sendTo(playerId, { type: 'ACTION_FAILED', reason: 'Not your tower' });
+      return;
+    }
+
+    if (this.state.phase !== GamePhase.BUILD && this.state.phase !== GamePhase.COMBAT) {
+      this.sendTo(playerId, { type: 'ACTION_FAILED', reason: 'Cannot repair now' });
+      return;
+    }
+
+    if (tower.health >= tower.maxHealth) {
+      this.sendTo(playerId, { type: 'ACTION_FAILED', reason: 'Tower is already at full health' });
+      return;
+    }
+
+    const stats = TOWER_STATS[tower.type];
+    const damageRatio = 1 - tower.health / tower.maxHealth;
+    const cost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+
+    if (player.credits < cost) {
+      this.sendTo(playerId, { type: 'ACTION_FAILED', reason: 'Not enough credits' });
+      return;
+    }
+
+    player.credits -= cost;
+    tower.health = tower.maxHealth;
+  }
+
+  private handleRestockTower(playerId: string, towerId: string): void {
+    const player = this.state.players[playerId];
+    const tower = this.state.towers[towerId];
+    if (!player || !tower) return;
+
+    if (tower.ownerId !== playerId) {
+      this.sendTo(playerId, { type: 'ACTION_FAILED', reason: 'Not your tower' });
+      return;
+    }
+
+    if (tower.ammo >= tower.maxAmmo) {
+      this.sendTo(playerId, { type: 'ACTION_FAILED', reason: 'Ammo already full' });
+      return;
+    }
+
+    const stats = TOWER_STATS[tower.type];
+    const ammoNeeded = tower.maxAmmo - tower.ammo;
+    const fullCost = ammoNeeded * stats.ammoCostPerRound;
+
+    if (player.credits >= fullCost) {
+      player.credits -= fullCost;
+      tower.ammo = tower.maxAmmo;
+    } else {
+      // Partial restock — buy as much as affordable
+      const ammoToBuy = Math.floor(player.credits / stats.ammoCostPerRound);
+      if (ammoToBuy <= 0) {
+        this.sendTo(playerId, { type: 'ACTION_FAILED', reason: 'Not enough credits' });
+        return;
+      }
+      player.credits -= ammoToBuy * stats.ammoCostPerRound;
+      tower.ammo += ammoToBuy;
+    }
+  }
+
+  private handleRestockAll(playerId: string): void {
+    const player = this.state.players[playerId];
+    if (!player) return;
+
+    for (const tower of Object.values(this.state.towers)) {
+      if (tower.ownerId !== playerId || tower.ammo >= tower.maxAmmo) continue;
+
+      const stats = TOWER_STATS[tower.type];
+      const ammoNeeded = tower.maxAmmo - tower.ammo;
+      const fullCost = ammoNeeded * stats.ammoCostPerRound;
+
+      if (player.credits >= fullCost) {
+        player.credits -= fullCost;
+        tower.ammo = tower.maxAmmo;
+      } else {
+        const ammoToBuy = Math.floor(player.credits / stats.ammoCostPerRound);
+        if (ammoToBuy > 0) {
+          player.credits -= ammoToBuy * stats.ammoCostPerRound;
+          tower.ammo += ammoToBuy;
+        }
+        break; // Out of credits
+      }
+    }
+  }
+
+  private handleBrushRepair(playerId: string, center: { x: number; y: number }, radius: number): void {
+    const player = this.state.players[playerId];
+    if (!player) return;
+    if (this.state.phase !== GamePhase.BUILD && this.state.phase !== GamePhase.COMBAT) return;
+
+    // Sanitize
+    if (!Number.isInteger(center.x) || !Number.isInteger(center.y)) return;
+    if (typeof radius !== 'number' || radius < 1 || radius > 10) return;
+
+    // Gather towers in radius, sorted by distance from center
+    const towersInRange: { tower: Tower; dist: number }[] = [];
+    for (const tower of Object.values(this.state.towers)) {
+      if (tower.ownerId !== playerId) continue;
+      const dx = tower.position.x - center.x;
+      const dy = tower.position.y - center.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= radius) {
+        towersInRange.push({ tower, dist });
+      }
+    }
+    towersInRange.sort((a, b) => a.dist - b.dist);
+
+    for (const { tower } of towersInRange) {
+      if (player.credits <= 0) break;
+      const stats = TOWER_STATS[tower.type];
+
+      // Repair if damaged
+      if (tower.health < tower.maxHealth) {
+        const damageRatio = 1 - tower.health / tower.maxHealth;
+        const repairCost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+        if (player.credits >= repairCost) {
+          player.credits -= repairCost;
+          tower.health = tower.maxHealth;
+        }
+      }
+
+      // Restock if low on ammo
+      if (tower.ammo < tower.maxAmmo) {
+        const ammoNeeded = tower.maxAmmo - tower.ammo;
+        const fullCost = ammoNeeded * stats.ammoCostPerRound;
+        if (player.credits >= fullCost) {
+          player.credits -= fullCost;
+          tower.ammo = tower.maxAmmo;
+        } else {
+          const ammoToBuy = Math.floor(player.credits / stats.ammoCostPerRound);
+          if (ammoToBuy > 0) {
+            player.credits -= ammoToBuy * stats.ammoCostPerRound;
+            tower.ammo += ammoToBuy;
+          }
+        }
+      }
+    }
   }
 
   // --- Dynamic pricing ---

@@ -1,16 +1,20 @@
 import { GameState, GameMode, PlayerSide, TowerType, GridCell, GamePhase } from '../../shared/types/game.types.js';
 import { ServerMessage } from '../../shared/types/network.types.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
-import { TOWER_STATS, PRICE_ESCALATION } from '../../shared/types/constants.js';
+import { TOWER_STATS, PRICE_ESCALATION, REPAIR_COST_RATIO } from '../../shared/types/constants.js';
 import { NetworkClient } from '../network/NetworkClient.js';
 import { SoundManager } from '../audio/SoundManager.js';
 
 export interface ClientState {
   selectedTowerType: TowerType | null;
   hoveredCell: GridCell | null;
-  selectedTowerId: string | null;
+  selectedTowerIds: string[];
   errorMessage: string | null;
   errorTimer: number;
+  zoom: number;
+  panOffset: { x: number; y: number };
+  activeTool: 'place' | 'brush';
+  brushRadius: number;
 }
 
 // Shell casing particle for ammo animation
@@ -34,9 +38,13 @@ export class GameClient {
   readonly clientState: ClientState = {
     selectedTowerType: TowerType.BASIC,
     hoveredCell: null,
-    selectedTowerId: null,
+    selectedTowerIds: [],
     errorMessage: null,
     errorTimer: 0,
+    zoom: 1.0,
+    panOffset: { x: 0, y: 0 },
+    activeTool: 'place',
+    brushRadius: 3,
   };
 
   constructor(network: NetworkClient) {
@@ -160,6 +168,43 @@ export class GameClient {
     this.network.send({ type: 'SELL_TOWER', towerId });
   }
 
+  repairTower(towerId: string): void {
+    this.network.send({ type: 'REPAIR_TOWER', towerId });
+  }
+
+  restockTower(towerId: string): void {
+    this.network.send({ type: 'RESTOCK_TOWER', towerId });
+  }
+
+  restockAll(): void {
+    this.network.send({ type: 'RESTOCK_ALL' });
+  }
+
+  brushRepairAndRestock(centerX: number, centerY: number): void {
+    this.network.send({
+      type: 'BRUSH_REPAIR',
+      center: { x: centerX, y: centerY },
+      radius: this.clientState.brushRadius,
+    });
+  }
+
+  getRestockCost(towerId: string): number | null {
+    if (!this.gameState) return null;
+    const tower = this.gameState.towers[towerId];
+    if (!tower || tower.ammo >= tower.maxAmmo) return null;
+    const stats = TOWER_STATS[tower.type];
+    return Math.round((tower.maxAmmo - tower.ammo) * stats.ammoCostPerRound);
+  }
+
+  getRepairCost(towerId: string): number | null {
+    if (!this.gameState) return null;
+    const tower = this.gameState.towers[towerId];
+    if (!tower || tower.health >= tower.maxHealth) return null;
+    const stats = TOWER_STATS[tower.type];
+    const damageRatio = 1 - tower.health / tower.maxHealth;
+    return Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+  }
+
   readyForWave(): void {
     this.network.send({ type: 'READY_FOR_WAVE' });
   }
@@ -170,7 +215,8 @@ export class GameClient {
 
   selectTowerType(type: TowerType): void {
     this.clientState.selectedTowerType = type;
-    this.clientState.selectedTowerId = null;
+    this.clientState.selectedTowerIds = [];
+    this.clientState.activeTool = 'place';
   }
 
   canPlaceAt(cell: GridCell): boolean {

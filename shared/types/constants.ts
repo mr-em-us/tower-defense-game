@@ -129,6 +129,8 @@ export const PROJECTILE_SPEED = 12;
 
 export const SELL_REFUND_RATIO = 0.6;
 
+export const REPAIR_COST_RATIO = 0.5;
+
 export const VISUAL = {
   BG_COLOR: '#007BE5',
   FG_COLOR: '#FFFFFF',

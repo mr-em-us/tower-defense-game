@@ -6,6 +6,10 @@ export type ClientMessage =
   | { type: 'PLACE_TOWER'; position: GridCell; towerType: TowerType }
   | { type: 'UPGRADE_TOWER'; towerId: string }
   | { type: 'SELL_TOWER'; towerId: string }
+  | { type: 'REPAIR_TOWER'; towerId: string }
+  | { type: 'RESTOCK_TOWER'; towerId: string }
+  | { type: 'RESTOCK_ALL' }
+  | { type: 'BRUSH_REPAIR'; center: GridCell; radius: number }
   | { type: 'READY_FOR_WAVE' }
   | { type: 'SET_STARTING_CREDITS'; credits: number };
 

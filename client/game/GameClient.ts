@@ -1,9 +1,11 @@
-import { GameState, GameMode, PlayerSide, TowerType, GridCell, GamePhase } from '../../shared/types/game.types.js';
+import { GameState, GameMode, GameSettings, PlayerSide, TowerType, GridCell, GamePhase } from '../../shared/types/game.types.js';
 import { ServerMessage } from '../../shared/types/network.types.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { TOWER_STATS, PRICE_ESCALATION, REPAIR_COST_RATIO } from '../../shared/types/constants.js';
 import { NetworkClient } from '../network/NetworkClient.js';
 import { SoundManager } from '../audio/SoundManager.js';
+import { StatsTracker } from './StatsTracker.js';
+import { ChartsOverlay } from '../ui/ChartsOverlay.js';
 
 export interface ClientState {
   selectedTowerType: TowerType | null;
@@ -34,6 +36,8 @@ export class GameClient {
   private network: NetworkClient;
   readonly sound = new SoundManager();
   readonly shellParticles: ShellParticle[] = [];
+  readonly statsTracker = new StatsTracker();
+  readonly chartsOverlay: ChartsOverlay;
 
   readonly clientState: ClientState = {
     selectedTowerType: TowerType.BASIC,
@@ -49,11 +53,12 @@ export class GameClient {
 
   constructor(network: NetworkClient) {
     this.network = network;
+    this.chartsOverlay = new ChartsOverlay(this, this.statsTracker);
     network.onMessage((msg) => this.handleMessage(msg));
   }
 
-  joinGame(gameMode: GameMode, playerName = 'Player'): void {
-    this.network.send({ type: 'JOIN_GAME', playerName, gameMode });
+  joinGame(gameMode: GameMode, playerName = 'Player', settings?: GameSettings): void {
+    this.network.send({ type: 'JOIN_GAME', playerName, gameMode, settings });
   }
 
   getState(): GameState | null {
@@ -115,6 +120,10 @@ export class GameClient {
   }
 
   update(dt: number): void {
+    if (this.gameState) {
+      this.statsTracker.recordTick(this.gameState, dt);
+    }
+
     if (this.clientState.errorTimer > 0) {
       this.clientState.errorTimer -= dt;
       if (this.clientState.errorTimer <= 0) {

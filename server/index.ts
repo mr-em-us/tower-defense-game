@@ -71,6 +71,9 @@ wss.on('connection', (ws: WebSocket) => {
     if (msg.type === 'JOIN_GAME') {
       const gameMode = msg.gameMode || GameMode.MULTI;
       room = getOrCreateRoom(gameMode);
+      if (msg.settings) {
+        room.applySettings(msg.settings);
+      }
       const result = room.addPlayer(playerId, ws);
 
       if (result) {

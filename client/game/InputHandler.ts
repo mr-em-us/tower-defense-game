@@ -1,5 +1,5 @@
 import { GRID } from '../../shared/types/constants.js';
-import { GamePhase } from '../../shared/types/game.types.js';
+import { GamePhase, PlayerSide } from '../../shared/types/game.types.js';
 import { GameClient } from './GameClient.js';
 
 export class InputHandler {
@@ -194,10 +194,37 @@ export class InputHandler {
     this.gameClient.brushRepairAndRestock(cell.x, cell.y);
   }
 
+  private pixelToCanvas(px: number, py: number): { x: number; y: number } {
+    const scaleX = this.canvas.width / this.canvasRect.width;
+    const scaleY = this.canvas.height / this.canvasRect.height;
+    return {
+      x: (px - this.canvasRect.left) * scaleX,
+      y: (py - this.canvasRect.top) * scaleY,
+    };
+  }
+
   private onClick(e: MouseEvent): void {
     const state = this.gameClient.getState();
     if (!state) return;
     if (state.phase !== GamePhase.BUILD && state.phase !== GamePhase.COMBAT) return;
+
+    // Check chart widget click
+    const charts = this.gameClient.chartsOverlay;
+    if (charts.isVisible()) {
+      const canvasCoord = this.pixelToCanvas(e.clientX, e.clientY);
+      const side = this.gameClient.getPlayerSide();
+      const W = GRID.WIDTH * GRID.CELL_SIZE;
+      const wx = side === PlayerSide.RIGHT ? W - 160 - 12 : 12;
+      const wy = 52;
+      const localX = canvasCoord.x - wx;
+      const localY = canvasCoord.y - wy;
+      if (charts.hitTestWidget(localX, localY)) {
+        if (charts.hitTestTab(localX, localY)) {
+          charts.cycleTab();
+        }
+        return; // click inside widget, don't pass through
+      }
+    }
 
     const cs = this.gameClient.clientState;
 

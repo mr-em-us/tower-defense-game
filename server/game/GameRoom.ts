@@ -2,9 +2,9 @@ import { WebSocket } from 'ws';
 import { v4 as uuid } from 'uuid';
 import {
   GameState, GamePhase, GameMode, Player, PlayerSide,
-  CellType, TowerType, Tower,
+  CellType, TowerType, Tower, GameSettings,
 } from '../../shared/types/game.types.js';
-import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION } from '../../shared/types/constants.js';
+import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION, DEFAULT_GAME_SETTINGS } from '../../shared/types/constants.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { ClientMessage, ServerMessage } from '../../shared/types/network.types.js';
 import { PhaseSystem } from '../systems/PhaseSystem.js';
@@ -37,6 +37,19 @@ export class GameRoom {
     return this.state.gameMode;
   }
 
+  applySettings(settings: GameSettings): void {
+    if (this.state.phase !== GamePhase.WAITING) return;
+    // Validate
+    if (!settings || typeof settings.startingHealth !== 'number') return;
+    if (settings.startingHealth < 50 || settings.startingHealth > 5000) return;
+    if (settings.startingCredits < 50 || settings.startingCredits > 50000) return;
+    if (settings.firstWaveEnemies < 5 || settings.firstWaveEnemies > 500) return;
+    if (!Array.isArray(settings.difficultyCurve) || settings.difficultyCurve.length !== 20) return;
+    if (settings.difficultyCurve.some((v: number) => typeof v !== 'number' || v < 0.1 || v > 20)) return;
+
+    this.state.settings = { ...settings, difficultyCurve: [...settings.difficultyCurve] };
+  }
+
   private createInitialState(gameMode: GameMode): GameState {
     const cells: CellType[][] = [];
     for (let y = 0; y < GRID.HEIGHT; y++) {
@@ -59,6 +72,7 @@ export class GameRoom {
       waveEnemiesRemaining: 0,
       waveEnemiesTotal: 0,
       waveEnemiesKilled: 0,
+      settings: { ...DEFAULT_GAME_SETTINGS },
     };
   }
 
@@ -94,9 +108,9 @@ export class GameRoom {
     const player: Player = {
       id: newPlayerId,
       side,
-      credits: this.state.startingCredits,
-      health: GAME.PLAYER_MAX_HEALTH,
-      maxHealth: GAME.PLAYER_MAX_HEALTH,
+      credits: this.state.settings.startingCredits,
+      health: this.state.settings.startingHealth,
+      maxHealth: this.state.settings.startingHealth,
       isReady: false,
     };
 
@@ -227,6 +241,9 @@ export class GameRoom {
       case 'SET_STARTING_CREDITS':
         this.handleSetStartingCredits(playerId, msg.credits);
         break;
+      case 'SET_GAME_SETTINGS':
+        this.handleSetGameSettings(playerId, msg.settings);
+        break;
     }
   }
 
@@ -334,6 +351,30 @@ export class GameRoom {
       player.credits = credits;
     }
     log(`Player ${playerId} set starting credits to ${credits} in room ${this.roomId}`);
+  }
+
+  private handleSetGameSettings(playerId: string, settings: GameSettings): void {
+    if (this.state.phase !== GamePhase.WAITING) return;
+
+    // Validate settings
+    if (typeof settings.startingHealth !== 'number' || settings.startingHealth < 50 || settings.startingHealth > 5000) return;
+    if (typeof settings.startingCredits !== 'number' || settings.startingCredits < 50 || settings.startingCredits > 50000) return;
+    if (typeof settings.firstWaveEnemies !== 'number' || settings.firstWaveEnemies < 5 || settings.firstWaveEnemies > 500) return;
+    if (!Array.isArray(settings.difficultyCurve) || settings.difficultyCurve.length !== 20) return;
+    for (const val of settings.difficultyCurve) {
+      if (typeof val !== 'number' || val < 0.1 || val > 20.0) return;
+    }
+
+    this.state.settings = settings;
+
+    // Update all existing players' credits and health/maxHealth to match new settings
+    for (const player of Object.values(this.state.players)) {
+      player.credits = settings.startingCredits;
+      player.health = settings.startingHealth;
+      player.maxHealth = settings.startingHealth;
+    }
+
+    log(`Player ${playerId} updated game settings in room ${this.roomId}`);
   }
 
   private handleSellTower(playerId: string, towerId: string): void {

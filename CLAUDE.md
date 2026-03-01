@@ -58,14 +58,23 @@ TypeScript monorepo | Node.js + ws (server) | Canvas 2D + DOM (client) | esbuild
 This project uses a structured persistent memory system. Follow these protocols exactly.
 
 ### Memory file locations
-- Auto-loaded: `CLAUDE.md` (this file) + `memory/MEMORY.md` (in auto memory dir)
-- On-demand topic files (in memory dir): `architecture.md`, `decisions.md`, `economy.md`, `features.md`, `session-log.md`
-- Live session log: `memory/current-session.md` (created each session, archived on save)
+
+**Shared (git-tracked, visible to all collaborators):**
+- `CLAUDE.md` (this file) — project reference, conventions, protocols
+- `.claude/docs/architecture.md` — server/client data flow, system pipeline, network protocol
+- `.claude/docs/decisions.md` — design decisions with rationale (ADR log)
+- `.claude/docs/economy.md` — tower/enemy stats, pricing formulas, wave scaling
+- `.claude/docs/features.md` — feature inventory with status and commit refs
+
+**Personal (local auto memory dir, per-developer):**
+- `memory/MEMORY.md` — dynamic state, session history, known issues, next steps
+- `memory/current-session.md` — live log of current session
+- `memory/session-log.md` — archived session history
 
 ### Session Start (do this automatically at the beginning of every new session)
 1. CLAUDE.md and MEMORY.md auto-load — read them
 2. Read the "Last Save" line from MEMORY.md to get the previous session's save timestamp
-3. Based on the user's task, read relevant topic files (e.g., economy.md for balance work, architecture.md for structural changes)
+3. Based on the user's task, read relevant shared docs (e.g., `.claude/docs/economy.md` for balance work, `.claude/docs/architecture.md` for structural changes)
 4. Run `git status --short` and `git log --oneline -3` to check for any changes since last save
 5. Create a fresh `memory/current-session.md` with today's date as the header
 6. Output confirmation: `Loaded - [last save timestamp from MEMORY.md]`
@@ -90,7 +99,7 @@ Steps:
    - Update "Last Save" timestamp
    - If >5 session entries, move oldest to `session-log.md`
    - Verify file stays under 190 lines
-3. Update relevant topic files:
+3. Update relevant shared docs (in `.claude/docs/`):
    - Design decision made → append to `decisions.md`
    - Feature completed/started → update `features.md`
    - Balance numbers changed → update `economy.md`
@@ -98,6 +107,7 @@ Steps:
 4. Archive `current-session.md` content to `session-log.md` (prepend as newest entry)
 5. Git operations:
    - `git add` specific changed files (never `git add -A`)
+   - Include any modified `.claude/docs/*.md` files in the commit
    - `git commit` with descriptive message
    - Do NOT push unless user explicitly asks
 6. Get actual system time: `date '+%Y-%m-%d - %I:%M %p'` (system clock is PST)

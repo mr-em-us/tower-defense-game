@@ -1,4 +1,4 @@
-import { GameState, GamePhase, GameMode, Enemy, EnemyType, PlayerSide } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, GameMode, Enemy, EnemyType, PlayerSide, GameSettings } from '../../shared/types/game.types.js';
 import { ENEMY_STATS } from '../../shared/types/constants.js';
 import { findPath } from '../../shared/logic/pathfinding.js';
 import { v4 as uuid } from 'uuid';
@@ -12,21 +12,37 @@ interface WaveEntry {
 // Target duration in seconds for the spawn phase of each wave
 const WAVE_SPAWN_DURATION = 45;
 
-function getWaveDefinition(waveNumber: number): WaveEntry[] {
+function getDifficultyMultiplier(waveNumber: number, curve: number[]): number {
+  // curve has 20 entries for waves 1-20
+  const idx = waveNumber - 1;
+  if (idx < 0) return curve[0];
+  if (idx < curve.length) return curve[idx];
+  // Extrapolate beyond wave 20 using the slope of the last segment
+  const lastSlope = curve[curve.length - 1] - curve[curve.length - 2];
+  return curve[curve.length - 1] + lastSlope * (idx - curve.length + 1);
+}
+
+function getWaveDefinition(waveNumber: number, settings: GameSettings): WaveEntry[] {
   const entries: { type: EnemyType; count: number }[] = [];
   const base = waveNumber;
 
-  // Basic enemies every wave
-  entries.push({ type: EnemyType.BASIC, count: (4 + base * 2) * 10 });
+  // Scale factor from settings.firstWaveEnemies relative to default of 60
+  const countScale = settings.firstWaveEnemies / 60;
+
+  // Get difficulty multiplier from curve (interpolate/extrapolate)
+  const diffMult = getDifficultyMultiplier(waveNumber, settings.difficultyCurve);
+
+  // Basic enemies every wave - scale by both countScale and diffMult
+  entries.push({ type: EnemyType.BASIC, count: Math.round((4 + base * 2) * 10 * countScale * (diffMult / getDifficultyMultiplier(1, settings.difficultyCurve))) });
 
   // Fast enemies from wave 3
   if (waveNumber >= 3) {
-    entries.push({ type: EnemyType.FAST, count: (2 + base) * 10 });
+    entries.push({ type: EnemyType.FAST, count: Math.round((2 + base) * 10 * countScale * (diffMult / getDifficultyMultiplier(1, settings.difficultyCurve))) });
   }
 
   // Tanks from wave 5
   if (waveNumber >= 5) {
-    entries.push({ type: EnemyType.TANK, count: Math.floor(base / 2) * 10 });
+    entries.push({ type: EnemyType.TANK, count: Math.round(Math.floor(base / 2) * 10 * countScale * (diffMult / getDifficultyMultiplier(1, settings.difficultyCurve))) });
   }
 
   // Boss every 10 waves
@@ -34,11 +50,8 @@ function getWaveDefinition(waveNumber: number): WaveEntry[] {
     entries.push({ type: EnemyType.BOSS, count: 10 });
   }
 
-  // Calculate total enemies, then derive a uniform interval
-  // so spawning is spread evenly across WAVE_SPAWN_DURATION
   const totalEnemies = entries.reduce((sum, e) => sum + e.count, 0);
   const interval = Math.max(0.05, WAVE_SPAWN_DURATION / totalEnemies);
-
   return entries.map(e => ({ ...e, interval }));
 }
 
@@ -78,7 +91,7 @@ export class WaveSystem {
   }
 
   private startWave(state: GameState): void {
-    const definition = getWaveDefinition(state.waveNumber);
+    const definition = getWaveDefinition(state.waveNumber, state.settings);
     this.waveQueue = [];
 
     // In single player, only spawn enemies toward the player's side
@@ -111,7 +124,7 @@ export class WaveSystem {
 
   private spawnEnemy(state: GameState, type: EnemyType, targetSide: PlayerSide): void {
     const stats = ENEMY_STATS[type];
-    const hpScale = 1 + (state.waveNumber - 1) * 0.2;
+    const hpScale = getDifficultyMultiplier(state.waveNumber, state.settings.difficultyCurve);
     const hp = Math.round(stats.health * hpScale);
 
     const path = findPath(state.grid, targetSide);

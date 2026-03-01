@@ -1,4 +1,4 @@
-import { TowerType, EnemyType } from './game.types.js';
+import { TowerType, EnemyType, GameSettings } from './game.types.js';
 
 export const GRID = {
   WIDTH: 60,
@@ -139,3 +139,15 @@ export const VISUAL = {
   FONT: '"DM Mono", "Courier New", monospace',
   DENSITY_CHARS: ' .:-=+*#%@',
 } as const;
+
+export const DEFAULT_GAME_SETTINGS: GameSettings = {
+  startingHealth: 500,
+  startingCredits: 2000,
+  firstWaveEnemies: 60,
+  difficultyCurve: [
+    1.0, 1.0, 1.1, 1.2, 1.3,
+    1.5, 1.7, 1.9, 2.1, 2.4,
+    2.7, 3.0, 3.4, 3.8, 4.2,
+    4.7, 5.2, 5.8, 6.5, 7.2,
+  ],
+};

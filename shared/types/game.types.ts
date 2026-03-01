@@ -120,4 +120,15 @@ export interface GameState {
   waveEnemiesRemaining: number;
   waveEnemiesTotal: number;
   waveEnemiesKilled: number;
+  settings: GameSettings;
+}
+
+export interface GameSettings {
+  startingHealth: number;      // default 500
+  startingCredits: number;     // default 2000
+  firstWaveEnemies: number;    // default 60 (base enemy count for wave 1)
+  // 20 difficulty multiplier values for waves 1-20.
+  // Each value scales enemy count AND hp for that wave.
+  // 1.0 = normal baseline. Beyond wave 20, extrapolate from last segment.
+  difficultyCurve: number[];
 }

@@ -2,7 +2,6 @@ import { GamePhase, GameMode, TowerType, PlayerSide } from '../../shared/types/g
 import { TOWER_STATS, SELL_REFUND_RATIO } from '../../shared/types/constants.js';
 import { TOWER_CHARS, TOWER_LABELS } from '../rendering/AsciiArt.js';
 import { GameClient } from '../game/GameClient.js';
-
 const TOWER_TYPES = [TowerType.BASIC, TowerType.SNIPER, TowerType.SPLASH, TowerType.SLOW];
 
 function span(text: string, style?: string): HTMLSpanElement {
@@ -409,6 +408,14 @@ export class HUD {
       }
     });
     this.towerBar.appendChild(restockBtn);
+
+    // Stats button
+    const statsBtn = document.createElement('button');
+    statsBtn.id = 'stats-btn';
+    statsBtn.className = 'action-btn';
+    statsBtn.textContent = 'Stats';
+    statsBtn.addEventListener('click', () => this.gameClient.chartsOverlay.toggle());
+    this.towerBar.appendChild(statsBtn);
   }
 
   private showLobby(currentCredits: number): void {

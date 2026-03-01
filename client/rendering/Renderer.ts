@@ -54,6 +54,7 @@ export class Renderer {
     this.drawSelectedTowerInfo(state);
     this.drawAmmoBar(state);
     this.drawWaveProgress(state);
+    this.drawChartWidget();
     this.drawError();
   }
 
@@ -581,6 +582,23 @@ export class Renderer {
         ctx.fillText(`Total restock: ${totalRestockCost}c`, panelX + 8, panelY + 54);
       }
     }
+  }
+
+  // --- Chart widget (below ammo/wave bars) ---
+
+  private drawChartWidget(): void {
+    const charts = this.gameClient.chartsOverlay;
+    if (!charts.isVisible()) return;
+
+    const side = this.gameClient.getPlayerSide();
+    const cs = GRID.CELL_SIZE;
+    const W = GRID.WIDTH * cs;
+    // Same X as ammo/wave bars
+    const x = side === PlayerSide.RIGHT ? W - 160 - 12 : 12;
+    // Below wave progress bar (barY=28 + barH=8 + label~12 + gap=4 = 52)
+    const y = 52;
+
+    charts.draw(this.ctx, x, y);
   }
 
   // --- Error message ---

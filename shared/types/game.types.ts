@@ -93,6 +93,8 @@ export interface Player {
   id: string;
   side: PlayerSide;
   credits: number;
+  health: number;
+  maxHealth: number;
   isReady: boolean;
 }
 

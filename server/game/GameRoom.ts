@@ -95,6 +95,8 @@ export class GameRoom {
       id: newPlayerId,
       side,
       credits: this.state.startingCredits,
+      health: GAME.PLAYER_MAX_HEALTH,
+      maxHealth: GAME.PLAYER_MAX_HEALTH,
       isReady: false,
     };
 

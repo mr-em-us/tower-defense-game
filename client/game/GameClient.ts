@@ -73,6 +73,20 @@ export class GameClient {
     return 0;
   }
 
+  getMyHealth(): { current: number; max: number } {
+    if (!this.gameState || !this.playerId) return { current: 0, max: 0 };
+    const player = this.gameState.players[this.playerId];
+    return player ? { current: player.health, max: player.maxHealth } : { current: 0, max: 0 };
+  }
+
+  getOpponentHealth(): { current: number; max: number } {
+    if (!this.gameState || !this.playerId) return { current: 0, max: 0 };
+    for (const p of Object.values(this.gameState.players)) {
+      if (p.id !== this.playerId) return { current: p.health, max: p.maxHealth };
+    }
+    return { current: 0, max: 0 };
+  }
+
   getMyTotalAmmo(): { current: number; max: number } {
     if (!this.gameState || !this.playerId) return { current: 0, max: 0 };
     let current = 0;

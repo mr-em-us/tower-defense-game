@@ -78,11 +78,11 @@ export class EnemySystem {
     }
   }
 
-  private enemyReachedGoal(state: GameState, targetSide: PlayerSide, cost: number): void {
-    // The defending player loses money equal to the enemy's credit value
+  private enemyReachedGoal(state: GameState, targetSide: PlayerSide, damage: number): void {
+    // The defending player loses HP equal to the enemy's credit value
     for (const player of Object.values(state.players)) {
       if (player.side === targetSide) {
-        player.credits -= cost;
+        player.health = Math.max(0, player.health - damage);
         break;
       }
     }

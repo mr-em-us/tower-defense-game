@@ -13,6 +13,7 @@ export const GAME = {
   BUILD_PHASE_DURATION: 30,
   STARTING_CREDITS: 2000,
   CREDITS_PER_WAVE: 50,
+  PLAYER_MAX_HEALTH: 500,
 } as const;
 
 export const TOWER_STATS: Record<TowerType, {

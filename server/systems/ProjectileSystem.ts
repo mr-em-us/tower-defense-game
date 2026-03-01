@@ -23,14 +23,14 @@ export class ProjectileSystem {
 
       if (dist < 0.3) {
         // Hit!
-        this.applyDamage(state, proj.targetId, proj.damage);
+        this.applyDamage(state, proj.targetId, proj.damage, proj.towerId);
 
         // Splash damage
         if (proj.isSplash && proj.splashRadius > 0) {
           for (const enemy of Object.values(state.enemies)) {
             if (enemy.id === proj.targetId) continue;
             if (distance(enemy.position, proj.position) <= proj.splashRadius) {
-              this.applyDamage(state, enemy.id, Math.round(proj.damage * 0.5));
+              this.applyDamage(state, enemy.id, Math.round(proj.damage * 0.5), proj.towerId);
             }
           }
         }
@@ -58,14 +58,21 @@ export class ProjectileSystem {
     }
   }
 
-  private applyDamage(state: GameState, enemyId: string, damage: number): void {
+  private applyDamage(state: GameState, enemyId: string, damage: number, towerId: string): void {
     const enemy = state.enemies[enemyId];
     if (!enemy) return;
 
     enemy.health -= damage;
 
     if (enemy.health <= 0) {
-      // No credit reward - killing enemies prevents the money loss from pass-through
+      // Award credits to the tower owner for the kill
+      const tower = state.towers[towerId];
+      if (tower) {
+        const owner = state.players[tower.ownerId];
+        if (owner) {
+          owner.credits += enemy.creditValue;
+        }
+      }
       state.waveEnemiesKilled++;
       delete state.enemies[enemyId];
     }

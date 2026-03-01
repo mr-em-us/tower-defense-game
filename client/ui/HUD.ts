@@ -52,20 +52,19 @@ export class HUD {
     }
 
     if (state.phase === GamePhase.GAME_OVER) {
-      const playerId = this.gameClient.getPlayerId();
-      const myTowers = Object.values(state.towers).filter(t => t.ownerId === playerId).length;
+      const myHp = this.gameClient.getMyHealth();
       if (state.gameMode === GameMode.SINGLE) {
         this.showOverlay(
           `GAME OVER\n` +
-          `Survived to wave ${state.waveNumber} | Towers remaining: ${myTowers}\n` +
+          `Survived to wave ${state.waveNumber} | HP: ${Math.ceil(myHp.current)}/${myHp.max}\n` +
           'Refresh to play again',
         );
       } else {
-        const oppTowers = Object.values(state.towers).filter(t => t.ownerId !== playerId).length;
-        const won = myTowers > 0 && oppTowers === 0;
+        const oppHp = this.gameClient.getOpponentHealth();
+        const won = myHp.current > 0 && oppHp.current <= 0;
         this.showOverlay(
           `${won ? 'VICTORY!' : 'DEFEAT'}\n` +
-          `Wave ${state.waveNumber} | Your towers: ${myTowers} | Opponent: ${oppTowers}\n` +
+          `Wave ${state.waveNumber} | Your HP: ${Math.ceil(myHp.current)} | Opponent HP: ${Math.ceil(oppHp.current)}\n` +
           'Refresh to play again',
         );
       }
@@ -82,8 +81,12 @@ export class HUD {
     const oppCredits = this.gameClient.getOpponentCredits();
     const side = this.gameClient.getPlayerSide();
 
+    const myHp = this.gameClient.getMyHealth();
+
     clearChildren(this.hudLeft);
     this.hudLeft.appendChild(span(side === 'LEFT' ? '< You' : 'You >'));
+    const hpColor = myHp.current > myHp.max * 0.5 ? 'color:#4ADE80' : myHp.current > myHp.max * 0.25 ? 'color:#FBBF24' : 'color:#EF4444';
+    this.hudLeft.appendChild(span(`${Math.ceil(myHp.current)}HP`, hpColor));
     this.hudLeft.appendChild(span(`${Math.floor(credits)}c`, credits > 0 ? 'color:#4ADE80' : 'color:#EF4444'));
 
     clearChildren(this.hudCenter);
@@ -97,7 +100,9 @@ export class HUD {
 
     clearChildren(this.hudRight);
     if (state.gameMode !== GameMode.SINGLE) {
-      this.hudRight.appendChild(span(`Opp: ${Math.floor(oppCredits)}c`, 'opacity:0.6'));
+      const oppHp = this.gameClient.getOpponentHealth();
+      this.hudRight.appendChild(span(`Opp: ${Math.ceil(oppHp.current)}HP`, 'opacity:0.6'));
+      this.hudRight.appendChild(span(`${Math.floor(oppCredits)}c`, 'opacity:0.6'));
     }
   }
 

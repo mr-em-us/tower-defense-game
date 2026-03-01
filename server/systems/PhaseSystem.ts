@@ -14,12 +14,10 @@ export class PhaseSystem {
       }
     }
 
-    // Check game over: a player loses when they have 0 towers on the board
-    // (only check during combat after the first build phase)
-    if (state.phase === GamePhase.COMBAT && state.waveNumber >= 2) {
+    // Check game over: a player loses when their HP reaches 0
+    if (state.phase === GamePhase.COMBAT) {
       for (const player of Object.values(state.players)) {
-        const hasTowers = Object.values(state.towers).some(t => t.ownerId === player.id);
-        if (!hasTowers) {
+        if (player.health <= 0) {
           state.phase = GamePhase.GAME_OVER;
           return;
         }

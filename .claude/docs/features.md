@@ -71,6 +71,12 @@ New formula: `baseCount = firstWaveEnemies * (1 + (wave-1) * 0.2) * diffRatio`. 
 ### Persistent Memory System -- shipped (not in git, lives in ~/.claude/ + CLAUDE.md)
 Three-tier memory: CLAUDE.md (auto-loaded project ref), MEMORY.md (auto-loaded dynamic state), 5 topic files (on-demand). Handoff protocol: "save" triggers git commit + memory update + PST timestamp. Session start auto-loads + confirms. Live session logging via current-session.md.
 
+### Auto-Repair Toggle -- shipped (uncommitted)
+Passive tower maintenance toggle. When enabled, server auto-repairs most-damaged towers first (same cost formula as manual repair), then restocks lowest-ammo towers. Processed once per second. Persists until manually turned off. HUD button with ON/OFF state and .selected highlight.
+
+### Fast Mode -- shipped (uncommitted)
+Game speed toggle (1x normal / 2x fast). gameSpeed multiplied into dt for all server systems; TowerSystem fire interval also divided by gameSpeed. Singleplayer: immediate toggle. Multiplayer: requires both players to request (same pattern as Ready). HUD button shows speed state; center HUD shows "[2x]" in yellow when active.
+
 ## Planned / Ideas
 - More tower/enemy types
 - Cloud leaderboard sync

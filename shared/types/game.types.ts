@@ -98,6 +98,8 @@ export interface Player {
   health: number;
   maxHealth: number;
   isReady: boolean;
+  autoRepairEnabled: boolean;
+  fastModeRequested: boolean;
 }
 
 export interface GridState {
@@ -122,6 +124,7 @@ export interface GameState {
   waveEnemiesRemaining: number;
   waveEnemiesTotal: number;
   waveEnemiesKilled: number;
+  gameSpeed: number;
   settings: GameSettings;
 }
 

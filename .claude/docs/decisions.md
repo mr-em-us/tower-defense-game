@@ -48,6 +48,18 @@
 **Alternatives**: Simple sum of deltas (doesn't handle multiplicative effects), manual difficulty tiers only
 **Consequences**: adjustedScore = wave * difficultyFactor creates fair cross-difficulty comparison. Live display in settings panel creates "shopping cart" effect -- players see difficulty change as they tweak each slider.
 
+### 2026-03 -- Auto-Repair Throttled to Once Per Second
+**Context**: Auto-repair needs to passively maintain towers without overwhelming the server tick loop.
+**Decision**: Counter increments each tick, processAutoRepair() runs every TICK_RATE ticks (once/sec). Repairs most-damaged towers first (by health ratio), then restocks lowest-ammo towers. Same cost formulas as manual operations.
+**Alternatives**: Every tick (wasteful CPU, too aggressive spending), every wave (too slow to be useful), fixed credit-per-tick drain (different economy feel)
+**Consequences**: Predictable 1/sec cadence. Players can watch credits drain steadily. Priority ordering means critical towers get fixed first. Uses existing repair/restock cost formulas so no economy discrepancy.
+
+### 2026-03 -- Fast Mode via gameSpeed on GameState
+**Context**: Players want to speed up gameplay, especially in late waves or singleplayer.
+**Decision**: gameSpeed field on GameState (1=normal, 2=fast). Server multiplies dt by gameSpeed before passing to systems. TowerSystem fire interval also divided by gameSpeed since it uses wall-clock time. Singleplayer: immediate toggle. Multiplayer: both players must request (same as Ready pattern).
+**Alternatives**: Client-side animation speed (wouldn't actually speed up game logic), server tick rate change (harder to implement, affects networking), arbitrary speed slider (too much complexity)
+**Consequences**: True server-side speed increase. All systems (phases, waves, enemies, towers, projectiles) run faster. Multiplayer consensus prevents one player from forcing speed on another. gameSpeed on GameState means clients see it in every broadcast for UI.
+
 ### 2026-03 -- Wave Rebalancing (firstWaveEnemies 60 -> 15)
 **Context**: Default difficulty was too hard. Wave 3 had 165 enemies due to formula `(4 + wave*2) * 10 * countScale`. User reported game was unplayable at defaults.
 **Decision**: Rewrote wave formula to `baseCount = firstWaveEnemies * (1 + (wave-1) * 0.2) * diffRatio` with percentage-based type distribution. Reduced default firstWaveEnemies from 60 to 15.

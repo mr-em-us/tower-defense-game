@@ -76,6 +76,7 @@ export class GameRoom {
       waveEnemiesRemaining: 0,
       waveEnemiesTotal: 0,
       waveEnemiesKilled: 0,
+      gameSpeed: 1,
       settings: { ...DEFAULT_GAME_SETTINGS },
     };
   }
@@ -117,6 +118,8 @@ export class GameRoom {
       health: this.state.settings.startingHealth,
       maxHealth: this.state.settings.startingHealth,
       isReady: false,
+      autoRepairEnabled: false,
+      fastModeRequested: false,
     };
 
     this.state.players[newPlayerId] = player;
@@ -181,13 +184,24 @@ export class GameRoom {
     }
   }
 
+  private autoRepairCounter = 0;
+
   private tick(dt: number): void {
+    const adjustedDt = dt * this.state.gameSpeed;
     const now = Date.now() / 1000;
-    this.phaseSystem.update(this.state, dt);
-    this.waveSystem.update(this.state, dt);
-    this.enemySystem.update(this.state, dt);
-    this.towerSystem.update(this.state, dt, now);
-    this.projectileSystem.update(this.state, dt);
+    this.phaseSystem.update(this.state, adjustedDt);
+    this.waveSystem.update(this.state, adjustedDt);
+    this.enemySystem.update(this.state, adjustedDt);
+    this.towerSystem.update(this.state, adjustedDt, now);
+    this.projectileSystem.update(this.state, adjustedDt);
+
+    // Auto-repair: process once per second (every TICK_RATE ticks)
+    this.autoRepairCounter++;
+    if (this.autoRepairCounter >= GAME.TICK_RATE) {
+      this.autoRepairCounter = 0;
+      this.processAutoRepair();
+    }
+
     this.broadcast({ type: 'GAME_STATE', state: this.state });
 
     if (this.state.phase === GamePhase.GAME_OVER) {
@@ -266,6 +280,12 @@ export class GameRoom {
         break;
       case 'SET_GAME_SETTINGS':
         this.handleSetGameSettings(playerId, msg.settings);
+        break;
+      case 'TOGGLE_AUTO_REPAIR':
+        this.handleToggleAutoRepair(playerId);
+        break;
+      case 'TOGGLE_FAST_MODE':
+        this.handleToggleFastMode(playerId);
         break;
     }
   }
@@ -572,6 +592,80 @@ export class GameRoom {
 
       // Restock if low on ammo
       if (tower.ammo < tower.maxAmmo) {
+        const ammoNeeded = tower.maxAmmo - tower.ammo;
+        const fullCost = ammoNeeded * stats.ammoCostPerRound;
+        if (player.credits >= fullCost) {
+          player.credits -= fullCost;
+          tower.ammo = tower.maxAmmo;
+        } else {
+          const ammoToBuy = Math.floor(player.credits / stats.ammoCostPerRound);
+          if (ammoToBuy > 0) {
+            player.credits -= ammoToBuy * stats.ammoCostPerRound;
+            tower.ammo += ammoToBuy;
+          }
+        }
+      }
+    }
+  }
+
+  private handleToggleAutoRepair(playerId: string): void {
+    const player = this.state.players[playerId];
+    if (!player) return;
+    player.autoRepairEnabled = !player.autoRepairEnabled;
+  }
+
+  private handleToggleFastMode(playerId: string): void {
+    const player = this.state.players[playerId];
+    if (!player) return;
+    player.fastModeRequested = !player.fastModeRequested;
+    this.updateGameSpeed();
+  }
+
+  private updateGameSpeed(): void {
+    const players = Object.values(this.state.players);
+    if (this.state.gameMode === GameMode.SINGLE) {
+      // Singleplayer: immediate toggle
+      const player = players[0];
+      this.state.gameSpeed = player?.fastModeRequested ? 2 : 1;
+    } else {
+      // Multiplayer: both must request
+      const allRequested = players.length >= 2 && players.every(p => p.fastModeRequested);
+      this.state.gameSpeed = allRequested ? 2 : 1;
+    }
+  }
+
+  private processAutoRepair(): void {
+    if (this.state.phase !== GamePhase.BUILD && this.state.phase !== GamePhase.COMBAT) return;
+
+    for (const player of Object.values(this.state.players)) {
+      if (!player.autoRepairEnabled || player.credits <= 0) continue;
+
+      const ownedTowers = Object.values(this.state.towers).filter(t => t.ownerId === player.id);
+
+      // Repair: sort by damage ratio ascending (most damaged first)
+      const damagedTowers = ownedTowers
+        .filter(t => t.health < t.maxHealth)
+        .sort((a, b) => (a.health / a.maxHealth) - (b.health / b.maxHealth));
+
+      for (const tower of damagedTowers) {
+        if (player.credits <= 0) break;
+        const stats = TOWER_STATS[tower.type];
+        const damageRatio = 1 - tower.health / tower.maxHealth;
+        const cost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+        if (player.credits >= cost) {
+          player.credits -= cost;
+          tower.health = tower.maxHealth;
+        }
+      }
+
+      // Restock: sort by ammo ratio ascending (least ammo first)
+      const lowAmmoTowers = ownedTowers
+        .filter(t => t.ammo < t.maxAmmo)
+        .sort((a, b) => (a.ammo / a.maxAmmo) - (b.ammo / b.maxAmmo));
+
+      for (const tower of lowAmmoTowers) {
+        if (player.credits <= 0) break;
+        const stats = TOWER_STATS[tower.type];
         const ammoNeeded = tower.maxAmmo - tower.ammo;
         const fullCost = ammoNeeded * stats.ammoCostPerRound;
         if (player.credits >= fullCost) {

@@ -1,4 +1,4 @@
-import { GamePhase, GameMode, TowerType, PlayerSide } from '../../shared/types/game.types.js';
+import { GamePhase, GameMode, GameState, TowerType, PlayerSide } from '../../shared/types/game.types.js';
 import { TOWER_STATS, SELL_REFUND_RATIO } from '../../shared/types/constants.js';
 import { TOWER_CHARS, TOWER_LABELS } from '../rendering/AsciiArt.js';
 import { GameClient } from '../game/GameClient.js';
@@ -75,7 +75,7 @@ export class HUD {
     this.updateTowerBar(state);
   }
 
-  private updateHUD(state: import('../../shared/types/game.types.js').GameState): void {
+  private updateHUD(state: GameState): void {
     const credits = this.gameClient.getMyCredits();
     const oppCredits = this.gameClient.getOpponentCredits();
     const side = this.gameClient.getPlayerSide();
@@ -110,11 +110,15 @@ export class HUD {
       const readyCount = players.filter(p => p.isReady).length;
       this.hudCenter.appendChild(span(`BUILD  ${readyCount}/${players.length} ready`, 'font-weight:500'));
     } else {
-      this.hudCenter.appendChild(span(`WAVE ${state.waveNumber}`, 'font-weight:500'));
+      const waveText = `WAVE ${state.waveNumber}`;
+      this.hudCenter.appendChild(span(waveText, 'font-weight:500'));
+      if (state.gameSpeed > 1) {
+        this.hudCenter.appendChild(span(' [2x]', 'color:#FBBF24;font-weight:500'));
+      }
     }
   }
 
-  private updateTowerBar(state: import('../../shared/types/game.types.js').GameState): void {
+  private updateTowerBar(state: GameState): void {
     if (!this.buttonsCreated) {
       this.createTowerButtons();
       this.buttonsCreated = true;
@@ -166,6 +170,34 @@ export class HUD {
       } else {
         restockAllBtn.style.display = 'none';
       }
+    }
+
+    // Auto-Repair button
+    const autoRepairBtn = document.getElementById('auto-repair-btn');
+    if (autoRepairBtn) {
+      if (isBuildOrCombat) {
+        autoRepairBtn.style.display = '';
+        const enabled = this.gameClient.isAutoRepairEnabled();
+        autoRepairBtn.textContent = enabled ? 'Auto-Repair: ON' : 'Auto-Repair: OFF';
+        autoRepairBtn.classList.toggle('selected', enabled);
+      } else {
+        autoRepairBtn.style.display = 'none';
+      }
+    }
+
+    // Fast Mode button
+    const fastModeBtn = document.getElementById('fast-mode-btn');
+    if (fastModeBtn) {
+      const requested = this.gameClient.isFastModeRequested();
+      const speed = this.gameClient.getGameSpeed();
+      if (state.gameMode === GameMode.SINGLE) {
+        fastModeBtn.textContent = speed > 1 ? 'Normal [>]' : 'Fast [>>]';
+      } else {
+        const players = Object.values(state.players);
+        const fastCount = players.filter(p => p.fastModeRequested).length;
+        fastModeBtn.textContent = `Fast (${fastCount}/${players.length})`;
+      }
+      fastModeBtn.classList.toggle('selected', requested);
     }
 
     // Selected tower actions
@@ -354,6 +386,23 @@ export class HUD {
     restockAllBtn.style.display = 'none';
     restockAllBtn.addEventListener('click', () => this.gameClient.restockAll());
     this.towerBar.appendChild(restockAllBtn);
+
+    // Auto-Repair toggle button
+    const autoRepairBtn = document.createElement('button');
+    autoRepairBtn.id = 'auto-repair-btn';
+    autoRepairBtn.className = 'action-btn';
+    autoRepairBtn.textContent = 'Auto-Repair: OFF';
+    autoRepairBtn.style.display = 'none';
+    autoRepairBtn.addEventListener('click', () => this.gameClient.toggleAutoRepair());
+    this.towerBar.appendChild(autoRepairBtn);
+
+    // Fast Mode toggle button
+    const fastModeBtn = document.createElement('button');
+    fastModeBtn.id = 'fast-mode-btn';
+    fastModeBtn.className = 'action-btn';
+    fastModeBtn.textContent = 'Fast [>>]';
+    fastModeBtn.addEventListener('click', () => this.gameClient.toggleFastMode());
+    this.towerBar.appendChild(fastModeBtn);
 
     // Upgrade button
     const upgradeBtn = document.createElement('button');

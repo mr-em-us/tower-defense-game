@@ -9,7 +9,7 @@ export class TowerSystem {
 
     for (const tower of Object.values(state.towers)) {
       const stats = TOWER_STATS[tower.type];
-      const fireInterval = 1 / tower.fireRate;
+      const fireInterval = 1 / (tower.fireRate * state.gameSpeed);
 
       if (now - tower.lastFireTime < fireInterval) continue;
 
@@ -30,11 +30,6 @@ export class TowerSystem {
       tower.targetId = target.id;
       tower.lastFireTime = now;
       tower.ammo--;
-
-      // Deduct ammo cost from owner's credits in real-time
-      if (owner) {
-        owner.credits -= stats.ammoCostPerRound;
-      }
 
       // Create projectile
       const projectile: Projectile = {

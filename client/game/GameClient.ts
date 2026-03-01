@@ -189,6 +189,28 @@ export class GameClient {
     this.network.send({ type: 'RESTOCK_ALL' });
   }
 
+  toggleAutoRepair(): void {
+    this.network.send({ type: 'TOGGLE_AUTO_REPAIR' });
+  }
+
+  isAutoRepairEnabled(): boolean {
+    if (!this.gameState || !this.playerId) return false;
+    return this.gameState.players[this.playerId]?.autoRepairEnabled ?? false;
+  }
+
+  toggleFastMode(): void {
+    this.network.send({ type: 'TOGGLE_FAST_MODE' });
+  }
+
+  isFastModeRequested(): boolean {
+    if (!this.gameState || !this.playerId) return false;
+    return this.gameState.players[this.playerId]?.fastModeRequested ?? false;
+  }
+
+  getGameSpeed(): number {
+    return this.gameState?.gameSpeed ?? 1;
+  }
+
   brushRepairAndRestock(centerX: number, centerY: number): void {
     this.network.send({
       type: 'BRUSH_REPAIR',

@@ -40,6 +40,7 @@ export class Renderer {
     this.drawHoverPreview(state);
     this.drawSelectedTowerInfo(state);
     this.drawAmmoBar(state);
+    this.drawWaveProgress(state);
     this.drawError();
   }
 
@@ -231,12 +232,15 @@ export class Renderer {
     const cs = GRID.CELL_SIZE;
     const W = GRID.WIDTH * cs;
     const ratio = ammo.current / ammo.max;
+    const side = this.gameClient.getPlayerSide();
 
-    // Draw ammo bar at top of canvas
-    const barX = W / 2 - 100;
-    const barY = 6;
-    const barW = 200;
+    // Position on the player's side of the board
+    const barW = 160;
     const barH = 8;
+    const barX = side === PlayerSide.RIGHT
+      ? W - barW - 12
+      : 12;
+    const barY = 6;
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
@@ -250,7 +254,53 @@ export class Renderer {
     ctx.font = `10px ${VISUAL.FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(`AMMO ${ammo.current}/${ammo.max}`, W / 2, barY + barH + 2);
+    ctx.fillText(`AMMO ${ammo.current}/${ammo.max}`, barX + barW / 2, barY + barH + 2);
+  }
+
+  // --- Wave progress overlay (during combat) ---
+
+  private drawWaveProgress(state: GameState): void {
+    if (state.phase !== GamePhase.COMBAT) return;
+    if (state.waveEnemiesTotal === 0) return;
+
+    const ctx = this.ctx;
+    const cs = GRID.CELL_SIZE;
+    const W = GRID.WIDTH * cs;
+    const side = this.gameClient.getPlayerSide();
+
+    const killed = state.waveEnemiesKilled;
+    const total = state.waveEnemiesTotal;
+    const alive = Object.keys(state.enemies).length;
+    const remaining = state.waveEnemiesRemaining;
+    const progress = killed / total;
+
+    // Position on the player's side, below the ammo bar
+    const barW = 160;
+    const barH = 8;
+    const barX = side === PlayerSide.RIGHT
+      ? W - barW - 12
+      : 12;
+    const barY = 28;
+
+    // Background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+
+    // Progress fill
+    const barColor = progress > 0.7 ? '#4ADE80' : progress > 0.3 ? '#FBBF24' : '#60A5FA';
+    ctx.fillStyle = barColor;
+    ctx.fillRect(barX, barY, barW * progress, barH);
+
+    // Label
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.font = `10px ${VISUAL.FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(
+      `DEFEATED ${killed}/${total}  ALIVE ${alive}  QUEUE ${remaining}`,
+      barX + barW / 2,
+      barY + barH + 2,
+    );
   }
 
   // --- Enemies ---

@@ -116,4 +116,6 @@ export interface GameState {
   projectiles: Record<string, Projectile>;
   grid: GridState;
   waveEnemiesRemaining: number;
+  waveEnemiesTotal: number;
+  waveEnemiesKilled: number;
 }

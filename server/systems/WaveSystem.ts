@@ -97,7 +97,9 @@ export class WaveSystem {
       [this.waveQueue[i], this.waveQueue[j]] = [this.waveQueue[j], this.waveQueue[i]];
     }
 
+    state.waveEnemiesTotal = this.waveQueue.length;
     state.waveEnemiesRemaining = this.waveQueue.length;
+    state.waveEnemiesKilled = 0;
     this.spawnTimer = 0.5; // small initial delay
   }
 

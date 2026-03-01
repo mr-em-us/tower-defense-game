@@ -55,10 +55,9 @@ export class PhaseSystem {
       // Base income per wave
       player.credits += GAME.CREDITS_PER_WAVE;
 
-      // Collect passive income and pay costs from owned towers
+      // Collect passive income and pay maintenance from owned towers
       let totalIncome = 0;
       let totalMaintenance = 0;
-      let totalAmmoCost = 0;
 
       for (const tower of Object.values(state.towers)) {
         if (tower.ownerId !== player.id) continue;
@@ -66,15 +65,10 @@ export class PhaseSystem {
 
         totalIncome += stats.incomePerTurn;
         totalMaintenance += stats.maintenancePerTurn;
-
-        // Ammo replenishment cost: pay for rounds used
-        const roundsUsed = stats.maxAmmo - tower.ammo;
-        totalAmmoCost += Math.round(roundsUsed * stats.ammoCostPerRound);
       }
 
       player.credits += totalIncome;
       player.credits -= totalMaintenance;
-      player.credits -= totalAmmoCost;
 
       player.isReady = false;
     }

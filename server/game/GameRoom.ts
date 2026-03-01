@@ -57,6 +57,8 @@ export class GameRoom {
       projectiles: {},
       grid: { width: GRID.WIDTH, height: GRID.HEIGHT, cells },
       waveEnemiesRemaining: 0,
+      waveEnemiesTotal: 0,
+      waveEnemiesKilled: 0,
     };
   }
 

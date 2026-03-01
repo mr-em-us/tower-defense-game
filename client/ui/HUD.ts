@@ -84,7 +84,7 @@ export class HUD {
 
     clearChildren(this.hudLeft);
     this.hudLeft.appendChild(span(side === 'LEFT' ? '< You' : 'You >'));
-    this.hudLeft.appendChild(span(`${credits}c`, credits > 0 ? 'color:#4ADE80' : 'color:#EF4444'));
+    this.hudLeft.appendChild(span(`${Math.floor(credits)}c`, credits > 0 ? 'color:#4ADE80' : 'color:#EF4444'));
 
     clearChildren(this.hudCenter);
     if (state.phase === GamePhase.BUILD) {
@@ -97,7 +97,7 @@ export class HUD {
 
     clearChildren(this.hudRight);
     if (state.gameMode !== GameMode.SINGLE) {
-      this.hudRight.appendChild(span(`Opp: ${oppCredits}c`, 'opacity:0.6'));
+      this.hudRight.appendChild(span(`Opp: ${Math.floor(oppCredits)}c`, 'opacity:0.6'));
     }
   }
 

@@ -10,9 +10,11 @@ const HUD_HEIGHT = window.innerWidth <= 900 ? 36 : 48;
 
 function getServerUrl(): string {
   const host = window.location.hostname || 'localhost';
-  const port = window.location.port;
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return port ? `${protocol}://${host}:${port}` : `${protocol}://${host}`;
+  // In production, server handles both static files and WS on the same port.
+  // In dev, esbuild serves client on a different port, so always target 8080.
+  const wsPort = window.location.port === '8080' ? '8080' : '8080';
+  return `${protocol}://${host}:${wsPort}`;
 }
 
 function showModeMenu(): Promise<GameMode> {

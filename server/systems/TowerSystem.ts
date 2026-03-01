@@ -31,6 +31,11 @@ export class TowerSystem {
       tower.lastFireTime = now;
       tower.ammo--;
 
+      // Deduct ammo cost from owner's credits in real-time
+      if (owner) {
+        owner.credits -= stats.ammoCostPerRound;
+      }
+
       // Create projectile
       const projectile: Projectile = {
         id: uuid(),

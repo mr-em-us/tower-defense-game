@@ -66,6 +66,7 @@ export class ProjectileSystem {
 
     if (enemy.health <= 0) {
       // No credit reward - killing enemies prevents the money loss from pass-through
+      state.waveEnemiesKilled++;
       delete state.enemies[enemyId];
     }
   }

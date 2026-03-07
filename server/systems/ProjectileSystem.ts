@@ -74,6 +74,7 @@ export class ProjectileSystem {
         }
       }
       state.waveEnemiesKilled++;
+      state.waveCreditsEarned += enemy.creditValue;
       delete state.enemies[enemyId];
     }
   }

@@ -68,10 +68,16 @@ export class EnemySystem {
       delete state.enemies[id];
     }
 
-    // Remove destroyed towers
+    // Remove destroyed towers (leave ghost traces)
     for (const id of towersToRemove) {
       const tower = state.towers[id];
       if (tower) {
+        state.destroyedTowerTraces.push({
+          position: { x: tower.position.x, y: tower.position.y },
+          type: tower.type,
+          ownerId: tower.ownerId,
+        });
+        state.waveTowersDestroyed++;
         state.grid.cells[tower.position.y][tower.position.x] = CellType.EMPTY;
         delete state.towers[id];
       }

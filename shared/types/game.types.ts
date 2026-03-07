@@ -99,7 +99,25 @@ export interface Player {
   maxHealth: number;
   isReady: boolean;
   autoRepairEnabled: boolean;
-  fastModeRequested: boolean;
+  requestedSpeed: number;  // 1 = normal, 2 = fast, 4 = turbo
+}
+
+export interface TowerTrace {
+  position: GridCell;
+  type: TowerType;
+  ownerId: string;
+}
+
+export interface WaveStats {
+  waveNumber: number;
+  enemiesSpawned: number;
+  enemiesKilled: number;
+  enemiesLeaked: number;
+  towersDestroyed: number;
+  creditsEarned: number;
+  creditsSpent: number;
+  towersBought: number;
+  towersUpgraded: number;
 }
 
 export interface GridState {
@@ -124,7 +142,10 @@ export interface GameState {
   waveEnemiesRemaining: number;
   waveEnemiesTotal: number;
   waveEnemiesKilled: number;
+  waveTowersDestroyed: number;
+  waveCreditsEarned: number;
   gameSpeed: number;
+  destroyedTowerTraces: TowerTrace[];
   settings: GameSettings;
 }
 

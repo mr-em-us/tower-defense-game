@@ -2,7 +2,7 @@ import { WebSocket } from 'ws';
 import { v4 as uuid } from 'uuid';
 import {
   GameState, GamePhase, GameMode, Player, PlayerSide,
-  CellType, TowerType, Tower, GameSettings,
+  CellType, TowerType, Tower, GameSettings, WaveStats,
 } from '../../shared/types/game.types.js';
 import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION, DEFAULT_GAME_SETTINGS } from '../../shared/types/constants.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
@@ -30,6 +30,11 @@ export class GameRoom {
   private enemySystem = new EnemySystem();
   private towerSystem = new TowerSystem();
   private projectileSystem = new ProjectileSystem();
+
+  // Wave stats tracking
+  private waveStatsHistory: WaveStats[] = [];
+  private currentWaveStats: WaveStats | null = null;
+  private prevPhase: GamePhase = GamePhase.WAITING;
 
   constructor(gameMode: GameMode = GameMode.MULTI) {
     this.roomId = uuid();
@@ -76,7 +81,10 @@ export class GameRoom {
       waveEnemiesRemaining: 0,
       waveEnemiesTotal: 0,
       waveEnemiesKilled: 0,
+      waveTowersDestroyed: 0,
+      waveCreditsEarned: 0,
       gameSpeed: 1,
+      destroyedTowerTraces: [],
       settings: { ...DEFAULT_GAME_SETTINGS },
     };
   }
@@ -119,7 +127,7 @@ export class GameRoom {
       maxHealth: this.state.settings.startingHealth,
       isReady: false,
       autoRepairEnabled: false,
-      fastModeRequested: false,
+      requestedSpeed: 1,
     };
 
     this.state.players[newPlayerId] = player;
@@ -195,6 +203,14 @@ export class GameRoom {
     this.towerSystem.update(this.state, adjustedDt, now);
     this.projectileSystem.update(this.state, adjustedDt);
 
+    // Detect phase transitions for wave stats tracking
+    if (this.state.phase === GamePhase.COMBAT && this.prevPhase !== GamePhase.COMBAT) {
+      this.initWaveStats();
+    } else if (this.prevPhase === GamePhase.COMBAT && this.state.phase === GamePhase.BUILD) {
+      this.finalizeWaveStats();
+    }
+    this.prevPhase = this.state.phase;
+
     // Auto-repair: process once per second (every TICK_RATE ticks)
     this.autoRepairCounter++;
     if (this.autoRepairCounter >= GAME.TICK_RATE) {
@@ -209,7 +225,40 @@ export class GameRoom {
     }
   }
 
+  private initWaveStats(): void {
+    this.currentWaveStats = {
+      waveNumber: this.state.waveNumber,
+      enemiesSpawned: 0,
+      enemiesKilled: 0,
+      enemiesLeaked: 0,
+      towersDestroyed: 0,
+      creditsEarned: 0,
+      creditsSpent: 0,
+      towersBought: 0,
+      towersUpgraded: 0,
+    };
+    // Reset per-wave counters
+    this.state.waveTowersDestroyed = 0;
+    this.state.waveCreditsEarned = 0;
+  }
+
+  private finalizeWaveStats(): void {
+    if (!this.currentWaveStats) return;
+    this.currentWaveStats.enemiesSpawned = this.state.waveEnemiesTotal;
+    this.currentWaveStats.enemiesKilled = this.state.waveEnemiesKilled;
+    this.currentWaveStats.enemiesLeaked = this.state.waveEnemiesTotal - this.state.waveEnemiesKilled;
+    this.currentWaveStats.towersDestroyed = this.state.waveTowersDestroyed;
+    this.currentWaveStats.creditsEarned = this.state.waveCreditsEarned;
+    this.waveStatsHistory.push(this.currentWaveStats);
+    this.currentWaveStats = null;
+  }
+
   private handleGameOver(): void {
+    // Finalize current wave stats if game ends mid-combat
+    if (this.currentWaveStats) {
+      this.finalizeWaveStats();
+    }
+
     const players = Object.values(this.state.players);
     let winnerId: string | null = null;
 
@@ -225,6 +274,7 @@ export class GameRoom {
       type: 'GAME_OVER',
       winnerId,
       finalWave: this.state.waveNumber,
+      waveStats: this.waveStatsHistory,
     });
     this.stopLoop();
 
@@ -335,12 +385,20 @@ export class GameRoom {
     };
 
     player.credits -= actualCost;
+    if (this.currentWaveStats) {
+      this.currentWaveStats.creditsSpent += actualCost;
+      this.currentWaveStats.towersBought++;
+    }
     // Track purchase for dynamic pricing (not BASIC)
     if (type !== TowerType.BASIC && type !== TowerType.WALL) {
       this.state.globalPurchaseCounts[type] = (this.state.globalPurchaseCounts[type] ?? 0) + 1;
     }
     this.state.towers[tower.id] = tower;
     this.state.grid.cells[y][x] = CellType.TOWER;
+    // Clear any ghost trace at this position
+    this.state.destroyedTowerTraces = this.state.destroyedTowerTraces.filter(
+      t => !(t.position.x === x && t.position.y === y)
+    );
 
     this.sendTo(playerId, { type: 'TOWER_PLACED', towerId: tower.id });
   }
@@ -370,6 +428,10 @@ export class GameRoom {
     }
 
     player.credits -= cost;
+    if (this.currentWaveStats) {
+      this.currentWaveStats.creditsSpent += cost;
+      this.currentWaveStats.towersUpgraded++;
+    }
     tower.level++;
     tower.damage = Math.round(tower.damage * stats.upgradeStatMultiplier);
     tower.range = +(tower.range * 1.1).toFixed(1);
@@ -492,6 +554,7 @@ export class GameRoom {
     }
 
     player.credits -= cost;
+    if (this.currentWaveStats) this.currentWaveStats.creditsSpent += cost;
     tower.health = tower.maxHealth;
   }
 
@@ -516,6 +579,7 @@ export class GameRoom {
 
     if (player.credits >= fullCost) {
       player.credits -= fullCost;
+      if (this.currentWaveStats) this.currentWaveStats.creditsSpent += fullCost;
       tower.ammo = tower.maxAmmo;
     } else {
       // Partial restock — buy as much as affordable
@@ -524,7 +588,9 @@ export class GameRoom {
         this.sendTo(playerId, { type: 'ACTION_FAILED', reason: 'Not enough credits' });
         return;
       }
-      player.credits -= ammoToBuy * stats.ammoCostPerRound;
+      const partialCost = ammoToBuy * stats.ammoCostPerRound;
+      player.credits -= partialCost;
+      if (this.currentWaveStats) this.currentWaveStats.creditsSpent += partialCost;
       tower.ammo += ammoToBuy;
     }
   }
@@ -617,20 +683,25 @@ export class GameRoom {
   private handleToggleFastMode(playerId: string): void {
     const player = this.state.players[playerId];
     if (!player) return;
-    player.fastModeRequested = !player.fastModeRequested;
+    // Cycle: 1 → 2 → 4 → 1
+    if (player.requestedSpeed <= 1) player.requestedSpeed = 2;
+    else if (player.requestedSpeed === 2) player.requestedSpeed = 4;
+    else player.requestedSpeed = 1;
     this.updateGameSpeed();
   }
 
   private updateGameSpeed(): void {
     const players = Object.values(this.state.players);
     if (this.state.gameMode === GameMode.SINGLE) {
-      // Singleplayer: immediate toggle
       const player = players[0];
-      this.state.gameSpeed = player?.fastModeRequested ? 2 : 1;
+      this.state.gameSpeed = player?.requestedSpeed ?? 1;
     } else {
-      // Multiplayer: both must request
-      const allRequested = players.length >= 2 && players.every(p => p.fastModeRequested);
-      this.state.gameSpeed = allRequested ? 2 : 1;
+      // Multiplayer: game speed = minimum of all players' requested speeds
+      if (players.length < 2) {
+        this.state.gameSpeed = 1;
+      } else {
+        this.state.gameSpeed = Math.min(...players.map(p => p.requestedSpeed));
+      }
     }
   }
 

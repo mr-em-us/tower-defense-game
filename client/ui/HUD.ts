@@ -2,6 +2,7 @@ import { GamePhase, GameMode, GameState, TowerType, PlayerSide } from '../../sha
 import { TOWER_STATS, SELL_REFUND_RATIO } from '../../shared/types/constants.js';
 import { TOWER_CHARS, TOWER_LABELS } from '../rendering/AsciiArt.js';
 import { GameClient } from '../game/GameClient.js';
+import { PostGameOverlay } from './PostGameOverlay.js';
 const TOWER_TYPES = [TowerType.BASIC, TowerType.SNIPER, TowerType.SPLASH, TowerType.SLOW, TowerType.WALL];
 
 function span(text: string, style?: string): HTMLSpanElement {
@@ -23,8 +24,10 @@ export class HUD {
   private overlay: HTMLElement;
   private overlayContent: HTMLElement;
   private buttonsCreated = false;
+  private postGameOverlay: PostGameOverlay;
 
   constructor(private gameClient: GameClient) {
+    this.postGameOverlay = new PostGameOverlay(gameClient);
     this.hudLeft = document.getElementById('hud-left')!;
     this.hudCenter = document.getElementById('hud-center')!;
     this.hudRight = document.getElementById('hud-right')!;
@@ -51,21 +54,8 @@ export class HUD {
     }
 
     if (state.phase === GamePhase.GAME_OVER) {
-      const myHp = this.gameClient.getMyHealth();
-      if (state.gameMode === GameMode.SINGLE) {
-        this.showOverlay(
-          `GAME OVER\n` +
-          `Survived to wave ${state.waveNumber} | HP: ${Math.ceil(myHp.current)}/${myHp.max}\n` +
-          'Refresh to play again \u2022 Results saved to Leaderboard',
-        );
-      } else {
-        const oppHp = this.gameClient.getOpponentHealth();
-        const won = myHp.current > 0 && oppHp.current <= 0;
-        this.showOverlay(
-          `${won ? 'VICTORY!' : 'DEFEAT'}\n` +
-          `Wave ${state.waveNumber} | Your HP: ${Math.ceil(myHp.current)} | Opponent HP: ${Math.ceil(oppHp.current)}\n` +
-          'Refresh to play again \u2022 Results saved to Leaderboard',
-        );
+      if (this.postGameOverlay) {
+        this.postGameOverlay.update(state);
       }
       return;
     }
@@ -113,7 +103,7 @@ export class HUD {
       const waveText = `WAVE ${state.waveNumber}`;
       this.hudCenter.appendChild(span(waveText, 'font-weight:500'));
       if (state.gameSpeed > 1) {
-        this.hudCenter.appendChild(span(' [2x]', 'color:#FBBF24;font-weight:500'));
+        this.hudCenter.appendChild(span(` [${state.gameSpeed}x]`, 'color:#FBBF24;font-weight:500'));
       }
     }
   }
@@ -185,19 +175,28 @@ export class HUD {
       }
     }
 
-    // Fast Mode button
+    // Speed Mode button (Normal / Fast / Turbo)
     const fastModeBtn = document.getElementById('fast-mode-btn');
     if (fastModeBtn) {
-      const requested = this.gameClient.isFastModeRequested();
-      const speed = this.gameClient.getGameSpeed();
+      const mySpeed = this.gameClient.getRequestedSpeed();
+      const activeSpeed = this.gameClient.getGameSpeed();
       if (state.gameMode === GameMode.SINGLE) {
-        fastModeBtn.textContent = speed > 1 ? 'Normal [>]' : 'Fast [>>]';
+        if (activeSpeed >= 4) fastModeBtn.textContent = 'Turbo [>>>]';
+        else if (activeSpeed >= 2) fastModeBtn.textContent = 'Fast [>>]';
+        else fastModeBtn.textContent = 'Normal [>]';
       } else {
         const players = Object.values(state.players);
-        const fastCount = players.filter(p => p.fastModeRequested).length;
-        fastModeBtn.textContent = `Fast (${fastCount}/${players.length})`;
+        const total = players.length;
+        if (activeSpeed >= 4) {
+          fastModeBtn.textContent = `Turbo (${players.filter(p => p.requestedSpeed >= 4).length}/${total})`;
+        } else if (activeSpeed >= 2) {
+          fastModeBtn.textContent = `Fast (${players.filter(p => p.requestedSpeed >= 2).length}/${total})`;
+        } else {
+          const wanting = players.filter(p => p.requestedSpeed >= 2).length;
+          fastModeBtn.textContent = wanting > 0 ? `Speed (${wanting}/${total})` : 'Normal [>]';
+        }
       }
-      fastModeBtn.classList.toggle('selected', requested);
+      fastModeBtn.classList.toggle('selected', mySpeed > 1);
     }
 
     // Selected tower actions
@@ -214,8 +213,9 @@ export class HUD {
 
       if (upgradeBtn && sellBtn) {
         if (tower && isBuild) {
+          const upgCost = this.gameClient.getUpgradeCost(towerId);
           upgradeBtn.style.display = '';
-          upgradeBtn.textContent = 'Upgrade';
+          upgradeBtn.textContent = upgCost !== null ? `Upgrade (${upgCost}c)` : 'Upgrade';
           sellBtn.style.display = '';
           sellBtn.textContent = 'Sell';
         } else {
@@ -257,8 +257,13 @@ export class HUD {
 
       if (upgradeBtn) {
         if (isBuild && towers.length > 0) {
+          let totalUpgCost = 0;
+          for (const t of towers) {
+            const c = this.gameClient.getUpgradeCost(t.id);
+            if (c !== null) totalUpgCost += c;
+          }
           upgradeBtn.style.display = '';
-          upgradeBtn.textContent = `Upgrade All (${towers.length})`;
+          upgradeBtn.textContent = `Upgrade All (${totalUpgCost}c)`;
         } else {
           upgradeBtn.style.display = 'none';
         }

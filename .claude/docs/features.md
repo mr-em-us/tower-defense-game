@@ -74,8 +74,20 @@ Three-tier memory: CLAUDE.md (auto-loaded project ref), MEMORY.md (auto-loaded d
 ### Auto-Repair Toggle -- shipped (uncommitted)
 Passive tower maintenance toggle. When enabled, server auto-repairs most-damaged towers first (same cost formula as manual repair), then restocks lowest-ammo towers. Processed once per second. Persists until manually turned off. HUD button with ON/OFF state and .selected highlight.
 
-### Fast Mode -- shipped (uncommitted)
-Game speed toggle (1x normal / 2x fast). gameSpeed multiplied into dt for all server systems; TowerSystem fire interval also divided by gameSpeed. Singleplayer: immediate toggle. Multiplayer: requires both players to request (same pattern as Ready). HUD button shows speed state; center HUD shows "[2x]" in yellow when active.
+### Fast Mode -> Turbo Speed Mode -- shipped (uncommitted)
+Game speed cycles Normal (1x) / Fast (2x) / Turbo (4x). Player.requestedSpeed replaces old fastModeRequested boolean. gameSpeed multiplied into dt for all server systems. SP: immediate toggle. MP: uses min of all players' requestedSpeed. HUD button shows Normal [>] / Fast [>>] / Turbo [>>>]; center HUD shows "[Nx]" indicator.
+
+### WASD Camera Controls -- shipped (uncommitted)
+WASD keys for camera panning alongside arrow keys. Input guard skips WASD/arrow handling when focused on `<input>` or `<textarea>`. Single file change: InputHandler.ts.
+
+### Upgrade Cost on Button -- shipped (uncommitted)
+When a tower is selected, the upgrade button shows the cost (e.g., "Upgrade (120c)"). Multi-select shows sum (e.g., "Upgrade All (450c)"). Uses getUpgradeCost() on GameClient which applies dynamic pricing formula.
+
+### Destroyed Tower Ghost Traces -- shipped (uncommitted)
+When a tower is destroyed by enemies, a faded outline (ghost trace) remains at that position showing the tower type. Helps players rebuild their defense lines. Traces are cleared when a new tower is placed on that cell. Only shows traces belonging to the current player.
+
+### Post-Game Analysis Overlay -- shipped (uncommitted)
+Full DOM-based post-game overlay shown at GAME_OVER phase. Displays: header (GAME OVER/VICTORY/DEFEAT), wave/HP subtitle, summary stats grid (enemies killed, towers built/lost, credits earned/spent), wave breakdown HTML table with red highlights on leaked/lost values, health and credits line charts via canvas, Play Again button. Server tracks per-wave stats (WaveStats) via phase transition detection, includes in GAME_OVER broadcast. Known bug: credits spent shows 0c because BUILD phase spending isn't tracked.
 
 ## Planned / Ideas
 - More tower/enemy types

@@ -1,4 +1,4 @@
-import { GameState, GameMode, GameSettings, PlayerSide, TowerType, GridCell, GamePhase } from '../../shared/types/game.types.js';
+import { GameState, GameMode, GameSettings, PlayerSide, TowerType, GridCell, GamePhase, WaveStats } from '../../shared/types/game.types.js';
 import { ServerMessage } from '../../shared/types/network.types.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { TOWER_STATS, PRICE_ESCALATION, REPAIR_COST_RATIO } from '../../shared/types/constants.js';
@@ -38,6 +38,7 @@ export class GameClient {
   readonly shellParticles: ShellParticle[] = [];
   readonly statsTracker = new StatsTracker();
   readonly chartsOverlay: ChartsOverlay;
+  private waveStats: WaveStats[] = [];
 
   readonly clientState: ClientState = {
     selectedTowerType: TowerType.BASIC,
@@ -202,9 +203,13 @@ export class GameClient {
     this.network.send({ type: 'TOGGLE_FAST_MODE' });
   }
 
+  getRequestedSpeed(): number {
+    if (!this.gameState || !this.playerId) return 1;
+    return this.gameState.players[this.playerId]?.requestedSpeed ?? 1;
+  }
+
   isFastModeRequested(): boolean {
-    if (!this.gameState || !this.playerId) return false;
-    return this.gameState.players[this.playerId]?.fastModeRequested ?? false;
+    return this.getRequestedSpeed() > 1;
   }
 
   getGameSpeed(): number {
@@ -234,6 +239,22 @@ export class GameClient {
     const stats = TOWER_STATS[tower.type];
     const damageRatio = 1 - tower.health / tower.maxHealth;
     return Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+  }
+
+  getUpgradeCost(towerId: string): number | null {
+    if (!this.gameState) return null;
+    const tower = this.gameState.towers[towerId];
+    if (!tower) return null;
+    const stats = TOWER_STATS[tower.type];
+    const baseCost = Math.round(stats.cost * stats.upgradeCostMultiplier * tower.level);
+    if (tower.type !== TowerType.BASIC && tower.type !== TowerType.WALL) {
+      return Math.round(baseCost * (1 + (this.gameState.globalPurchaseCounts[tower.type] ?? 0) * PRICE_ESCALATION));
+    }
+    return baseCost;
+  }
+
+  getWaveStats(): WaveStats[] {
+    return this.waveStats;
   }
 
   readyForWave(): void {
@@ -267,6 +288,9 @@ export class GameClient {
         this.detectSoundEvents(msg.state);
         this.prevState = this.gameState;
         this.gameState = msg.state;
+        break;
+      case 'GAME_OVER':
+        if (msg.waveStats) this.waveStats = msg.waveStats;
         break;
       case 'ACTION_FAILED':
         this.showError(msg.reason);

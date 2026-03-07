@@ -1,4 +1,4 @@
-import { GameState, GridCell, TowerType, PlayerSide, GamePhase, GameMode, GameSettings } from './game.types.js';
+import { GameState, GridCell, TowerType, PlayerSide, GamePhase, GameMode, GameSettings, WaveStats } from './game.types.js';
 
 // Client -> Server messages
 export type ClientMessage =
@@ -24,4 +24,4 @@ export type ServerMessage =
   | { type: 'TOWER_PLACED'; towerId: string }
   | { type: 'ACTION_FAILED'; reason: string }
   | { type: 'PLAYER_DISCONNECTED'; playerId: string }
-  | { type: 'GAME_OVER'; winnerId: string | null; finalWave: number };
+  | { type: 'GAME_OVER'; winnerId: string | null; finalWave: number; waveStats: WaveStats[] };

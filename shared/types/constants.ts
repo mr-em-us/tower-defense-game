@@ -123,8 +123,8 @@ export const ENEMY_STATS: Record<EnemyType, {
 }> = {
   [EnemyType.BASIC]: { health: 100, speed: 2, creditValue: 10, contactDamage: 0.5 },
   [EnemyType.FAST]: { health: 50, speed: 4, creditValue: 15, contactDamage: 0.3 },
-  [EnemyType.TANK]: { health: 500, speed: 1, creditValue: 50, contactDamage: 2 },
-  [EnemyType.BOSS]: { health: 2000, speed: 1.5, creditValue: 200, contactDamage: 5 },
+  [EnemyType.TANK]: { health: 500, speed: 1, creditValue: 50, contactDamage: 1 },
+  [EnemyType.BOSS]: { health: 2000, speed: 1.5, creditValue: 500, contactDamage: 2 },
 };
 
 // Dynamic pricing: price = baseCost * (1 + globalCount * PRICE_ESCALATION)

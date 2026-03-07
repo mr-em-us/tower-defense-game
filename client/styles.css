@@ -956,6 +956,157 @@ body {
   }
 }
 
+/* Post-Game Analysis Panel */
+.post-game-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(0, 20, 50, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 20px;
+  overflow-y: auto;
+  gap: 16px;
+}
+
+.post-game-panel.hidden {
+  display: none;
+}
+
+.pg-header {
+  font-size: 36px;
+  font-weight: 500;
+  letter-spacing: 3px;
+}
+
+.pg-sub {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.pg-summary {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pg-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  min-width: 80px;
+}
+
+.pg-stat-value {
+  font-size: 18px;
+  font-weight: 500;
+  color: #4A9EFF;
+}
+
+.pg-stat-label {
+  font-size: 10px;
+  opacity: 0.5;
+  margin-top: 2px;
+}
+
+.pg-table-section {
+  width: 100%;
+  max-width: 640px;
+}
+
+.pg-section-title {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.pg-table-wrap {
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+}
+
+.pg-table th {
+  text-align: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  background: rgba(0, 20, 50, 0.98);
+}
+
+.pg-table td {
+  text-align: center;
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.pg-table tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pg-warn {
+  color: #EF4444;
+}
+
+.pg-charts {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pg-chart-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.pg-chart-title {
+  font-size: 11px;
+  opacity: 0.5;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.pg-chart-canvas {
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pg-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.pg-note {
+  font-size: 12px;
+  opacity: 0.4;
+}
+
 /* Landscape prompt for portrait mobile */
 @media (max-width: 600px) and (orientation: portrait) {
   #rotate-prompt {

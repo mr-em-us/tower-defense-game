@@ -116,23 +116,26 @@ export class InputHandler {
       this.brushDragging = false;
     });
 
-    // Keyboard: reset zoom with 0 or Home, arrow keys to pan
+    // Keyboard: reset zoom with 0 or Home, arrow keys / WASD to pan
     window.addEventListener('keydown', (e) => {
+      // Don't handle shortcuts when typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
       if (e.key === '0' || e.key === 'Home') {
         this.gameClient.clientState.zoom = 1.0;
         this.gameClient.clientState.panOffset = { x: 0, y: 0 };
       }
       const panStep = 40;
-      if (e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
         this.gameClient.clientState.panOffset.x += panStep;
         this.clampPan();
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
         this.gameClient.clientState.panOffset.x -= panStep;
         this.clampPan();
-      } else if (e.key === 'ArrowUp') {
+      } else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
         this.gameClient.clientState.panOffset.y += panStep;
         this.clampPan();
-      } else if (e.key === 'ArrowDown') {
+      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
         this.gameClient.clientState.panOffset.y -= panStep;
         this.clampPan();
       }

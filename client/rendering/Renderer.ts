@@ -215,6 +215,37 @@ export class Renderer {
         ctx.fillText(`${tower.ammo}`, dotX, dotY);
       }
     }
+
+    // Draw ghost traces for destroyed towers (own towers only)
+    const traces = state.destroyedTowerTraces ?? [];
+    for (const trace of traces) {
+      if (trace.ownerId !== playerId) continue;
+
+      const tx = trace.position.x * cs;
+      const ty = trace.position.y * cs;
+      const tcx = tx + cs / 2;
+      const tcy = ty + cs / 2;
+
+      // Faded red background
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.07)';
+      ctx.fillRect(tx + 1, ty + 1, cs - 2, cs - 2);
+
+      // Ghost tower character
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = VISUAL.FG_COLOR;
+      ctx.font = `bold ${cs - 4}px ${VISUAL.FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(TOWER_CHARS[trace.type], tcx, tcy);
+      ctx.globalAlpha = 1.0;
+
+      // Dashed outline
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      ctx.strokeRect(tx + 1, ty + 1, cs - 2, cs - 2);
+      ctx.setLineDash([]);
+    }
   }
 
   // --- Shell casing particles ---

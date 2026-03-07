@@ -10,7 +10,7 @@ interface WaveEntry {
 }
 
 // Target duration in seconds for the spawn phase of each wave
-const WAVE_SPAWN_DURATION = 45;
+const WAVE_SPAWN_DURATION = 8;
 
 function getDifficultyMultiplier(waveNumber: number, curve: number[]): number {
   // curve has 20 entries for waves 1-20
@@ -76,16 +76,18 @@ export class WaveSystem {
       this.waveStarted = true;
     }
 
-    // Spawn from queue
+    // Spawn from queue in batches (batch size scales with wave)
     this.spawnTimer -= dt;
     while (this.spawnTimer <= 0 && this.waveQueue.length > 0) {
-      const entry = this.waveQueue.shift()!;
-      if (entry.side === ('BOTH' as PlayerSide)) {
-        // Multiplayer: spawn one enemy for each side simultaneously
-        this.spawnEnemy(state, entry.type, PlayerSide.LEFT);
-        this.spawnEnemy(state, entry.type, PlayerSide.RIGHT);
-      } else {
-        this.spawnEnemy(state, entry.type, entry.side);
+      const batchSize = Math.min(5, 1 + Math.floor((state.waveNumber - 1) / 2));
+      for (let b = 0; b < batchSize && this.waveQueue.length > 0; b++) {
+        const entry = this.waveQueue.shift()!;
+        if (entry.side === ('BOTH' as PlayerSide)) {
+          this.spawnEnemy(state, entry.type, PlayerSide.LEFT);
+          this.spawnEnemy(state, entry.type, PlayerSide.RIGHT);
+        } else {
+          this.spawnEnemy(state, entry.type, entry.side);
+        }
       }
       state.waveEnemiesRemaining = this.waveQueue.length;
       if (this.waveQueue.length > 0) {
@@ -133,7 +135,7 @@ export class WaveSystem {
     const overrides = state.settings.enemyOverrides?.[type];
     const hp = Math.round(stats.health * hpScale * (overrides?.health ?? 1));
     const speed = stats.speed * (overrides?.speed ?? 1);
-    const creditValue = Math.round(stats.creditValue * (overrides?.creditValue ?? 1));
+    const creditValue = Math.round(stats.creditValue * hpScale * (overrides?.creditValue ?? 1));
     const contactDamage = stats.contactDamage * (overrides?.contactDamage ?? 1);
 
     const path = findPath(state.grid, targetSide);

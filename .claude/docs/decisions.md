@@ -60,6 +60,24 @@
 **Alternatives**: Client-side animation speed (wouldn't actually speed up game logic), server tick rate change (harder to implement, affects networking), arbitrary speed slider (too much complexity)
 **Consequences**: True server-side speed increase. All systems (phases, waves, enemies, towers, projectiles) run faster. Multiplayer consensus prevents one player from forcing speed on another. gameSpeed on GameState means clients see it in every broadcast for UI.
 
+### 2026-03 -- Turbo Mode: requestedSpeed Replaces fastModeRequested
+**Context**: User wanted a "very fast" mode beyond the existing 2x. Old boolean fastModeRequested only supported on/off.
+**Decision**: Changed Player.fastModeRequested: boolean → Player.requestedSpeed: number (1/2/4). Server cycles 1→2→4→1 on TOGGLE_FAST_MODE. Reused existing message type (no new network message needed). SP uses player's speed directly. MP uses Math.min() of all players.
+**Alternatives**: Separate messages per speed tier (more message types), slider control (too complex for quick toggle), client-side only speedup (wouldn't affect game logic)
+**Consequences**: Clean upgrade path from old boolean. Extensible to more speeds if needed. MP min() means the slowest player sets the pace.
+
+### 2026-03 -- Ghost Traces as TowerTrace[] on GameState
+**Context**: Players couldn't remember where destroyed towers were, making rebuilding defense lines tedious.
+**Decision**: When a tower is destroyed, push a TowerTrace (position, type, ownerId) to state.destroyedTowerTraces[]. Client renders faded red outlines for own traces. Traces cleared when a tower is placed on that cell.
+**Alternatives**: Client-side memory only (lost on reconnect), permanent markers (clutter), minimap highlighting
+**Consequences**: Server-authoritative traces survive reconnects. Only own traces shown to avoid information leak in MP. Automatic cleanup on rebuild prevents clutter.
+
+### 2026-03 -- Post-Game Wave Stats via Phase Transition Detection
+**Context**: Needed per-wave stats for post-game analysis. Server already tracks some counters per wave.
+**Decision**: Track WaveStats (spawned, killed, leaked, towers lost, credits earned/spent, towers bought/upgraded) via private waveStatsHistory on GameRoom. Detect phase transitions by comparing prevPhase with current state.phase in tick(). Init stats on COMBAT start, finalize on COMBAT→BUILD transition. Include array in GAME_OVER broadcast.
+**Alternatives**: Client-side stat tracking only (unreliable), separate stat tracking system (over-engineered), instrument every action individually (fragile)
+**Consequences**: Known bug: BUILD phase tower purchases happen when currentWaveStats is null, so credits spent shows 0c. Fix needed: keep currentWaveStats alive during BUILD phase.
+
 ### 2026-03 -- Wave Rebalancing (firstWaveEnemies 60 -> 15)
 **Context**: Default difficulty was too hard. Wave 3 had 165 enemies due to formula `(4 + wave*2) * 10 * countScale`. User reported game was unplayable at defaults.
 **Decision**: Rewrote wave formula to `baseCount = firstWaveEnemies * (1 + (wave-1) * 0.2) * diffRatio` with percentage-based type distribution. Reduced default firstWaveEnemies from 60 to 15.

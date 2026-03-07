@@ -63,11 +63,13 @@ export class ProjectileSystem {
     if (!enemy) return;
 
     let finalDamage = damage;
-    // Non-AA towers deal 50% damage to flying enemies
+    // Flying damage: AA towers deal 3x, non-AA towers deal 25% (small arms vs plane)
     if (enemy.type === EnemyType.FLYING) {
       const tower = state.towers[towerId];
-      if (tower && tower.type !== TowerType.AA) {
-        finalDamage = Math.round(damage * 0.5);
+      if (tower && tower.type === TowerType.AA) {
+        finalDamage = Math.round(damage * 3);
+      } else {
+        finalDamage = Math.round(damage * 0.25);
       }
     }
     enemy.health -= finalDamage;

@@ -83,7 +83,7 @@ body {
 }
 
 .tower-group-right {
-  margin-left: 2px;
+  margin-left: auto;
   padding-left: 10px;
   border-left: 1px solid rgba(255, 255, 255, 0.15);
 }
@@ -100,9 +100,30 @@ body {
   border-color: #fff;
 }
 
-/* Compact utility buttons */
+/* Grouping for bar buttons with dividers */
+.bar-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding-right: 8px;
+  margin-right: 4px;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.bar-group:last-child,
+.bar-group.no-divider {
+  border-right: none;
+  padding-right: 0;
+  margin-right: 0;
+}
+
+/* Hide empty groups (all children hidden) */
+.bar-group:empty {
+  display: none;
+}
+
+/* Compact utility buttons — same height, just slightly smaller text */
 .compact-btn {
-  padding: 6px 10px;
   font-size: 12px;
   opacity: 0.85;
 }
@@ -110,7 +131,6 @@ body {
 /* Fixed-width buttons to prevent layout flashing */
 .fixed-width-btn {
   min-width: 110px;
-  white-space: nowrap;
   text-align: center;
 }
 
@@ -184,6 +204,7 @@ body {
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s;
+  white-space: nowrap;
 }
 
 .action-btn:hover {
@@ -927,7 +948,6 @@ body {
   }
 
   .compact-btn {
-    padding: 4px 8px;
     font-size: 10px;
   }
 

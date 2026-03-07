@@ -98,6 +98,24 @@ Tower buttons for SNIPER/SPLASH/SLOW show escalation percentage (e.g., "+36%") i
 ### Live Economy Ledger (ECON Tab) -- shipped (uncommitted)
 New "ECON" tab in ChartsOverlay (canvas-rendered, matching existing chart aesthetic). Shows per-wave revenue breakdown (Kill Rewards, Wave Bonus, Tower Income, Sell Refunds) in green and expenses (Towers, Upgrades, Repairs, Restock, Maintenance) in red, with net total. Server-side WaveEconomy tracking: new WaveEconomy interface on GameState, getPlayerEconomy() helper in GameRoom, all 8 spending handlers instrumented, kill rewards tracked in ProjectileSystem. Economy resets each wave in initWaveStats(). ChartsOverlay scaled from 160x80 to 260x140 for readability.
 
+### Flying Enemies + AA Tower -- shipped (uncommitted)
+New enemy type (FLYING) with straight-line path from spawn to goal (bypasses BFS). New tower type (AA) that only targets flying, deals 3x damage. Non-AA towers deal 25% to flying. Air waves scheduled randomly (~35% chance, 3-wave countdown warning). HUD shows "✈ Air in N" / "✈ AIR WAVE".
+
+### Price Decay -- shipped (uncommitted)
+PRICE_DECAY_RATE=0.05 per wave applied in PhaseSystem. Dynamic prices gradually decrease when towers aren't being purchased.
+
+### Auto-Rebuild -- shipped (uncommitted)
+Types added (autoRebuild in settings, destroyedTowerMemory). PhaseSystem + HUD have rebuild code. Toggle button in main bar.
+
+### Drawer-based HUD Layout -- shipped (uncommitted)
+Single-row bottom bar with drawer system. "Towers" button opens tower picker drawer. "Brush" button opens brush mode drawer (Fix/Upgrade/Sell). Drawers are mutually exclusive. Ready+Stats always visible in persistent right group. All buttons uniform height with .bar-group dividers separating logical sections (Tools | Context | Toggles | Game).
+
+### Strength Chart -- shipped (uncommitted)
+StatsTracker tracks strengthIndex. ChartsOverlay has strength rendering code.
+
+### Comma Delimiters -- shipped (uncommitted)
+All numbers use .toLocaleString() across HUD, Renderer, PostGameOverlay.
+
 ## Planned / Ideas
 - More tower/enemy types
 - Cloud leaderboard sync

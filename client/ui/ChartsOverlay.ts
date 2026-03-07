@@ -441,7 +441,7 @@ export class ChartsOverlay {
     ctx.lineTo(legX - 32, legY + legOffset + 4);
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText('Diff', legX - 44, legY + legOffset);
+    ctx.fillText('Difficulty', legX - 54, legY + legOffset);
 
     // Difficulty y-axis labels on right side
     const diffTicks = niceScale(minDiff, maxDiff, 3);

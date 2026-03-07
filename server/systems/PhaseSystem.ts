@@ -74,6 +74,22 @@ export class PhaseSystem {
       state.globalPurchaseCounts[type] *= (1 - PRICE_DECAY_RATE);
     }
 
+    // Air wave scheduling: randomized with 3-wave warning
+    if (state.airWaveCountdown > 0) {
+      // Count down to scheduled air wave
+      state.airWaveCountdown--;
+    } else if (state.airWaveCountdown === 0) {
+      // Air wave just happened, reset
+      state.airWaveCountdown = -1;
+    }
+    // Schedule new air wave if none pending and wave >= 2 (will arrive wave >= 5)
+    if (state.airWaveCountdown === -1 && state.waveNumber >= 2) {
+      // ~35% chance each wave to schedule air 3 waves from now
+      if (Math.random() < 0.35) {
+        state.airWaveCountdown = 3;
+      }
+    }
+
     // Auto-rebuild destroyed towers
     const tracesToRemove: number[] = [];
     for (const player of Object.values(state.players)) {

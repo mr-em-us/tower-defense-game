@@ -4,11 +4,12 @@
 
 | Tower | Cost | Damage | Range | FireRate | HP | Ammo | AmmoCost | Income | Maint |
 |-------|------|--------|-------|----------|-----|------|----------|--------|-------|
-| BASIC | 50 | 10 | 3 | 2.0 | 200 | 100 | 0.5 | 5 | 2 |
+| BASIC | 50 | 10 | 3 | 2.0 | 200 | 100 | 0.3 | 5 | 2 |
 | SNIPER | 120 | 50 | 8 | 0.5 | 120 | 25 | 2.0 | 10 | 5 |
 | SPLASH | 150 | 20 | 4 | 1.0 | 160 | 50 | 1.0 | 12 | 6 |
-| SLOW | 80 | 5 | 3 | 1.5 | 200 | 60 | 0.5 | 7 | 3 |
+| SLOW | 80 | 5 | 3 | 1.5 | 200 | 60 | 0.3 | 7 | 3 |
 | WALL | 25 | 0 | 0 | 0 | 150 | 0 | 0 | 0 | 0 |
+| AA | 100 | 10 | 6 | 1.5 | 100 | 40 | 1.0 | 8 | 4 |
 
 Additional tower stats: upgradeCostMultiplier (BASIC 1.5, SNIPER 1.6, SPLASH 1.5, SLOW 1.4, WALL 1.3), upgradeStatMultiplier (1.4, 1.5, 1.4, 1.3, 1.0), splashRadius (SPLASH=2), slowAmount (SLOW=0.5), slowDuration (SLOW=2s).
 
@@ -16,10 +17,22 @@ Additional tower stats: upgradeCostMultiplier (BASIC 1.5, SNIPER 1.6, SPLASH 1.5
 
 | Enemy | Health | Speed | Credit Value | Contact Damage |
 |-------|--------|-------|--------------|----------------|
-| BASIC | 100 | 2 | 10 | 0.5 |
-| FAST | 50 | 4 | 15 | 0.3 |
-| TANK | 500 | 1 | 50 | 2.0 |
-| BOSS | 2000 | 1.5 | 200 | 5.0 |
+| BASIC | 100 | 2 | 12 | 0.5 |
+| FAST | 50 | 4 | 18 | 0.3 |
+| TANK | 500 | 1 | 60 | 1.0 |
+| BOSS | 2000 | 1.5 | 500 | 2.0 |
+| FLYING | 80 | 3 | 20 | 0.4 |
+
+### Flying Damage Model
+- AA towers deal 3x damage to flying enemies (10 base × 3 = 30/hit, 45 DPS)
+- Non-AA towers deal 25% damage to flying (small arms vs plane)
+- AA towers ONLY target flying enemies (skip ground)
+- Flying enemies bypass BFS pathfinding — fly straight from spawn to goal
+
+### Air Wave Scheduling
+- ~35% chance per wave (from wave 2+) to schedule an air wave 3 waves ahead
+- HUD countdown: "✈ Air in 3/2/1" (yellow), "✈ AIR WAVE" (red)
+- Flying enemies are 15% of wave total (min 2) on air waves only
 
 ## Economy Flow
 1. **Start**: Players begin with startingCredits (default 2000)

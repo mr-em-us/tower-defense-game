@@ -87,6 +87,7 @@ export class GameRoom {
       destroyedTowerTraces: [],
       settings: { ...DEFAULT_GAME_SETTINGS },
       waveEconomy: {},
+      airWaveCountdown: -1,
     };
   }
 

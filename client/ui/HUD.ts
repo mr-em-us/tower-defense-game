@@ -26,6 +26,7 @@ export class HUD {
   private buttonsCreated = false;
   private postGameOverlay: PostGameOverlay;
   private drawerOpen = false;
+  private brushDrawerOpen = false;
   private brushMode: 'repair' | 'upgrade' | 'sell' = 'repair';
 
   constructor(private gameClient: GameClient) {
@@ -108,23 +109,46 @@ export class HUD {
         this.hudCenter.appendChild(span(` [${state.gameSpeed}x]`, 'color:#FBBF24;font-weight:500'));
       }
     }
+    // Air wave warning
+    if (state.airWaveCountdown === 0) {
+      this.hudCenter.appendChild(span('  ✈ AIR WAVE', 'color:#EF4444;font-weight:700'));
+    } else if (state.airWaveCountdown > 0) {
+      this.hudCenter.appendChild(span(`  ✈ Air in ${state.airWaveCountdown}`, 'color:#FBBF24;font-weight:500'));
+    }
   }
 
   private toggleDrawer(): void {
+    this.closeBrushDrawer(); // close brush if open
     this.drawerOpen = !this.drawerOpen;
-    const drawerPanel = document.getElementById('tower-drawer-panel');
-    const mainRow = document.getElementById('tower-main-row');
-    if (drawerPanel) drawerPanel.style.display = this.drawerOpen ? '' : 'none';
-    if (mainRow) mainRow.style.display = this.drawerOpen ? 'none' : '';
+    this.applyDrawerVisibility();
   }
 
   private closeDrawer(): void {
     if (!this.drawerOpen) return;
     this.drawerOpen = false;
-    const drawerPanel = document.getElementById('tower-drawer-panel');
+    this.applyDrawerVisibility();
+  }
+
+  private toggleBrushDrawer(): void {
+    this.closeDrawer(); // close towers if open
+    this.brushDrawerOpen = !this.brushDrawerOpen;
+    this.applyDrawerVisibility();
+  }
+
+  private closeBrushDrawer(): void {
+    if (!this.brushDrawerOpen) return;
+    this.brushDrawerOpen = false;
+    this.applyDrawerVisibility();
+  }
+
+  private applyDrawerVisibility(): void {
     const mainRow = document.getElementById('tower-main-row');
-    if (drawerPanel) drawerPanel.style.display = 'none';
-    if (mainRow) mainRow.style.display = '';
+    const towerDrawer = document.getElementById('tower-drawer-panel');
+    const brushDrawer = document.getElementById('brush-drawer-panel');
+    const anyOpen = this.drawerOpen || this.brushDrawerOpen;
+    if (mainRow) mainRow.style.display = anyOpen ? 'none' : '';
+    if (towerDrawer) towerDrawer.style.display = this.drawerOpen ? '' : 'none';
+    if (brushDrawer) brushDrawer.style.display = this.brushDrawerOpen ? '' : 'none';
   }
 
   private updateTowerBar(state: GameState): void {
@@ -140,11 +164,19 @@ export class HUD {
     const activeTool = this.gameClient.clientState.activeTool;
     const playerId = this.gameClient.getPlayerId();
 
-    // Update drawer toggle button
+    // Update drawer toggle buttons
     const drawerToggle = document.getElementById('tower-drawer-toggle');
     if (drawerToggle) {
       if (drawerToggle.textContent !== 'Towers') drawerToggle.textContent = 'Towers';
       drawerToggle.classList.toggle('drawer-open', this.drawerOpen);
+    }
+    const brushToggle = document.getElementById('brush-drawer-toggle');
+    if (brushToggle) {
+      const brushActive = activeTool === 'brush';
+      const brushLabel = brushActive ? `Brush: ${this.brushMode.charAt(0).toUpperCase() + this.brushMode.slice(1)}` : 'Brush';
+      if (brushToggle.textContent !== brushLabel) brushToggle.textContent = brushLabel;
+      brushToggle.classList.toggle('drawer-open', this.brushDrawerOpen);
+      brushToggle.classList.toggle('selected', brushActive && !this.brushDrawerOpen);
     }
 
     // Update tower placement button states (inside drawer)
@@ -189,7 +221,9 @@ export class HUD {
     }
 
     const readyBtn = document.getElementById('ready-btn');
-    if (readyBtn) readyBtn.style.display = isBuild ? '' : 'none';
+    if (readyBtn) {
+      readyBtn.classList.toggle('disabled', !isBuild);
+    }
 
     // Auto R&R button
     const autoRepairBtn = document.getElementById('auto-repair-btn');
@@ -197,7 +231,7 @@ export class HUD {
       if (isBuildOrCombat) {
         autoRepairBtn.style.display = '';
         const enabled = this.gameClient.isAutoRepairEnabled();
-        const newText = enabled ? 'Auto R&R: ON' : 'Auto R&R: OFF';
+        const newText = enabled ? 'Auto Fix: ON' : 'Auto Fix: OFF';
         if (autoRepairBtn.textContent !== newText) autoRepairBtn.textContent = newText;
         autoRepairBtn.classList.toggle('selected', enabled);
       } else {
@@ -245,34 +279,32 @@ export class HUD {
       fastModeBtn.classList.toggle('selected', mySpeed > 1);
     }
 
-    // Selected tower actions
+    // Selected tower actions — show/hide context group as a whole
     const selectedIds = this.gameClient.clientState.selectedTowerIds;
+    const contextGroup = document.getElementById('context-group');
     const upgradeBtn = document.getElementById('upgrade-btn');
     const sellBtn = document.getElementById('sell-btn');
     const repairBtn = document.getElementById('repair-btn');
-    const restockBtn = document.getElementById('restock-btn');
 
     if (selectedIds.length === 1) {
       // Single tower selected
       const towerId = selectedIds[0];
       const tower = state.towers[towerId];
 
-      if (upgradeBtn && sellBtn) {
+      if (upgradeBtn && sellBtn && contextGroup) {
         if (tower && isBuild) {
+          contextGroup.style.display = '';
           const upgCost = this.gameClient.getUpgradeCost(towerId);
-          upgradeBtn.style.display = '';
-          upgradeBtn.textContent = upgCost !== null ? `Upgrade (${upgCost.toLocaleString()}c)` : 'Upgrade';
-          sellBtn.style.display = '';
-          // Show refund amount with same-phase indicator
+          upgradeBtn.textContent = upgCost !== null ? `Upgrade ${upgCost.toLocaleString()}c` : 'Upgrade';
+          // Show refund amount
           const stats = TOWER_STATS[tower.type];
           let invested = stats.cost;
           for (let lvl = 1; lvl < tower.level; lvl++) invested += Math.round(stats.cost * stats.upgradeCostMultiplier * lvl);
           const isSamePhase = tower.placedWave === state.waveNumber;
           const refund = isSamePhase ? invested : Math.round(invested * SELL_REFUND_RATIO);
-          sellBtn.textContent = `Sell (${refund.toLocaleString()}c)`;
+          sellBtn.textContent = `Sell ${refund.toLocaleString()}c`;
         } else {
-          upgradeBtn.style.display = 'none';
-          sellBtn.style.display = 'none';
+          contextGroup.style.display = 'none';
         }
       }
 
@@ -281,7 +313,7 @@ export class HUD {
           const repairCost = this.gameClient.getRepairCost(towerId);
           if (repairCost !== null && repairCost > 0) {
             repairBtn.style.display = '';
-            repairBtn.textContent = `Repair (${repairCost.toLocaleString()}c)`;
+            repairBtn.textContent = `Repair ${repairCost.toLocaleString()}c`;
           } else {
             repairBtn.style.display = 'none';
           }
@@ -290,34 +322,21 @@ export class HUD {
         }
       }
 
-      if (restockBtn) {
-        if (tower && isBuildOrCombat) {
-          const restockCost = this.gameClient.getRestockCost(towerId);
-          if (restockCost !== null && restockCost > 0) {
-            restockBtn.style.display = '';
-            restockBtn.textContent = `Restock (${restockCost.toLocaleString()}c)`;
-          } else {
-            restockBtn.style.display = 'none';
-          }
-        } else {
-          restockBtn.style.display = 'none';
-        }
-      }
     } else if (selectedIds.length > 1) {
       // Multi-select: show bulk action buttons
       const towers = selectedIds.map(id => state.towers[id]).filter(Boolean);
 
-      if (upgradeBtn) {
+      if (upgradeBtn && contextGroup) {
         if (isBuild && towers.length > 0) {
+          contextGroup.style.display = '';
           let totalUpgCost = 0;
           for (const t of towers) {
             const c = this.gameClient.getUpgradeCost(t.id);
             if (c !== null) totalUpgCost += c;
           }
-          upgradeBtn.style.display = '';
-          upgradeBtn.textContent = `Upgrade All (${totalUpgCost.toLocaleString()}c)`;
+          upgradeBtn.textContent = `Upgrade All ${totalUpgCost.toLocaleString()}c`;
         } else {
-          upgradeBtn.style.display = 'none';
+          contextGroup.style.display = 'none';
         }
       }
 
@@ -331,10 +350,7 @@ export class HUD {
             const isSamePhase = t.placedWave === state.waveNumber;
             totalSell += isSamePhase ? invested : Math.round(invested * SELL_REFUND_RATIO);
           }
-          sellBtn.style.display = '';
-          sellBtn.textContent = `Sell All (${totalSell.toLocaleString()}c)`;
-        } else {
-          sellBtn.style.display = 'none';
+          sellBtn.textContent = `Sell All ${totalSell.toLocaleString()}c`;
         }
       }
 
@@ -346,31 +362,16 @@ export class HUD {
         }
         if (totalRepair > 0 && isBuildOrCombat) {
           repairBtn.style.display = '';
-          repairBtn.textContent = `Repair All (${totalRepair.toLocaleString()}c)`;
+          repairBtn.textContent = `Repair All ${totalRepair.toLocaleString()}c`;
         } else {
           repairBtn.style.display = 'none';
         }
       }
 
-      if (restockBtn) {
-        let totalRestock = 0;
-        for (const id of selectedIds) {
-          const cost = this.gameClient.getRestockCost(id);
-          if (cost !== null && cost > 0) totalRestock += cost;
-        }
-        if (totalRestock > 0 && isBuildOrCombat) {
-          restockBtn.style.display = '';
-          restockBtn.textContent = `Restock All (${totalRestock.toLocaleString()}c)`;
-        } else {
-          restockBtn.style.display = 'none';
-        }
-      }
     } else {
-      // No tower selected
-      if (upgradeBtn) upgradeBtn.style.display = 'none';
-      if (sellBtn) sellBtn.style.display = 'none';
+      // No tower selected — hide entire context group
+      if (contextGroup) contextGroup.style.display = 'none';
       if (repairBtn) repairBtn.style.display = 'none';
-      if (restockBtn) restockBtn.style.display = 'none';
     }
   }
 
@@ -382,32 +383,47 @@ export class HUD {
     mainRow.id = 'tower-main-row';
     mainRow.className = 'tower-row';
 
-    // Drawer toggle button — shows current tower selection
+    // --- Group 1: Tools (drawers) ---
+    const toolsGroup = document.createElement('div');
+    toolsGroup.className = 'bar-group';
+
     const drawerToggle = document.createElement('button');
     drawerToggle.id = 'tower-drawer-toggle';
     drawerToggle.className = 'action-btn drawer-toggle';
-    drawerToggle.textContent = '# Basic 50c';
+    drawerToggle.textContent = 'Towers';
     drawerToggle.addEventListener('click', () => this.toggleDrawer());
-    mainRow.appendChild(drawerToggle);
+    toolsGroup.appendChild(drawerToggle);
 
-    // Context buttons (Upgrade, Sell, Repair, Restock) — inline in main row
+    const brushToggle = document.createElement('button');
+    brushToggle.id = 'brush-drawer-toggle';
+    brushToggle.className = 'action-btn drawer-toggle';
+    brushToggle.textContent = 'Brush';
+    brushToggle.addEventListener('click', () => this.toggleBrushDrawer());
+    toolsGroup.appendChild(brushToggle);
+
+    mainRow.appendChild(toolsGroup);
+
+    // --- Group 2: Context actions (Upgrade, Sell, Repair) — conditional ---
+    const contextGroup = document.createElement('div');
+    contextGroup.id = 'context-group';
+    contextGroup.className = 'bar-group';
+    contextGroup.style.display = 'none';
+
     const upgradeBtn = document.createElement('button');
     upgradeBtn.id = 'upgrade-btn';
     upgradeBtn.className = 'action-btn';
     upgradeBtn.textContent = 'Upgrade';
-    upgradeBtn.style.display = 'none';
     upgradeBtn.addEventListener('click', () => {
       for (const id of this.gameClient.clientState.selectedTowerIds) {
         this.gameClient.upgradeTower(id);
       }
     });
-    mainRow.appendChild(upgradeBtn);
+    contextGroup.appendChild(upgradeBtn);
 
     const sellBtn = document.createElement('button');
     sellBtn.id = 'sell-btn';
     sellBtn.className = 'action-btn';
     sellBtn.textContent = 'Sell';
-    sellBtn.style.display = 'none';
     sellBtn.addEventListener('click', () => {
       for (const id of this.gameClient.clientState.selectedTowerIds) {
         this.gameClient.sellTower(id);
@@ -415,7 +431,7 @@ export class HUD {
       this.gameClient.clientState.selectedTowerIds = [];
       this.gameClient.clientState.selectedTowerType = TowerType.BASIC;
     });
-    mainRow.appendChild(sellBtn);
+    contextGroup.appendChild(sellBtn);
 
     const repairBtn = document.createElement('button');
     repairBtn.id = 'repair-btn';
@@ -427,28 +443,21 @@ export class HUD {
         this.gameClient.repairTower(id);
       }
     });
-    mainRow.appendChild(repairBtn);
+    contextGroup.appendChild(repairBtn);
 
-    const restockBtn = document.createElement('button');
-    restockBtn.id = 'restock-btn';
-    restockBtn.className = 'action-btn';
-    restockBtn.textContent = 'Restock';
-    restockBtn.style.display = 'none';
-    restockBtn.addEventListener('click', () => {
-      for (const id of this.gameClient.clientState.selectedTowerIds) {
-        this.gameClient.restockTower(id);
-      }
-    });
-    mainRow.appendChild(restockBtn);
+    mainRow.appendChild(contextGroup);
 
-    // Utility buttons
+    // --- Group 3: Toggles (Auto Fix, Rebuild, Speed) ---
+    const togglesGroup = document.createElement('div');
+    togglesGroup.className = 'bar-group';
+
     const autoRepairBtn = document.createElement('button');
     autoRepairBtn.id = 'auto-repair-btn';
     autoRepairBtn.className = 'action-btn compact-btn fixed-width-btn';
-    autoRepairBtn.textContent = 'Auto R&R: OFF';
+    autoRepairBtn.textContent = 'Auto Fix: OFF';
     autoRepairBtn.style.display = 'none';
     autoRepairBtn.addEventListener('click', () => this.gameClient.toggleAutoRepair());
-    mainRow.appendChild(autoRepairBtn);
+    togglesGroup.appendChild(autoRepairBtn);
 
     const autoRebuildBtn = document.createElement('button');
     autoRebuildBtn.id = 'auto-rebuild-btn';
@@ -456,34 +465,17 @@ export class HUD {
     autoRebuildBtn.textContent = 'Rebuild: OFF';
     autoRebuildBtn.style.display = 'none';
     autoRebuildBtn.addEventListener('click', () => this.gameClient.toggleAutoRebuild());
-    mainRow.appendChild(autoRebuildBtn);
+    togglesGroup.appendChild(autoRebuildBtn);
 
     const fastModeBtn = document.createElement('button');
     fastModeBtn.id = 'fast-mode-btn';
     fastModeBtn.className = 'action-btn compact-btn fixed-width-btn';
     fastModeBtn.textContent = 'Normal [>]';
     fastModeBtn.addEventListener('click', () => this.gameClient.toggleFastMode());
-    mainRow.appendChild(fastModeBtn);
+    togglesGroup.appendChild(fastModeBtn);
 
-    // Right separator + Ready + Stats
-    const rightGroup = document.createElement('div');
-    rightGroup.className = 'tower-group tower-group-right';
+    mainRow.appendChild(togglesGroup);
 
-    const readyBtn = document.createElement('button');
-    readyBtn.id = 'ready-btn';
-    readyBtn.className = 'action-btn ready-btn';
-    readyBtn.textContent = 'Ready';
-    readyBtn.addEventListener('click', () => this.gameClient.readyForWave());
-    rightGroup.appendChild(readyBtn);
-
-    const statsBtn = document.createElement('button');
-    statsBtn.id = 'stats-btn';
-    statsBtn.className = 'action-btn';
-    statsBtn.textContent = 'Stats';
-    statsBtn.addEventListener('click', () => this.gameClient.chartsOverlay.toggle());
-    rightGroup.appendChild(statsBtn);
-
-    mainRow.appendChild(rightGroup);
     this.towerBar.appendChild(mainRow);
 
     // === Drawer panel: visible when drawer is open ===
@@ -518,6 +510,15 @@ export class HUD {
       btn.appendChild(cost);
       btn.appendChild(escalation);
 
+      // Tooltip with tower stats
+      if (type === TowerType.AA) {
+        btn.title = `AA — ${stats.damage} dmg (${stats.damage * 3} vs air)\nRange: ${stats.range} | Rate: ${stats.fireRate}/s\nAmmo: ${stats.maxAmmo}`;
+      } else if (type === TowerType.WALL) {
+        btn.title = `Wall — HP: ${stats.maxHealth}\nBlocks enemy paths`;
+      } else {
+        btn.title = `${TOWER_LABELS[type]} — ${stats.damage} dmg\nRange: ${stats.range} | Rate: ${stats.fireRate}/s\nAmmo: ${stats.maxAmmo}`;
+      }
+
       btn.addEventListener('click', () => {
         this.gameClient.selectTowerType(type);
       });
@@ -525,35 +526,7 @@ export class HUD {
       drawerPanel.appendChild(btn);
     }
 
-    // Brush tool buttons — 3 modes: R&R, Upgrade, Sell
-    const brushModes: Array<{ id: string; label: string; mode: 'repair' | 'upgrade' | 'sell' }> = [
-      { id: 'brush-repair-btn', label: 'R&R', mode: 'repair' },
-      { id: 'brush-upgrade-btn', label: 'Upg', mode: 'upgrade' },
-      { id: 'brush-sell-btn', label: 'Sell', mode: 'sell' },
-    ];
-    for (const bm of brushModes) {
-      const btn = document.createElement('button');
-      btn.id = bm.id;
-      btn.className = 'tower-btn';
-      const art = document.createElement('span');
-      art.className = 'art';
-      art.textContent = '+';
-      const label = document.createElement('span');
-      label.textContent = bm.label;
-      btn.appendChild(art);
-      btn.appendChild(label);
-      btn.addEventListener('click', () => {
-        const cs = this.gameClient.clientState;
-        this.brushMode = bm.mode;
-        cs.brushMode = bm.mode;
-        cs.activeTool = 'brush';
-        cs.selectedTowerIds = [];
-        cs.selectedTowerType = null;
-      });
-      drawerPanel.appendChild(btn);
-    }
-
-    // Close drawer button
+    // Close tower drawer button
     const closeBtn = document.createElement('button');
     closeBtn.className = 'action-btn drawer-close-btn';
     closeBtn.textContent = '\u00d7';
@@ -561,6 +534,71 @@ export class HUD {
     drawerPanel.appendChild(closeBtn);
 
     this.towerBar.appendChild(drawerPanel);
+
+    // === Brush drawer panel: visible when brush drawer is open ===
+    const brushDrawer = document.createElement('div');
+    brushDrawer.id = 'brush-drawer-panel';
+    brushDrawer.className = 'tower-row';
+    brushDrawer.style.display = 'none';
+
+    const brushModes: Array<{ id: string; art: string; label: string; desc: string; mode: 'repair' | 'upgrade' | 'sell' }> = [
+      { id: 'brush-repair-btn', art: '+', label: 'Fix', desc: 'Repair + restock towers in area', mode: 'repair' },
+      { id: 'brush-upgrade-btn', art: '\u2191', label: 'Upgrade', desc: 'Upgrade towers in area', mode: 'upgrade' },
+      { id: 'brush-sell-btn', art: '$', label: 'Sell', desc: 'Sell towers in area', mode: 'sell' },
+    ];
+    for (const bm of brushModes) {
+      const btn = document.createElement('button');
+      btn.id = bm.id;
+      btn.className = 'tower-btn';
+      const art = document.createElement('span');
+      art.className = 'art';
+      art.textContent = bm.art;
+      const label = document.createElement('span');
+      label.textContent = bm.label;
+      btn.appendChild(art);
+      btn.appendChild(label);
+      btn.title = bm.desc;
+      btn.addEventListener('click', () => {
+        const cs = this.gameClient.clientState;
+        this.brushMode = bm.mode;
+        cs.brushMode = bm.mode;
+        cs.activeTool = 'brush';
+        cs.selectedTowerIds = [];
+        cs.selectedTowerType = null;
+        this.closeBrushDrawer();
+      });
+      brushDrawer.appendChild(btn);
+    }
+
+    // Close brush drawer button
+    const brushCloseBtn = document.createElement('button');
+    brushCloseBtn.className = 'action-btn drawer-close-btn';
+    brushCloseBtn.textContent = '\u00d7';
+    brushCloseBtn.addEventListener('click', () => this.closeBrushDrawer());
+    brushDrawer.appendChild(brushCloseBtn);
+
+    this.towerBar.appendChild(brushDrawer);
+
+    // === Persistent right group: always visible regardless of drawer state ===
+    const rightGroup = document.createElement('div');
+    rightGroup.id = 'tower-persistent-right';
+    rightGroup.className = 'bar-group no-divider tower-group-right';
+
+    const readyBtn = document.createElement('button');
+    readyBtn.id = 'ready-btn';
+    readyBtn.className = 'action-btn ready-btn';
+    readyBtn.textContent = 'Ready';
+    readyBtn.addEventListener('click', () => this.gameClient.readyForWave());
+    rightGroup.appendChild(readyBtn);
+
+    const statsBtn = document.createElement('button');
+    statsBtn.id = 'stats-btn';
+    statsBtn.className = 'action-btn';
+    statsBtn.textContent = 'Stats';
+    statsBtn.addEventListener('click', () => this.gameClient.chartsOverlay.toggle());
+    rightGroup.appendChild(statsBtn);
+
+    this.towerBar.appendChild(rightGroup);
   }
 
   private showLobby(currentCredits: number): void {

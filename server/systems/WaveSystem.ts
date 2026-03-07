@@ -22,7 +22,7 @@ function getDifficultyMultiplier(waveNumber: number, curve: number[]): number {
   return curve[curve.length - 1] + lastSlope * (idx - curve.length + 1);
 }
 
-function getWaveDefinition(waveNumber: number, settings: GameSettings): WaveEntry[] {
+function getWaveDefinition(waveNumber: number, settings: GameSettings, hasAir: boolean = false): WaveEntry[] {
   const entries: { type: EnemyType; count: number }[] = [];
 
   // Difficulty ratio: how much harder this wave is relative to wave 1
@@ -36,7 +36,7 @@ function getWaveDefinition(waveNumber: number, settings: GameSettings): WaveEntr
   // Distribute among enemy types based on wave progression
   let basicPct = 1.0;
   if (waveNumber >= 3) basicPct -= 0.30; // fast takes 30%
-  if (waveNumber >= 4) basicPct -= 0.10; // flying takes 10%
+  if (hasAir) basicPct -= 0.15;          // flying takes 15% (on air waves only)
   if (waveNumber >= 5) basicPct -= 0.15; // tanks take 15%
 
   entries.push({ type: EnemyType.BASIC, count: Math.max(1, Math.round(baseCount * basicPct)) });
@@ -51,9 +51,9 @@ function getWaveDefinition(waveNumber: number, settings: GameSettings): WaveEntr
     entries.push({ type: EnemyType.TANK, count: Math.max(1, Math.round(baseCount * 0.15)) });
   }
 
-  // Flying enemies from wave 4 (10% of total)
-  if (waveNumber >= 4) {
-    entries.push({ type: EnemyType.FLYING, count: Math.max(1, Math.round(baseCount * 0.10)) });
+  // Flying enemies only on scheduled air waves (15% of total)
+  if (hasAir) {
+    entries.push({ type: EnemyType.FLYING, count: Math.max(2, Math.round(baseCount * 0.15)) });
   }
 
   // Boss every 10 waves
@@ -104,7 +104,8 @@ export class WaveSystem {
   }
 
   private startWave(state: GameState): void {
-    const definition = getWaveDefinition(state.waveNumber, state.settings);
+    const hasAir = state.airWaveCountdown === 0;
+    const definition = getWaveDefinition(state.waveNumber, state.settings, hasAir);
     this.waveQueue = [];
 
     // In single player, only spawn enemies toward the player's side

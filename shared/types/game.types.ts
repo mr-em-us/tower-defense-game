@@ -167,6 +167,7 @@ export interface GameState {
   destroyedTowerTraces: TowerTrace[];
   settings: GameSettings;
   waveEconomy: Record<string, WaveEconomy>;
+  airWaveCountdown: number; // -1 = no air scheduled, 0 = this wave has air, 1-3 = air in N waves
 }
 
 export interface TowerStatOverrides {

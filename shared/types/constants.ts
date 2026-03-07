@@ -162,9 +162,9 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   firstWaveEnemies: 15,
   difficultyCurve: [
     1.0, 1.0, 1.1, 1.2, 1.3,
-    1.5, 1.7, 1.9, 2.1, 2.4,
-    2.7, 3.0, 3.4, 3.8, 4.2,
-    4.7, 5.2, 5.8, 6.5, 7.2,
+    1.5, 1.7, 1.8, 1.95, 2.15,
+    2.4, 2.7, 3.1, 3.5, 4.0,
+    4.5, 5.1, 5.7, 6.4, 7.2,
   ],
   towerOverrides: {},
   enemyOverrides: {},

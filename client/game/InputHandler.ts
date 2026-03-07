@@ -217,7 +217,8 @@ export class InputHandler {
       const canvasCoord = this.pixelToCanvas(e.clientX, e.clientY);
       const side = this.gameClient.getPlayerSide();
       const W = GRID.WIDTH * GRID.CELL_SIZE;
-      const wx = side === PlayerSide.RIGHT ? W - 160 - 12 : 12;
+      const chartW = charts.getWidth();
+      const wx = side === PlayerSide.RIGHT ? W - chartW - 12 : 12;
       const wy = 52;
       const localX = canvasCoord.x - wx;
       const localY = canvasCoord.y - wy;

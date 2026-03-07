@@ -1,4 +1,4 @@
-import { GameState, GamePhase } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, WaveEconomy } from '../../shared/types/game.types.js';
 import { GAME, TOWER_STATS } from '../../shared/types/constants.js';
 
 export class PhaseSystem {
@@ -61,6 +61,8 @@ export class PhaseSystem {
 
       player.credits += totalIncome;
       player.credits -= totalMaintenance;
+      // Never let maintenance drive credits below zero
+      if (player.credits < 0) player.credits = 0;
 
       player.isReady = false;
     }

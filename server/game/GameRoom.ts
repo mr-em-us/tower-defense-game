@@ -2,7 +2,7 @@ import { WebSocket } from 'ws';
 import { v4 as uuid } from 'uuid';
 import {
   GameState, GamePhase, GameMode, Player, PlayerSide,
-  CellType, TowerType, Tower, GameSettings, WaveStats,
+  CellType, TowerType, Tower, GameSettings, WaveStats, WaveEconomy,
 } from '../../shared/types/game.types.js';
 import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION, DEFAULT_GAME_SETTINGS } from '../../shared/types/constants.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
@@ -86,6 +86,7 @@ export class GameRoom {
       gameSpeed: 1,
       destroyedTowerTraces: [],
       settings: { ...DEFAULT_GAME_SETTINGS },
+      waveEconomy: {},
     };
   }
 
@@ -176,6 +177,7 @@ export class GameRoom {
     this.state.phase = GamePhase.BUILD;
     this.state.waveNumber = 1;
     this.state.phaseTimeRemaining = GAME.BUILD_PHASE_DURATION;
+    this.initWaveStats(); // Track spending from the very first BUILD phase
     log(`Game started in room ${this.roomId}`);
     this.startLoop();
   }
@@ -204,10 +206,10 @@ export class GameRoom {
     this.projectileSystem.update(this.state, adjustedDt);
 
     // Detect phase transitions for wave stats tracking
-    if (this.state.phase === GamePhase.COMBAT && this.prevPhase !== GamePhase.COMBAT) {
-      this.initWaveStats();
-    } else if (this.prevPhase === GamePhase.COMBAT && this.state.phase === GamePhase.BUILD) {
+    if (this.prevPhase === GamePhase.COMBAT && this.state.phase === GamePhase.BUILD) {
+      // Combat ended: finalize stats for the completed wave, then init for the new wave's BUILD phase
       this.finalizeWaveStats();
+      this.initWaveStats();
     }
     this.prevPhase = this.state.phase;
 
@@ -240,6 +242,39 @@ export class GameRoom {
     // Reset per-wave counters
     this.state.waveTowersDestroyed = 0;
     this.state.waveCreditsEarned = 0;
+
+    // Reset wave economy per player and record phase-transition income
+    for (const player of Object.values(this.state.players)) {
+      const econ = this.getPlayerEconomy(player.id);
+      // Zero out all fields
+      econ.killRewards = 0; econ.waveBonus = 0; econ.towerIncome = 0; econ.sellRefunds = 0;
+      econ.towerPurchases = 0; econ.towerUpgrades = 0; econ.repairCosts = 0; econ.restockCosts = 0; econ.maintenanceCosts = 0;
+
+      // Record phase-transition income (already applied by PhaseSystem)
+      if (this.state.waveNumber > 1) {
+        econ.waveBonus = GAME.CREDITS_PER_WAVE;
+        let income = 0;
+        let maintenance = 0;
+        for (const tower of Object.values(this.state.towers)) {
+          if (tower.ownerId !== player.id) continue;
+          const stats = TOWER_STATS[tower.type];
+          income += stats.incomePerTurn;
+          maintenance += stats.maintenancePerTurn;
+        }
+        econ.towerIncome = income;
+        econ.maintenanceCosts = maintenance;
+      }
+    }
+  }
+
+  private getPlayerEconomy(playerId: string): WaveEconomy {
+    if (!this.state.waveEconomy[playerId]) {
+      this.state.waveEconomy[playerId] = {
+        killRewards: 0, waveBonus: 0, towerIncome: 0, sellRefunds: 0,
+        towerPurchases: 0, towerUpgrades: 0, repairCosts: 0, restockCosts: 0, maintenanceCosts: 0,
+      };
+    }
+    return this.state.waveEconomy[playerId];
   }
 
   private finalizeWaveStats(): void {
@@ -389,6 +424,7 @@ export class GameRoom {
       this.currentWaveStats.creditsSpent += actualCost;
       this.currentWaveStats.towersBought++;
     }
+    this.getPlayerEconomy(playerId).towerPurchases += actualCost;
     // Track purchase for dynamic pricing (not BASIC)
     if (type !== TowerType.BASIC && type !== TowerType.WALL) {
       this.state.globalPurchaseCounts[type] = (this.state.globalPurchaseCounts[type] ?? 0) + 1;
@@ -432,6 +468,7 @@ export class GameRoom {
       this.currentWaveStats.creditsSpent += cost;
       this.currentWaveStats.towersUpgraded++;
     }
+    this.getPlayerEconomy(playerId).towerUpgrades += cost;
     tower.level++;
     tower.damage = Math.round(tower.damage * stats.upgradeStatMultiplier);
     tower.range = +(tower.range * 1.1).toFixed(1);
@@ -519,6 +556,7 @@ export class GameRoom {
     }
     const refund = Math.round(totalInvested * SELL_REFUND_RATIO);
     player.credits += refund;
+    this.getPlayerEconomy(playerId).sellRefunds += refund;
 
     this.state.grid.cells[tower.position.y][tower.position.x] = CellType.EMPTY;
     delete this.state.towers[towerId];
@@ -555,6 +593,7 @@ export class GameRoom {
 
     player.credits -= cost;
     if (this.currentWaveStats) this.currentWaveStats.creditsSpent += cost;
+    this.getPlayerEconomy(playerId).repairCosts += cost;
     tower.health = tower.maxHealth;
   }
 
@@ -580,6 +619,7 @@ export class GameRoom {
     if (player.credits >= fullCost) {
       player.credits -= fullCost;
       if (this.currentWaveStats) this.currentWaveStats.creditsSpent += fullCost;
+      this.getPlayerEconomy(playerId).restockCosts += fullCost;
       tower.ammo = tower.maxAmmo;
     } else {
       // Partial restock — buy as much as affordable
@@ -591,6 +631,7 @@ export class GameRoom {
       const partialCost = ammoToBuy * stats.ammoCostPerRound;
       player.credits -= partialCost;
       if (this.currentWaveStats) this.currentWaveStats.creditsSpent += partialCost;
+      this.getPlayerEconomy(playerId).restockCosts += partialCost;
       tower.ammo += ammoToBuy;
     }
   }
@@ -608,11 +649,16 @@ export class GameRoom {
 
       if (player.credits >= fullCost) {
         player.credits -= fullCost;
+        if (this.currentWaveStats) this.currentWaveStats.creditsSpent += fullCost;
+        this.getPlayerEconomy(playerId).restockCosts += fullCost;
         tower.ammo = tower.maxAmmo;
       } else {
         const ammoToBuy = Math.floor(player.credits / stats.ammoCostPerRound);
         if (ammoToBuy > 0) {
-          player.credits -= ammoToBuy * stats.ammoCostPerRound;
+          const partialCost = ammoToBuy * stats.ammoCostPerRound;
+          player.credits -= partialCost;
+          if (this.currentWaveStats) this.currentWaveStats.creditsSpent += partialCost;
+          this.getPlayerEconomy(playerId).restockCosts += partialCost;
           tower.ammo += ammoToBuy;
         }
         break; // Out of credits
@@ -646,12 +692,16 @@ export class GameRoom {
       if (player.credits <= 0) break;
       const stats = TOWER_STATS[tower.type];
 
+      const econ = this.getPlayerEconomy(playerId);
+
       // Repair if damaged
       if (tower.health < tower.maxHealth) {
         const damageRatio = 1 - tower.health / tower.maxHealth;
         const repairCost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
         if (player.credits >= repairCost) {
           player.credits -= repairCost;
+          if (this.currentWaveStats) this.currentWaveStats.creditsSpent += repairCost;
+          econ.repairCosts += repairCost;
           tower.health = tower.maxHealth;
         }
       }
@@ -662,11 +712,16 @@ export class GameRoom {
         const fullCost = ammoNeeded * stats.ammoCostPerRound;
         if (player.credits >= fullCost) {
           player.credits -= fullCost;
+          if (this.currentWaveStats) this.currentWaveStats.creditsSpent += fullCost;
+          econ.restockCosts += fullCost;
           tower.ammo = tower.maxAmmo;
         } else {
           const ammoToBuy = Math.floor(player.credits / stats.ammoCostPerRound);
           if (ammoToBuy > 0) {
-            player.credits -= ammoToBuy * stats.ammoCostPerRound;
+            const partialCost = ammoToBuy * stats.ammoCostPerRound;
+            player.credits -= partialCost;
+            if (this.currentWaveStats) this.currentWaveStats.creditsSpent += partialCost;
+            econ.restockCosts += partialCost;
             tower.ammo += ammoToBuy;
           }
         }
@@ -708,9 +763,13 @@ export class GameRoom {
   private processAutoRepair(): void {
     if (this.state.phase !== GamePhase.BUILD && this.state.phase !== GamePhase.COMBAT) return;
 
-    for (const player of Object.values(this.state.players)) {
-      if (!player.autoRepairEnabled || player.credits <= 0) continue;
+    // Reserve 100 credits so auto-repair never drains the player dry
+    const AUTO_REPAIR_RESERVE = 100;
 
+    for (const player of Object.values(this.state.players)) {
+      if (!player.autoRepairEnabled || player.credits <= AUTO_REPAIR_RESERVE) continue;
+
+      const econ = this.getPlayerEconomy(player.id);
       const ownedTowers = Object.values(this.state.towers).filter(t => t.ownerId === player.id);
 
       // Repair: sort by damage ratio ascending (most damaged first)
@@ -719,12 +778,14 @@ export class GameRoom {
         .sort((a, b) => (a.health / a.maxHealth) - (b.health / b.maxHealth));
 
       for (const tower of damagedTowers) {
-        if (player.credits <= 0) break;
+        if (player.credits <= AUTO_REPAIR_RESERVE) break;
         const stats = TOWER_STATS[tower.type];
         const damageRatio = 1 - tower.health / tower.maxHealth;
         const cost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
-        if (player.credits >= cost) {
+        if (player.credits - cost >= AUTO_REPAIR_RESERVE) {
           player.credits -= cost;
+          if (this.currentWaveStats) this.currentWaveStats.creditsSpent += cost;
+          econ.repairCosts += cost;
           tower.health = tower.maxHealth;
         }
       }
@@ -735,17 +796,23 @@ export class GameRoom {
         .sort((a, b) => (a.ammo / a.maxAmmo) - (b.ammo / b.maxAmmo));
 
       for (const tower of lowAmmoTowers) {
-        if (player.credits <= 0) break;
+        if (player.credits <= AUTO_REPAIR_RESERVE) break;
         const stats = TOWER_STATS[tower.type];
         const ammoNeeded = tower.maxAmmo - tower.ammo;
         const fullCost = ammoNeeded * stats.ammoCostPerRound;
-        if (player.credits >= fullCost) {
+        if (player.credits - fullCost >= AUTO_REPAIR_RESERVE) {
           player.credits -= fullCost;
+          if (this.currentWaveStats) this.currentWaveStats.creditsSpent += fullCost;
+          econ.restockCosts += fullCost;
           tower.ammo = tower.maxAmmo;
         } else {
-          const ammoToBuy = Math.floor(player.credits / stats.ammoCostPerRound);
+          const available = player.credits - AUTO_REPAIR_RESERVE;
+          const ammoToBuy = Math.floor(available / stats.ammoCostPerRound);
           if (ammoToBuy > 0) {
-            player.credits -= ammoToBuy * stats.ammoCostPerRound;
+            const partialCost = ammoToBuy * stats.ammoCostPerRound;
+            player.credits -= partialCost;
+            if (this.currentWaveStats) this.currentWaveStats.creditsSpent += partialCost;
+            econ.restockCosts += partialCost;
             tower.ammo += ammoToBuy;
           }
         }

@@ -71,6 +71,9 @@ export class ProjectileSystem {
         const owner = state.players[tower.ownerId];
         if (owner) {
           owner.credits += enemy.creditValue;
+          // Track kill reward in wave economy
+          const econ = state.waveEconomy[tower.ownerId];
+          if (econ) econ.killRewards += enemy.creditValue;
         }
       }
       state.waveEnemiesKilled++;

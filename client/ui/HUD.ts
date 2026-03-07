@@ -1,5 +1,5 @@
 import { GamePhase, GameMode, GameState, TowerType, PlayerSide } from '../../shared/types/game.types.js';
-import { TOWER_STATS, SELL_REFUND_RATIO } from '../../shared/types/constants.js';
+import { TOWER_STATS, SELL_REFUND_RATIO, PRICE_ESCALATION } from '../../shared/types/constants.js';
 import { TOWER_CHARS, TOWER_LABELS } from '../rendering/AsciiArt.js';
 import { GameClient } from '../game/GameClient.js';
 import { PostGameOverlay } from './PostGameOverlay.js';
@@ -130,6 +130,18 @@ export class HUD {
 
       const costEl = btn.querySelector('.cost');
       if (costEl) costEl.textContent = `${dynamicCost}c`;
+
+      // Show escalation % for non-BASIC/WALL towers
+      const escEl = btn.querySelector('.escalation') as HTMLElement;
+      if (escEl) {
+        if (type !== TowerType.BASIC && type !== TowerType.WALL && state.globalPurchaseCounts[type]) {
+          const count = state.globalPurchaseCounts[type];
+          escEl.textContent = `+${Math.round(count * PRICE_ESCALATION * 100)}%`;
+          escEl.style.display = '';
+        } else {
+          escEl.style.display = 'none';
+        }
+      }
 
       btn.classList.toggle('selected', activeTool === 'place' && selected === type);
       btn.classList.toggle('disabled', !isBuild || !canAfford);
@@ -341,9 +353,14 @@ export class HUD {
       cost.className = 'cost';
       cost.textContent = `${stats.cost}c`;
 
+      const escalation = document.createElement('span');
+      escalation.className = 'escalation';
+      escalation.style.display = 'none';
+
       btn.appendChild(art);
       btn.appendChild(label);
       btn.appendChild(cost);
+      btn.appendChild(escalation);
 
       btn.addEventListener('click', () => {
         this.gameClient.selectTowerType(type);
@@ -463,7 +480,7 @@ export class HUD {
     });
     this.towerBar.appendChild(restockBtn);
 
-    // Stats button
+    // Stats button — toggles charts overlay (tabs cycle via clicking within canvas widget)
     const statsBtn = document.createElement('button');
     statsBtn.id = 'stats-btn';
     statsBtn.className = 'action-btn';

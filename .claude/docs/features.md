@@ -89,6 +89,15 @@ When a tower is destroyed by enemies, a faded outline (ghost trace) remains at t
 ### Post-Game Analysis Overlay -- shipped (uncommitted)
 Full DOM-based post-game overlay shown at GAME_OVER phase. Displays: header (GAME OVER/VICTORY/DEFEAT), wave/HP subtitle, summary stats grid (enemies killed, towers built/lost, credits earned/spent), wave breakdown HTML table with red highlights on leaked/lost values, health and credits line charts via canvas, Play Again button. Server tracks per-wave stats (WaveStats) via phase transition detection, includes in GAME_OVER broadcast. Known bug: credits spent shows 0c because BUILD phase spending isn't tracked.
 
+### Bug Fixes: Credits Tracking + Negative Credits + Difficulty Curve -- shipped (uncommitted)
+Fixed 3 user-reported bugs: (1) Credits spent showing 0c in post-game — init wave stats at game start and BUILD transitions instead of only COMBAT start, added tracking to restockAll/brushRepair/processAutoRepair. (2) Credits going negative — added floor `if (player.credits < 0) player.credits = 0` after maintenance deduction in PhaseSystem.ts. (3) Difficulty ramp too steep waves 8-10 — smoothed default curve values from [1.9, 2.1, 2.4] to [1.8, 1.95, 2.15], adjusted waves 11-20 to reconnect to 7.2 endpoint.
+
+### Dynamic Pricing Visibility -- shipped (uncommitted)
+Tower buttons for SNIPER/SPLASH/SLOW show escalation percentage (e.g., "+36%") in amber text below the price when price has increased due to global purchases. BASIC/WALL exempt. Uses `count * PRICE_ESCALATION * 100` formula. Implemented via `.escalation` span in HUD.ts createTowerButtons() + updateTowerBar().
+
+### Live Economy Ledger (ECON Tab) -- shipped (uncommitted)
+New "ECON" tab in ChartsOverlay (canvas-rendered, matching existing chart aesthetic). Shows per-wave revenue breakdown (Kill Rewards, Wave Bonus, Tower Income, Sell Refunds) in green and expenses (Towers, Upgrades, Repairs, Restock, Maintenance) in red, with net total. Server-side WaveEconomy tracking: new WaveEconomy interface on GameState, getPlayerEconomy() helper in GameRoom, all 8 spending handlers instrumented, kill rewards tracked in ProjectileSystem. Economy resets each wave in initWaveStats(). ChartsOverlay scaled from 160x80 to 260x140 for readability.
+
 ## Planned / Ideas
 - More tower/enemy types
 - Cloud leaderboard sync

@@ -78,6 +78,18 @@
 **Alternatives**: Client-side stat tracking only (unreliable), separate stat tracking system (over-engineered), instrument every action individually (fragile)
 **Consequences**: Known bug: BUILD phase tower purchases happen when currentWaveStats is null, so credits spent shows 0c. Fix needed: keep currentWaveStats alive during BUILD phase.
 
+### 2026-03 -- Economy Ledger as Canvas Tab (not DOM Panel)
+**Context**: Needed a live revenue/expense breakdown for players to understand where credits go.
+**Decision**: Integrated ledger as a canvas tab ("ECON") within existing ChartsOverlay, cycling CREDITS → HP → ECON. Canvas-rendered to match existing chart aesthetic. Initially built as a separate DOM panel (EconomyLedger.ts), but user feedback was that it felt like a "different style / element" from the canvas charts.
+**Alternatives**: DOM overlay panel (built first, deleted), separate HUD section, tooltip on hover
+**Consequences**: Consistent visual style with existing charts. Single widget to manage. Canvas hit-testing already in place for tab cycling. Trade-off: canvas text rendering is less flexible than DOM (no copy-paste, no accessibility), but matches game's overall canvas-first approach.
+
+### 2026-03 -- Server-Side WaveEconomy Tracking
+**Context**: Need per-wave revenue/expense data for the economy ledger.
+**Decision**: Added WaveEconomy interface to GameState with 9 categories (4 revenue, 5 expense). Instrumented all 8 spending handlers in GameRoom plus kill rewards in ProjectileSystem. Economy resets per-wave in initWaveStats(). Phase-transition income (waveBonus, towerIncome, maintenanceCosts) computed in initWaveStats() for waves > 1.
+**Alternatives**: Client-side tracking (unreliable, wouldn't survive reconnect), post-hoc calculation from state diffs (complex, lossy)
+**Consequences**: Server-authoritative economy data, consistent with project architecture. Small overhead per transaction (one property increment). Data broadcast every tick as part of GameState.
+
 ### 2026-03 -- Wave Rebalancing (firstWaveEnemies 60 -> 15)
 **Context**: Default difficulty was too hard. Wave 3 had 165 enemies due to formula `(4 + wave*2) * 10 * countScale`. User reported game was unplayable at defaults.
 **Decision**: Rewrote wave formula to `baseCount = firstWaveEnemies * (1 + (wave-1) * 0.2) * diffRatio` with percentage-based type distribution. Reduced default firstWaveEnemies from 60 to 15.

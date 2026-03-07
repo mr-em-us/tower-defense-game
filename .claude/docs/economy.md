@@ -36,6 +36,13 @@ Additional tower stats: upgradeCostMultiplier (BASIC 1.5, SNIPER 1.6, SPLASH 1.5
 - globalPurchaseCounts tracks purchases + upgrades per type
 - Shared across all players in multiplayer
 
+## WaveEconomy Tracking (server/game/GameRoom.ts)
+Per-wave revenue/expense tracking via `state.waveEconomy[playerId]`. Resets each wave in `initWaveStats()`.
+
+Revenue categories: killRewards (ProjectileSystem.applyDamage), waveBonus (CREDITS_PER_WAVE at wave start), towerIncome (sum of incomePerTurn at wave start), sellRefunds (handleSellTower)
+
+Expense categories: towerPurchases (handlePlaceTower), towerUpgrades (handleUpgradeTower), repairCosts (handleRepairTower, handleBrushRepair, processAutoRepair), restockCosts (handleRestockTower, handleRestockAll, handleBrushRepair, processAutoRepair), maintenanceCosts (sum of maintenancePerTurn at wave start)
+
 ## Wave Scaling Formula (server/systems/WaveSystem.ts)
 
 ```

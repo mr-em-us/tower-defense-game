@@ -624,8 +624,8 @@ export class Renderer {
     const side = this.gameClient.getPlayerSide();
     const cs = GRID.CELL_SIZE;
     const W = GRID.WIDTH * cs;
-    // Same X as ammo/wave bars
-    const x = side === PlayerSide.RIGHT ? W - 160 - 12 : 12;
+    const chartW = charts.getWidth();
+    const x = side === PlayerSide.RIGHT ? W - chartW - 12 : 12;
     // Below wave progress bar (barY=28 + barH=8 + label~12 + gap=4 = 52)
     const y = 52;
 

@@ -108,6 +108,13 @@ body {
   line-height: 1;
 }
 
+.tower-btn .escalation {
+  font-size: 9px;
+  color: #FBBF24;
+  opacity: 0.9;
+  margin-top: -2px;
+}
+
 /* Action buttons in tower bar */
 .action-btn {
   padding: 8px 16px;

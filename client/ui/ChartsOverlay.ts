@@ -1,4 +1,4 @@
-import { PlayerSide } from '../../shared/types/game.types.js';
+import { PlayerSide, GameState, WaveEconomy } from '../../shared/types/game.types.js';
 import { VISUAL } from '../../shared/types/constants.js';
 import { GameClient } from '../game/GameClient.js';
 import { StatsTracker, PlayerHistory } from '../game/StatsTracker.js';
@@ -8,14 +8,13 @@ const PLAYER_COLORS: Record<string, string> = {
   [PlayerSide.RIGHT]: '#FF6B6B',
 };
 
-const TABS = ['credits', 'health'] as const;
+const TABS = ['credits', 'health', 'ledger'] as const;
 type Tab = typeof TABS[number];
-const TAB_LABELS: Record<Tab, string> = { credits: 'CREDITS', health: 'HP' };
+const TAB_LABELS: Record<Tab, string> = { credits: 'CREDITS', health: 'HP', ledger: 'ECON' };
 
-// Matches the ammo/wave bars: 160px wide, starts at x=12
-const CHART_W = 160;
-const CHART_H = 80;
-const HEADER_H = 12; // tab row height
+const CHART_W = 260;
+const CHART_H = 140;
+const HEADER_H = 18; // tab row height
 const TOTAL_H = HEADER_H + CHART_H;
 
 export class ChartsOverlay {
@@ -45,7 +44,7 @@ export class ChartsOverlay {
     const histories = this.statsTracker.getHistories();
 
     // Tab row
-    ctx.font = `10px ${VISUAL.FONT}`;
+    ctx.font = `12px ${VISUAL.FONT}`;
     ctx.textBaseline = 'top';
     let tx = x;
     for (const tab of TABS) {
@@ -58,15 +57,15 @@ export class ChartsOverlay {
         ctx.strokeStyle = 'rgba(255,255,255,0.4)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(tx, y + 11);
-        ctx.lineTo(tx + w, y + 11);
+        ctx.moveTo(tx, y + 15);
+        ctx.lineTo(tx + w, y + 15);
         ctx.stroke();
       }
-      tx += w + 10;
+      tx += w + 12;
     }
 
-    // Legend (inline after tabs, only if multiplayer)
-    if (histories.length > 1) {
+    // Legend (inline after tabs, only if multiplayer and on chart tab)
+    if (this.activeTab !== 'ledger' && histories.length > 1) {
       tx += 4;
       for (const h of histories) {
         const color = PLAYER_COLORS[h.side] || '#fff';
@@ -74,23 +73,27 @@ export class ChartsOverlay {
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(tx, y + 5);
-        ctx.lineTo(tx + 8, y + 5);
+        ctx.moveTo(tx, y + 7);
+        ctx.lineTo(tx + 10, y + 7);
         ctx.stroke();
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.font = `9px ${VISUAL.FONT}`;
-        ctx.fillText(label, tx + 10, y + 1);
-        tx += 30;
+        ctx.font = `11px ${VISUAL.FONT}`;
+        ctx.fillText(label, tx + 12, y + 1);
+        tx += 36;
       }
     }
 
-    // Chart background
+    // Content background
     const chartX = x;
     const chartY = y + HEADER_H;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(chartX - 1, chartY - 1, CHART_W + 2, CHART_H + 2);
 
-    this.renderChart(ctx, histories, this.activeTab, chartX, chartY, CHART_W, CHART_H);
+    if (this.activeTab === 'ledger') {
+      this.renderLedger(ctx, chartX, chartY, CHART_W, CHART_H);
+    } else {
+      this.renderChart(ctx, histories, this.activeTab, chartX, chartY, CHART_W, CHART_H);
+    }
   }
 
   /** Returns total height of the widget for positioning. */
@@ -107,13 +110,101 @@ export class ChartsOverlay {
     return localX >= 0 && localX <= CHART_W && localY >= 0 && localY <= TOTAL_H;
   }
 
+  private renderLedger(
+    ctx: CanvasRenderingContext2D,
+    cx: number, cy: number, cw: number, ch: number,
+  ): void {
+    const playerId = this.gameClient.getPlayerId();
+    const state = this.gameClient.getState();
+    if (!playerId || !state) {
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.font = `12px ${VISUAL.FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('waiting...', cx + cw / 2, cy + ch / 2);
+      return;
+    }
+
+    const econ: WaveEconomy | undefined = state.waveEconomy[playerId];
+    const pad = 6;
+    const rowH = 12;
+    const labelX = cx + pad;
+    const valueX = cx + cw - pad;
+    let ry = cy + pad;
+
+    const drawRow = (label: string, value: number, isRevenue: boolean) => {
+      ctx.font = `10px ${VISUAL.FONT}`;
+      ctx.textBaseline = 'top';
+      // Label
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, labelX, ry);
+      // Value
+      const prefix = isRevenue ? '+' : '-';
+      ctx.fillStyle = isRevenue ? '#4ADE80' : '#EF4444';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${prefix}${Math.round(value)}c`, valueX, ry);
+      ry += rowH;
+    };
+
+    const drawDivider = () => {
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx + pad, ry + 2);
+      ctx.lineTo(cx + cw - pad, ry + 2);
+      ctx.stroke();
+      ry += 6;
+    };
+
+    if (!econ) {
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.font = `12px ${VISUAL.FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('no data', cx + cw / 2, cy + ch / 2);
+      return;
+    }
+
+    // Revenue rows
+    drawRow('Kill Rewards', econ.killRewards, true);
+    drawRow('Wave Bonus', econ.waveBonus, true);
+    drawRow('Tower Income', econ.towerIncome, true);
+    drawRow('Sell Refunds', econ.sellRefunds, true);
+
+    drawDivider();
+
+    // Expense rows
+    drawRow('Towers', econ.towerPurchases, false);
+    drawRow('Upgrades', econ.towerUpgrades, false);
+    drawRow('Repairs', econ.repairCosts, false);
+    drawRow('Restock', econ.restockCosts, false);
+    drawRow('Maintenance', econ.maintenanceCosts, false);
+
+    drawDivider();
+
+    // Net total
+    const totalRev = econ.killRewards + econ.waveBonus + econ.towerIncome + econ.sellRefunds;
+    const totalExp = econ.towerPurchases + econ.towerUpgrades + econ.repairCosts + econ.restockCosts + econ.maintenanceCosts;
+    const net = Math.round(totalRev - totalExp);
+
+    ctx.font = `bold 11px ${VISUAL.FONT}`;
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.textAlign = 'left';
+    ctx.fillText('Net', labelX, ry);
+    ctx.fillStyle = net >= 0 ? '#4ADE80' : '#EF4444';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${net >= 0 ? '+' : ''}${net}c`, valueX, ry);
+  }
+
   private renderChart(
     ctx: CanvasRenderingContext2D,
     histories: PlayerHistory[],
-    field: Tab,
+    field: 'credits' | 'health',
     cx: number, cy: number, cw: number, ch: number,
   ): void {
-    const pad = { top: 2, right: 2, bottom: 12, left: 28 };
+    const pad = { top: 4, right: 4, bottom: 16, left: 36 };
     const plotW = cw - pad.left - pad.right;
     const plotH = ch - pad.top - pad.bottom;
     const ox = cx + pad.left;
@@ -121,7 +212,7 @@ export class ChartsOverlay {
 
     if (histories.length === 0 || histories.every(h => h.snapshots.length < 2)) {
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.font = `9px ${VISUAL.FONT}`;
+      ctx.font = `12px ${VISUAL.FONT}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('waiting...', cx + cw / 2, cy + ch / 2);
@@ -150,8 +241,8 @@ export class ChartsOverlay {
     const toY = (v: number) => oy + plotH - ((v - minVal) / (maxVal - minVal)) * plotH;
 
     // Horizontal reference lines
-    const yTicks = niceScale(minVal, maxVal, 3);
-    ctx.font = `8px ${VISUAL.FONT}`;
+    const yTicks = niceScale(minVal, maxVal, 4);
+    ctx.font = `10px ${VISUAL.FONT}`;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     for (const v of yTicks) {
@@ -168,10 +259,10 @@ export class ChartsOverlay {
     }
 
     // Time labels
-    const xTicks = niceScale(minTime, maxTime, 3);
+    const xTicks = niceScale(minTime, maxTime, 4);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.font = `8px ${VISUAL.FONT}`;
+    ctx.font = `10px ${VISUAL.FONT}`;
     for (const t of xTicks) {
       const x = toX(t);
       if (x < ox + 5 || x > ox + plotW - 5) continue;

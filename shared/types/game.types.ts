@@ -120,6 +120,20 @@ export interface WaveStats {
   towersUpgraded: number;
 }
 
+export interface WaveEconomy {
+  // Revenue
+  killRewards: number;
+  waveBonus: number;
+  towerIncome: number;
+  sellRefunds: number;
+  // Expenses
+  towerPurchases: number;
+  towerUpgrades: number;
+  repairCosts: number;
+  restockCosts: number;
+  maintenanceCosts: number;
+}
+
 export interface GridState {
   width: number;
   height: number;
@@ -147,6 +161,7 @@ export interface GameState {
   gameSpeed: number;
   destroyedTowerTraces: TowerTrace[];
   settings: GameSettings;
+  waveEconomy: Record<string, WaveEconomy>;
 }
 
 export interface TowerStatOverrides {

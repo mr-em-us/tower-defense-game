@@ -90,6 +90,12 @@
 **Alternatives**: Client-side tracking (unreliable, wouldn't survive reconnect), post-hoc calculation from state diffs (complex, lossy)
 **Consequences**: Server-authoritative economy data, consistent with project architecture. Small overhead per transaction (one property increment). Data broadcast every tick as part of GameState.
 
+### 2026-03 -- Mode-Driven Configuration Over Code Forks
+**Context**: Brainstorming future features (4-player, AI opponents, offense buildings, army units) raised concern about mode branching — would each new mode create parallel codepaths across every system?
+**Decision**: New game modes should use configuration-driven differences, not forked system files. Single system pipeline stays, with mode flags and config objects determining behavior (e.g., grid layout, spawn rules, win conditions). GameMode enum + per-mode config objects parameterize existing systems.
+**Alternatives**: Separate system files per mode (EnemySystem4P, EnemySystemAI), plugin architecture (over-engineered for current scope)
+**Consequences**: Adding a mode means adding a config block, not duplicating systems. Existing systems gain small conditional branches but remain unified. Reduces maintenance burden as core game evolves. Example: 4-player would change grid dimensions + zone count in config, not rewrite BFS or PhaseSystem.
+
 ### 2026-03 -- Wave Rebalancing (firstWaveEnemies 60 -> 15)
 **Context**: Default difficulty was too hard. Wave 3 had 165 enemies due to formula `(4 + wave*2) * 10 * countScale`. User reported game was unplayable at defaults.
 **Decision**: Rewrote wave formula to `baseCount = firstWaveEnemies * (1 + (wave-1) * 0.2) * diffRatio` with percentage-based type distribution. Reduced default firstWaveEnemies from 60 to 15.

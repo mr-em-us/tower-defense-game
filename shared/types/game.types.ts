@@ -11,6 +11,7 @@ export enum TowerType {
   SPLASH = 'SPLASH',
   SLOW = 'SLOW',
   WALL = 'WALL',
+  AA = 'AA',
 }
 
 export enum EnemyType {
@@ -18,6 +19,7 @@ export enum EnemyType {
   FAST = 'FAST',
   TANK = 'TANK',
   BOSS = 'BOSS',
+  FLYING = 'FLYING',
 }
 
 export enum GamePhase {
@@ -59,6 +61,7 @@ export interface Tower {
   maxHealth: number;
   ammo: number;
   maxAmmo: number;
+  placedWave: number;
 }
 
 export interface Enemy {
@@ -99,6 +102,7 @@ export interface Player {
   maxHealth: number;
   isReady: boolean;
   autoRepairEnabled: boolean;
+  autoRebuildEnabled: boolean;
   requestedSpeed: number;  // 1 = normal, 2 = fast, 4 = turbo
 }
 
@@ -121,6 +125,7 @@ export interface WaveStats {
 }
 
 export interface WaveEconomy {
+  startingCredits: number;
   // Revenue
   killRewards: number;
   waveBonus: number;

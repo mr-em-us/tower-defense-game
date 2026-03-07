@@ -4,7 +4,7 @@ import {
   GameState, GamePhase, GameMode, Player, PlayerSide,
   CellType, TowerType, Tower, GameSettings, WaveStats, WaveEconomy,
 } from '../../shared/types/game.types.js';
-import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION, DEFAULT_GAME_SETTINGS } from '../../shared/types/constants.js';
+import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION, MIN_DYNAMIC_PRICE, DEFAULT_GAME_SETTINGS } from '../../shared/types/constants.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { ClientMessage, ServerMessage } from '../../shared/types/network.types.js';
 import { GameResultRecord } from '../../shared/types/leaderboard.types.js';
@@ -128,6 +128,7 @@ export class GameRoom {
       maxHealth: this.state.settings.startingHealth,
       isReady: false,
       autoRepairEnabled: false,
+      autoRebuildEnabled: false,
       requestedSpeed: 1,
     };
 
@@ -247,12 +248,13 @@ export class GameRoom {
     for (const player of Object.values(this.state.players)) {
       const econ = this.getPlayerEconomy(player.id);
       // Zero out all fields
+      econ.startingCredits = player.credits;
       econ.killRewards = 0; econ.waveBonus = 0; econ.towerIncome = 0; econ.sellRefunds = 0;
       econ.towerPurchases = 0; econ.towerUpgrades = 0; econ.repairCosts = 0; econ.restockCosts = 0; econ.maintenanceCosts = 0;
 
       // Record phase-transition income (already applied by PhaseSystem)
       if (this.state.waveNumber > 1) {
-        econ.waveBonus = GAME.CREDITS_PER_WAVE;
+        econ.waveBonus = GAME.CREDITS_PER_WAVE + (this.state.waveNumber - 1) * GAME.CREDITS_PER_WAVE_GROWTH;
         let income = 0;
         let maintenance = 0;
         for (const tower of Object.values(this.state.towers)) {
@@ -270,6 +272,7 @@ export class GameRoom {
   private getPlayerEconomy(playerId: string): WaveEconomy {
     if (!this.state.waveEconomy[playerId]) {
       this.state.waveEconomy[playerId] = {
+        startingCredits: 0,
         killRewards: 0, waveBonus: 0, towerIncome: 0, sellRefunds: 0,
         towerPurchases: 0, towerUpgrades: 0, repairCosts: 0, restockCosts: 0, maintenanceCosts: 0,
       };
@@ -357,6 +360,12 @@ export class GameRoom {
       case 'BRUSH_REPAIR':
         this.handleBrushRepair(playerId, msg.center, msg.radius);
         break;
+      case 'BRUSH_UPGRADE':
+        this.handleBrushUpgrade(playerId, msg.center, msg.radius);
+        break;
+      case 'BRUSH_SELL':
+        this.handleBrushSell(playerId, msg.center, msg.radius);
+        break;
       case 'READY_FOR_WAVE':
         this.phaseSystem.handlePlayerReady(this.state, playerId);
         break;
@@ -368,6 +377,9 @@ export class GameRoom {
         break;
       case 'TOGGLE_AUTO_REPAIR':
         this.handleToggleAutoRepair(playerId);
+        break;
+      case 'TOGGLE_AUTO_REBUILD':
+        this.handleToggleAutoRebuild(playerId);
         break;
       case 'TOGGLE_FAST_MODE':
         this.handleToggleFastMode(playerId);
@@ -417,6 +429,7 @@ export class GameRoom {
       maxHealth: Math.round(stats.maxHealth * (overrides?.maxHealth ?? 1)),
       ammo: Math.round(stats.maxAmmo * (overrides?.maxAmmo ?? 1)),
       maxAmmo: Math.round(stats.maxAmmo * (overrides?.maxAmmo ?? 1)),
+      placedWave: this.state.waveNumber,
     };
 
     player.credits -= actualCost;
@@ -455,8 +468,8 @@ export class GameRoom {
     }
 
     const stats = TOWER_STATS[tower.type];
-    const baseCost = Math.round(stats.cost * stats.upgradeCostMultiplier * tower.level);
-    const cost = this.getDynamicPrice(tower.type, baseCost);
+    // Upgrades use flat cost (no dynamic pricing)
+    const cost = Math.round(stats.cost * stats.upgradeCostMultiplier * tower.level);
 
     if (player.credits < cost) {
       this.sendTo(playerId, { type: 'ACTION_FAILED', reason: 'Not enough credits' });
@@ -478,9 +491,10 @@ export class GameRoom {
     tower.maxAmmo = Math.round(tower.maxAmmo * 1.15);
     tower.ammo = tower.maxAmmo;
 
-    // Track upgrade for dynamic pricing (not BASIC/WALL)
+    // Upgrades feed dynamic pricing
     if (tower.type !== TowerType.BASIC && tower.type !== TowerType.WALL) {
-      this.state.globalPurchaseCounts[tower.type] = (this.state.globalPurchaseCounts[tower.type] ?? 0) + 1;
+      this.state.globalPurchaseCounts[tower.type] =
+        (this.state.globalPurchaseCounts[tower.type] ?? 0) + 1;
     }
   }
 
@@ -554,9 +568,21 @@ export class GameRoom {
     for (let lvl = 1; lvl < tower.level; lvl++) {
       totalInvested += Math.round(stats.cost * stats.upgradeCostMultiplier * lvl);
     }
-    const refund = Math.round(totalInvested * SELL_REFUND_RATIO);
+
+    // Same-phase purchase: 100% refund for repositioning
+    const isSamePhase = tower.placedWave === this.state.waveNumber
+      && this.state.phase === GamePhase.BUILD;
+    const refund = isSamePhase
+      ? totalInvested
+      : Math.round(totalInvested * SELL_REFUND_RATIO);
     player.credits += refund;
     this.getPlayerEconomy(playerId).sellRefunds += refund;
+
+    // Decrement dynamic pricing counter (undo purchase increment)
+    if (tower.type !== TowerType.BASIC && tower.type !== TowerType.WALL) {
+      const current = this.state.globalPurchaseCounts[tower.type] ?? 0;
+      this.state.globalPurchaseCounts[tower.type] = Math.max(0, current - 1);
+    }
 
     this.state.grid.cells[tower.position.y][tower.position.x] = CellType.EMPTY;
     delete this.state.towers[towerId];
@@ -735,6 +761,71 @@ export class GameRoom {
     player.autoRepairEnabled = !player.autoRepairEnabled;
   }
 
+  private handleToggleAutoRebuild(playerId: string): void {
+    const player = this.state.players[playerId];
+    if (!player) return;
+    player.autoRebuildEnabled = !player.autoRebuildEnabled;
+  }
+
+  private handleBrushUpgrade(playerId: string, center: { x: number; y: number }, radius: number): void {
+    const player = this.state.players[playerId];
+    if (!player) return;
+    if (this.state.phase !== GamePhase.BUILD) return;
+    if (!center || typeof radius !== 'number' || radius < 1 || radius > 10) return;
+
+    for (const tower of Object.values(this.state.towers)) {
+      if (tower.ownerId !== playerId) continue;
+      const dx = tower.position.x - center.x;
+      const dy = tower.position.y - center.y;
+      if (Math.sqrt(dx * dx + dy * dy) > radius) continue;
+
+      const stats = TOWER_STATS[tower.type];
+      const cost = Math.round(stats.cost * stats.upgradeCostMultiplier * tower.level);
+      if (player.credits < cost) continue;
+
+      player.credits -= cost;
+      if (this.currentWaveStats) {
+        this.currentWaveStats.creditsSpent += cost;
+        this.currentWaveStats.towersUpgraded++;
+      }
+      this.getPlayerEconomy(playerId).towerUpgrades += cost;
+      tower.level++;
+      tower.damage = Math.round(tower.damage * stats.upgradeStatMultiplier);
+      tower.range = +(tower.range * 1.1).toFixed(1);
+      tower.fireRate = +(tower.fireRate * 1.1).toFixed(2);
+      tower.maxHealth = Math.round(tower.maxHealth * (tower.type === TowerType.WALL ? 1.3 : 1.2));
+      tower.health = tower.maxHealth;
+      tower.maxAmmo = Math.round(tower.maxAmmo * 1.15);
+      tower.ammo = tower.maxAmmo;
+
+      // Upgrades feed dynamic pricing
+      if (tower.type !== TowerType.BASIC && tower.type !== TowerType.WALL) {
+        this.state.globalPurchaseCounts[tower.type] =
+          (this.state.globalPurchaseCounts[tower.type] ?? 0) + 1;
+      }
+    }
+  }
+
+  private handleBrushSell(playerId: string, center: { x: number; y: number }, radius: number): void {
+    const player = this.state.players[playerId];
+    if (!player) return;
+    if (this.state.phase !== GamePhase.BUILD) return;
+    if (!center || typeof radius !== 'number' || radius < 1 || radius > 10) return;
+
+    const towersToSell: string[] = [];
+    for (const tower of Object.values(this.state.towers)) {
+      if (tower.ownerId !== playerId) continue;
+      const dx = tower.position.x - center.x;
+      const dy = tower.position.y - center.y;
+      if (Math.sqrt(dx * dx + dy * dy) > radius) continue;
+      towersToSell.push(tower.id);
+    }
+
+    for (const towerId of towersToSell) {
+      this.handleSellTower(playerId, towerId);
+    }
+  }
+
   private handleToggleFastMode(playerId: string): void {
     const player = this.state.players[playerId];
     if (!player) return;
@@ -827,7 +918,7 @@ export class GameRoom {
     const adjusted = Math.round(baseCost * costMult);
     if (type === TowerType.BASIC || type === TowerType.WALL) return adjusted;
     const count = this.state.globalPurchaseCounts[type] ?? 0;
-    return Math.round(adjusted * (1 + count * PRICE_ESCALATION));
+    return Math.max(MIN_DYNAMIC_PRICE, Math.round(adjusted * (1 + count * PRICE_ESCALATION)));
   }
 
   // --- Networking ---

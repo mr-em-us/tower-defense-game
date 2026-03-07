@@ -17,6 +17,7 @@ export interface ClientState {
   panOffset: { x: number; y: number };
   activeTool: 'place' | 'brush';
   brushRadius: number;
+  brushMode: 'repair' | 'upgrade' | 'sell';
 }
 
 // Shell casing particle for ammo animation
@@ -50,6 +51,7 @@ export class GameClient {
     panOffset: { x: 0, y: 0 },
     activeTool: 'place',
     brushRadius: 3,
+    brushMode: 'repair',
   };
 
   constructor(network: NetworkClient) {
@@ -224,6 +226,31 @@ export class GameClient {
     });
   }
 
+  brushUpgrade(centerX: number, centerY: number): void {
+    this.network.send({
+      type: 'BRUSH_UPGRADE',
+      center: { x: centerX, y: centerY },
+      radius: this.clientState.brushRadius,
+    });
+  }
+
+  brushSell(centerX: number, centerY: number): void {
+    this.network.send({
+      type: 'BRUSH_SELL',
+      center: { x: centerX, y: centerY },
+      radius: this.clientState.brushRadius,
+    });
+  }
+
+  toggleAutoRebuild(): void {
+    this.network.send({ type: 'TOGGLE_AUTO_REBUILD' });
+  }
+
+  isAutoRebuildEnabled(): boolean {
+    if (!this.gameState || !this.playerId) return false;
+    return this.gameState.players[this.playerId]?.autoRebuildEnabled ?? false;
+  }
+
   getRestockCost(towerId: string): number | null {
     if (!this.gameState) return null;
     const tower = this.gameState.towers[towerId];
@@ -246,11 +273,8 @@ export class GameClient {
     const tower = this.gameState.towers[towerId];
     if (!tower) return null;
     const stats = TOWER_STATS[tower.type];
-    const baseCost = Math.round(stats.cost * stats.upgradeCostMultiplier * tower.level);
-    if (tower.type !== TowerType.BASIC && tower.type !== TowerType.WALL) {
-      return Math.round(baseCost * (1 + (this.gameState.globalPurchaseCounts[tower.type] ?? 0) * PRICE_ESCALATION));
-    }
-    return baseCost;
+    // Upgrades no longer use dynamic pricing — flat cost based on level
+    return Math.round(stats.cost * stats.upgradeCostMultiplier * tower.level);
   }
 
   getWaveStats(): WaveStats[] {

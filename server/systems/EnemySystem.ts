@@ -1,4 +1,4 @@
-import { GameState, GamePhase, PlayerSide, CellType } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, PlayerSide, CellType, EnemyType } from '../../shared/types/game.types.js';
 import { ENEMY_STATS, GRID } from '../../shared/types/constants.js';
 
 const ADJ_DIRS = [
@@ -18,22 +18,24 @@ export class EnemySystem {
     for (const enemy of Object.values(state.enemies)) {
       if (!enemy.spawned) continue;
 
-      // Contact damage to adjacent towers
-      const ex = Math.round(enemy.position.x);
-      const ey = Math.round(enemy.position.y);
-      const contactDmg = ENEMY_STATS[enemy.type].contactDamage;
+      // Flying enemies fly over towers, no contact damage
+      if (enemy.type !== EnemyType.FLYING) {
+        const ex = Math.round(enemy.position.x);
+        const ey = Math.round(enemy.position.y);
+        const contactDmg = ENEMY_STATS[enemy.type].contactDamage;
 
-      for (const dir of ADJ_DIRS) {
-        const ax = ex + dir.x;
-        const ay = ey + dir.y;
-        if (ax < 0 || ax >= GRID.WIDTH || ay < 0 || ay >= GRID.HEIGHT) continue;
+        for (const dir of ADJ_DIRS) {
+          const ax = ex + dir.x;
+          const ay = ey + dir.y;
+          if (ax < 0 || ax >= GRID.WIDTH || ay < 0 || ay >= GRID.HEIGHT) continue;
 
-        // Find tower at this adjacent cell
-        for (const tower of Object.values(state.towers)) {
-          if (tower.position.x === ax && tower.position.y === ay) {
-            tower.health -= contactDmg;
-            if (tower.health <= 0 && !towersToRemove.includes(tower.id)) {
-              towersToRemove.push(tower.id);
+          // Find tower at this adjacent cell
+          for (const tower of Object.values(state.towers)) {
+            if (tower.position.x === ax && tower.position.y === ay) {
+              tower.health -= contactDmg;
+              if (tower.health <= 0 && !towersToRemove.includes(tower.id)) {
+                towersToRemove.push(tower.id);
+              }
             }
           }
         }

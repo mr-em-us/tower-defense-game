@@ -1,4 +1,4 @@
-import { GameState, GamePhase, Projectile, Tower, Enemy, PlayerSide } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, Projectile, Tower, Enemy, PlayerSide, TowerType, EnemyType } from '../../shared/types/game.types.js';
 import { PROJECTILE_SPEED, TOWER_STATS, GRID } from '../../shared/types/constants.js';
 import { distance } from '../../shared/utils/math.js';
 import { v4 as uuid } from 'uuid';
@@ -56,6 +56,9 @@ export class TowerSystem {
 
     for (const enemy of Object.values(state.enemies)) {
       if (!enemy.spawned || enemy.health <= 0) continue;
+
+      // AA towers only target flying enemies
+      if (tower.type === TowerType.AA && enemy.type !== EnemyType.FLYING) continue;
 
       // Only target enemies on the tower owner's half of the board
       if (ownerSide === PlayerSide.LEFT && enemy.position.x > GRID.LEFT_ZONE_END) continue;

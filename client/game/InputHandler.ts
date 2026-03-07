@@ -194,7 +194,14 @@ export class InputHandler {
     const cell = this.pixelToGrid(e.clientX, e.clientY);
     if (!cell) return;
 
-    this.gameClient.brushRepairAndRestock(cell.x, cell.y);
+    const brushMode = this.gameClient.clientState.brushMode;
+    if (brushMode === 'upgrade') {
+      this.gameClient.brushUpgrade(cell.x, cell.y);
+    } else if (brushMode === 'sell') {
+      this.gameClient.brushSell(cell.x, cell.y);
+    } else {
+      this.gameClient.brushRepairAndRestock(cell.x, cell.y);
+    }
   }
 
   private pixelToCanvas(px: number, py: number): { x: number; y: number } {
@@ -224,7 +231,9 @@ export class InputHandler {
       const localY = canvasCoord.y - wy;
       if (charts.hitTestWidget(localX, localY)) {
         if (charts.hitTestTab(localX, localY)) {
-          charts.cycleTab();
+          const tab = charts.hitTestSpecificTab(localX, localY);
+          if (tab) charts.setTab(tab);
+          else charts.cycleTab();  // fallback
         }
         return; // click inside widget, don't pass through
       }

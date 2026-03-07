@@ -298,7 +298,7 @@ export class Renderer {
     ctx.font = `10px ${VISUAL.FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(`AMMO ${ammo.current}/${ammo.max}`, barX + barW / 2, barY + barH + 2);
+    ctx.fillText(`AMMO ${ammo.current.toLocaleString()}/${ammo.max.toLocaleString()}`, barX + barW / 2, barY + barH + 2);
   }
 
   // --- Wave progress overlay (during combat) ---
@@ -343,7 +343,7 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(
-      `CLEARED ${cleared}/${total}  ALIVE ${alive}  QUEUE ${remaining}`,
+      `CLEARED ${cleared.toLocaleString()}/${total.toLocaleString()}  ALIVE ${alive.toLocaleString()}  QUEUE ${remaining.toLocaleString()}`,
       barX + barW / 2,
       barY + barH + 2,
     );
@@ -517,15 +517,14 @@ export class Renderer {
       if (!tower) return;
 
       const stats = TOWER_STATS[tower.type];
-      const baseUpgradeCost = Math.round(stats.cost * stats.upgradeCostMultiplier * tower.level);
-      const upgradeCost = tower.type !== TowerType.BASIC
-        ? Math.round(baseUpgradeCost * (1 + (state.globalPurchaseCounts[tower.type] ?? 0) * PRICE_ESCALATION))
-        : baseUpgradeCost;
+      const upgradeCost = Math.round(stats.cost * stats.upgradeCostMultiplier * tower.level);
       let totalInvested = stats.cost;
       for (let lvl = 1; lvl < tower.level; lvl++) {
         totalInvested += Math.round(stats.cost * stats.upgradeCostMultiplier * lvl);
       }
-      const sellValue = Math.round(totalInvested * SELL_REFUND_RATIO);
+      const isSamePhase = tower.placedWave === state.waveNumber && state.phase === GamePhase.BUILD;
+      const sellValue = isSamePhase ? totalInvested : Math.round(totalInvested * SELL_REFUND_RATIO);
+      const sellPct = isSamePhase ? '100%' : '60%';
 
       const hasDamage = tower.health < tower.maxHealth;
       const needsAmmo = tower.ammo < tower.maxAmmo;
@@ -546,22 +545,22 @@ export class Renderer {
       let y = panelY + 6;
       ctx.fillText(`Lvl ${tower.level} ${tower.type}`, panelX + 8, y); y += 16;
       ctx.fillText(`DMG: ${tower.damage}  RNG: ${tower.range}`, panelX + 8, y); y += 16;
-      ctx.fillText(`HP: ${Math.ceil(tower.health)}/${tower.maxHealth}  AMMO: ${tower.ammo}/${tower.maxAmmo}`, panelX + 8, y); y += 16;
-      ctx.fillText(`Income: +${stats.incomePerTurn}c  Maint: -${stats.maintenancePerTurn}c`, panelX + 8, y); y += 16;
-      ctx.fillText(`Upgrade: ${upgradeCost}c  Sell: ${sellValue}c`, panelX + 8, y); y += 16;
-      ctx.fillText(`Ammo cost: ${stats.ammoCostPerRound}c/round`, panelX + 8, y); y += 16;
+      ctx.fillText(`HP: ${Math.ceil(tower.health).toLocaleString()}/${tower.maxHealth.toLocaleString()}  AMMO: ${tower.ammo.toLocaleString()}/${tower.maxAmmo.toLocaleString()}`, panelX + 8, y); y += 16;
+      ctx.fillText(`Income: +${stats.incomePerTurn.toLocaleString()}c  Maint: -${stats.maintenancePerTurn.toLocaleString()}c`, panelX + 8, y); y += 16;
+      ctx.fillText(`Upgrade: ${upgradeCost.toLocaleString()}c  Sell: ${sellValue.toLocaleString()}c (${sellPct})`, panelX + 8, y); y += 16;
+      ctx.fillText(`Ammo cost: ${stats.ammoCostPerRound.toLocaleString()}c/round`, panelX + 8, y); y += 16;
 
       if (hasDamage) {
         const damageRatio = 1 - tower.health / tower.maxHealth;
         const repairCost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
         ctx.fillStyle = '#FBBF24';
-        ctx.fillText(`Repair: ${repairCost}c`, panelX + 8, y); y += 16;
+        ctx.fillText(`Repair: ${repairCost.toLocaleString()}c`, panelX + 8, y); y += 16;
       }
 
       if (needsAmmo) {
         const restockCost = Math.round((tower.maxAmmo - tower.ammo) * stats.ammoCostPerRound);
         ctx.fillStyle = '#60A5FA';
-        ctx.fillText(`Restock: ${restockCost}c`, panelX + 8, y);
+        ctx.fillText(`Restock: ${restockCost.toLocaleString()}c`, panelX + 8, y);
       }
     } else {
       // Multi-select summary panel
@@ -583,12 +582,13 @@ export class Renderer {
         if (t.ammo < t.maxAmmo) {
           totalRestockCost += Math.round((t.maxAmmo - t.ammo) * stats.ammoCostPerRound);
         }
-        // Sell value
+        // Sell value (100% if same-phase, 60% otherwise)
         let invested = stats.cost;
         for (let lvl = 1; lvl < t.level; lvl++) {
           invested += Math.round(stats.cost * stats.upgradeCostMultiplier * lvl);
         }
-        totalSellValue += Math.round(invested * SELL_REFUND_RATIO);
+        const tSamePhase = t.placedWave === state.waveNumber && state.phase === GamePhase.BUILD;
+        totalSellValue += tSamePhase ? invested : Math.round(invested * SELL_REFUND_RATIO);
       }
 
       const panelH = 68;
@@ -603,14 +603,14 @@ export class Renderer {
       ctx.textBaseline = 'top';
 
       ctx.fillText(`${towers.length} towers selected`, panelX + 8, panelY + 6);
-      ctx.fillText(`Sell value: ${totalSellValue}c`, panelX + 8, panelY + 22);
+      ctx.fillText(`Sell value: ${totalSellValue.toLocaleString()}c`, panelX + 8, panelY + 22);
       if (totalRepairCost > 0) {
         ctx.fillStyle = '#FBBF24';
-        ctx.fillText(`Total repair: ${totalRepairCost}c`, panelX + 8, panelY + 38);
+        ctx.fillText(`Total repair: ${totalRepairCost.toLocaleString()}c`, panelX + 8, panelY + 38);
       }
       if (totalRestockCost > 0) {
         ctx.fillStyle = '#60A5FA';
-        ctx.fillText(`Total restock: ${totalRestockCost}c`, panelX + 8, panelY + 54);
+        ctx.fillText(`Total restock: ${totalRestockCost.toLocaleString()}c`, panelX + 8, panelY + 54);
       }
     }
   }

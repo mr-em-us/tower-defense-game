@@ -7,6 +7,7 @@ export const TOWER_CHARS: Record<TowerType, string> = {
   [TowerType.SPLASH]: '*',
   [TowerType.SLOW]: '~',
   [TowerType.WALL]: 'W',
+  [TowerType.AA]: 'A',
 };
 
 export const TOWER_LABELS: Record<TowerType, string> = {
@@ -15,6 +16,7 @@ export const TOWER_LABELS: Record<TowerType, string> = {
   [TowerType.SPLASH]: 'Splash',
   [TowerType.SLOW]: 'Slow',
   [TowerType.WALL]: 'Wall',
+  [TowerType.AA]: 'AA',
 };
 
 // Enemy ASCII chars - cycle for animation
@@ -23,6 +25,7 @@ export const ENEMY_FRAMES: Record<EnemyType, string[]> = {
   [EnemyType.FAST]: ['>', '>>'],
   [EnemyType.TANK]: ['@', '#'],
   [EnemyType.BOSS]: ['M', 'W'],
+  [EnemyType.FLYING]: ['^', 'v'],
 };
 
 export function getEnemyChar(type: EnemyType, time: number): string {

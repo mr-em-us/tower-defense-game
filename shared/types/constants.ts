@@ -13,6 +13,7 @@ export const GAME = {
   BUILD_PHASE_DURATION: 30,
   STARTING_CREDITS: 2000,
   CREDITS_PER_WAVE: 50,
+  CREDITS_PER_WAVE_GROWTH: 10,
   PLAYER_MAX_HEALTH: 500,
 } as const;
 
@@ -38,14 +39,14 @@ export const TOWER_STATS: Record<TowerType, {
     damage: 10,
     range: 3,
     fireRate: 2,
-    upgradeCostMultiplier: 1.5,
-    upgradeStatMultiplier: 1.4,
+    upgradeCostMultiplier: 1.0,
+    upgradeStatMultiplier: 1.5,
     splashRadius: 0,
     slowAmount: 0,
     slowDuration: 0,
     maxHealth: 200,
     maxAmmo: 100,
-    ammoCostPerRound: 0.5,
+    ammoCostPerRound: 0.3,
     incomePerTurn: 5,
     maintenancePerTurn: 2,
   },
@@ -54,8 +55,8 @@ export const TOWER_STATS: Record<TowerType, {
     damage: 50,
     range: 8,
     fireRate: 0.5,
-    upgradeCostMultiplier: 1.6,
-    upgradeStatMultiplier: 1.5,
+    upgradeCostMultiplier: 1.1,
+    upgradeStatMultiplier: 1.6,
     splashRadius: 0,
     slowAmount: 0,
     slowDuration: 0,
@@ -70,8 +71,8 @@ export const TOWER_STATS: Record<TowerType, {
     damage: 20,
     range: 4,
     fireRate: 1,
-    upgradeCostMultiplier: 1.5,
-    upgradeStatMultiplier: 1.4,
+    upgradeCostMultiplier: 1.0,
+    upgradeStatMultiplier: 1.5,
     splashRadius: 2,
     slowAmount: 0,
     slowDuration: 0,
@@ -86,14 +87,14 @@ export const TOWER_STATS: Record<TowerType, {
     damage: 5,
     range: 3,
     fireRate: 1.5,
-    upgradeCostMultiplier: 1.4,
-    upgradeStatMultiplier: 1.3,
+    upgradeCostMultiplier: 0.9,
+    upgradeStatMultiplier: 1.4,
     splashRadius: 0,
     slowAmount: 0.5,
     slowDuration: 2,
     maxHealth: 200,
     maxAmmo: 60,
-    ammoCostPerRound: 0.5,
+    ammoCostPerRound: 0.3,
     incomePerTurn: 7,
     maintenancePerTurn: 3,
   },
@@ -102,7 +103,7 @@ export const TOWER_STATS: Record<TowerType, {
     damage: 0,
     range: 0,
     fireRate: 0,
-    upgradeCostMultiplier: 1.3,
+    upgradeCostMultiplier: 0.8,
     upgradeStatMultiplier: 1.0,
     splashRadius: 0,
     slowAmount: 0,
@@ -113,6 +114,22 @@ export const TOWER_STATS: Record<TowerType, {
     incomePerTurn: 0,
     maintenancePerTurn: 0,
   },
+  [TowerType.AA]: {
+    cost: 100,
+    damage: 80,
+    range: 6,
+    fireRate: 1.5,
+    upgradeCostMultiplier: 1.0,
+    upgradeStatMultiplier: 1.5,
+    splashRadius: 0,
+    slowAmount: 0,
+    slowDuration: 0,
+    maxHealth: 100,
+    maxAmmo: 40,
+    ammoCostPerRound: 1,
+    incomePerTurn: 8,
+    maintenancePerTurn: 4,
+  },
 };
 
 export const ENEMY_STATS: Record<EnemyType, {
@@ -121,15 +138,18 @@ export const ENEMY_STATS: Record<EnemyType, {
   creditValue: number;
   contactDamage: number;
 }> = {
-  [EnemyType.BASIC]: { health: 100, speed: 2, creditValue: 10, contactDamage: 0.5 },
-  [EnemyType.FAST]: { health: 50, speed: 4, creditValue: 15, contactDamage: 0.3 },
-  [EnemyType.TANK]: { health: 500, speed: 1, creditValue: 50, contactDamage: 1 },
+  [EnemyType.BASIC]: { health: 100, speed: 2, creditValue: 12, contactDamage: 0.5 },
+  [EnemyType.FAST]: { health: 50, speed: 4, creditValue: 18, contactDamage: 0.3 },
+  [EnemyType.TANK]: { health: 500, speed: 1, creditValue: 60, contactDamage: 1 },
   [EnemyType.BOSS]: { health: 2000, speed: 1.5, creditValue: 500, contactDamage: 2 },
+  [EnemyType.FLYING]: { health: 80, speed: 3, creditValue: 20, contactDamage: 0.4 },
 };
 
 // Dynamic pricing: price = baseCost * (1 + globalCount * PRICE_ESCALATION)
-// Only applies to non-BASIC tower types
+// Only applies to non-BASIC/WALL tower types
 export const PRICE_ESCALATION = 0.12;
+export const PRICE_DECAY_RATE = 0.05;  // 5% decay per wave
+export const MIN_DYNAMIC_PRICE = 10;   // Floor for any tower price
 
 // Goal rows at the edges where enemies exit the board (wide band)
 export const GOAL_ROWS = [12, 13, 14, 15, 16, 17];

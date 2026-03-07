@@ -53,12 +53,12 @@ export class PostGameOverlay {
 
     if (state.gameMode === GameMode.SINGLE) {
       headerText = 'GAME OVER';
-      subText = `Survived to wave ${state.waveNumber} | HP: ${Math.ceil(myHp.current)}/${myHp.max}`;
+      subText = `Survived to wave ${state.waveNumber} | HP: ${Math.ceil(myHp.current).toLocaleString()}/${myHp.max.toLocaleString()}`;
     } else {
       const oppHp = this.gameClient.getOpponentHealth();
       const won = myHp.current > 0 && oppHp.current <= 0;
       headerText = won ? 'VICTORY!' : 'DEFEAT';
-      subText = `Wave ${state.waveNumber} | Your HP: ${Math.ceil(myHp.current)} | Opponent HP: ${Math.ceil(oppHp.current)}`;
+      subText = `Wave ${state.waveNumber} | Your HP: ${Math.ceil(myHp.current).toLocaleString()} | Opponent HP: ${Math.ceil(oppHp.current).toLocaleString()}`;
     }
 
     // Compute summary totals
@@ -83,13 +83,13 @@ export class PostGameOverlay {
     // Summary stats
     const summaryRow = el('div', 'pg-summary');
     const statEntries: [string, string][] = [
-      ['Enemies Killed', `${totals.enemiesKilled}`],
-      ['Enemies Leaked', `${totals.enemiesLeaked}`],
-      ['Towers Built', `${totals.towersBought}`],
-      ['Towers Upgraded', `${totals.towersUpgraded}`],
-      ['Towers Lost', `${totals.towersDestroyed}`],
-      ['Credits Earned', `${totals.creditsEarned}c`],
-      ['Credits Spent', `${totals.creditsSpent}c`],
+      ['Enemies Killed', `${totals.enemiesKilled.toLocaleString()}`],
+      ['Enemies Leaked', `${totals.enemiesLeaked.toLocaleString()}`],
+      ['Towers Built', `${totals.towersBought.toLocaleString()}`],
+      ['Towers Upgraded', `${totals.towersUpgraded.toLocaleString()}`],
+      ['Towers Lost', `${totals.towersDestroyed.toLocaleString()}`],
+      ['Credits Earned', `${totals.creditsEarned.toLocaleString()}c`],
+      ['Credits Spent', `${totals.creditsSpent.toLocaleString()}c`],
     ];
     for (const [label, value] of statEntries) {
       const item = el('div', 'pg-stat');
@@ -120,12 +120,12 @@ export class PostGameOverlay {
       for (const ws of waveStats) {
         const tr = document.createElement('tr');
         tr.appendChild(td(`${ws.waveNumber}`));
-        tr.appendChild(td(`${ws.enemiesSpawned}`));
-        tr.appendChild(td(`${ws.enemiesKilled}`));
-        tr.appendChild(td(`${ws.enemiesLeaked}`, ws.enemiesLeaked > 0));
-        tr.appendChild(td(`${ws.towersDestroyed}`, ws.towersDestroyed > 0));
-        tr.appendChild(td(`${ws.creditsEarned}c`));
-        tr.appendChild(td(`${ws.creditsSpent}c`));
+        tr.appendChild(td(`${ws.enemiesSpawned.toLocaleString()}`));
+        tr.appendChild(td(`${ws.enemiesKilled.toLocaleString()}`));
+        tr.appendChild(td(`${ws.enemiesLeaked.toLocaleString()}`, ws.enemiesLeaked > 0));
+        tr.appendChild(td(`${ws.towersDestroyed.toLocaleString()}`, ws.towersDestroyed > 0));
+        tr.appendChild(td(`${ws.creditsEarned.toLocaleString()}c`));
+        tr.appendChild(td(`${ws.creditsSpent.toLocaleString()}c`));
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);
@@ -199,7 +199,7 @@ export class PostGameOverlay {
     ctx.font = '9px "DM Mono", monospace';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillText(`${Math.round(maxVal)}`, pad.left - 4, pad.top);
+    ctx.fillText(`${Math.round(maxVal).toLocaleString()}`, pad.left - 4, pad.top);
     ctx.fillText('0', pad.left - 4, pad.top + ch);
 
     ctx.textAlign = 'center';

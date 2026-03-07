@@ -1,5 +1,5 @@
-import { GameState, GamePhase, WaveEconomy } from '../../shared/types/game.types.js';
-import { GAME, TOWER_STATS } from '../../shared/types/constants.js';
+import { GameState, GamePhase, TowerType, CellType, Tower, WaveEconomy } from '../../shared/types/game.types.js';
+import { GAME, TOWER_STATS, PRICE_ESCALATION, PRICE_DECAY_RATE, MIN_DYNAMIC_PRICE } from '../../shared/types/constants.js';
 
 export class PhaseSystem {
   update(state: GameState, dt: number): void {
@@ -43,9 +43,10 @@ export class PhaseSystem {
     state.phaseTimeRemaining = GAME.BUILD_PHASE_DURATION;
 
     // Settle economy per player
+    const waveBonus = GAME.CREDITS_PER_WAVE + (state.waveNumber - 1) * GAME.CREDITS_PER_WAVE_GROWTH;
     for (const player of Object.values(state.players)) {
-      // Base income per wave
-      player.credits += GAME.CREDITS_PER_WAVE;
+      // Base income per wave (scales with wave number)
+      player.credits += waveBonus;
 
       // Collect passive income and pay maintenance from owned towers
       let totalIncome = 0;
@@ -65,6 +66,69 @@ export class PhaseSystem {
       if (player.credits < 0) player.credits = 0;
 
       player.isReady = false;
+    }
+
+    // Price decay: reduce global purchase counts by 5% per wave
+    for (const type of Object.keys(state.globalPurchaseCounts)) {
+      if (type === TowerType.BASIC || type === TowerType.WALL) continue;
+      state.globalPurchaseCounts[type] *= (1 - PRICE_DECAY_RATE);
+    }
+
+    // Auto-rebuild destroyed towers
+    const tracesToRemove: number[] = [];
+    for (const player of Object.values(state.players)) {
+      if (!player.autoRebuildEnabled) continue;
+      for (let i = 0; i < state.destroyedTowerTraces.length; i++) {
+        const trace = state.destroyedTowerTraces[i];
+        if (trace.ownerId !== player.id) continue;
+
+        // Check cell is still empty
+        if (state.grid.cells[trace.position.y][trace.position.x] !== CellType.EMPTY) continue;
+
+        const stats = TOWER_STATS[trace.type];
+        // Compute dynamic price
+        let cost = stats.cost;
+        if (trace.type !== TowerType.BASIC && trace.type !== TowerType.WALL) {
+          const count = state.globalPurchaseCounts[trace.type] ?? 0;
+          cost = Math.max(MIN_DYNAMIC_PRICE, Math.round(stats.cost * (1 + count * PRICE_ESCALATION)));
+        }
+
+        if (player.credits < cost) continue;
+
+        player.credits -= cost;
+
+        // Place tower
+        const tower: Tower = {
+          id: trace.type + '-' + trace.position.x + '-' + trace.position.y + '-' + Date.now(),
+          type: trace.type,
+          position: { x: trace.position.x, y: trace.position.y },
+          ownerId: player.id,
+          level: 1,
+          damage: stats.damage,
+          range: stats.range,
+          fireRate: stats.fireRate,
+          lastFireTime: 0,
+          targetId: null,
+          health: stats.maxHealth,
+          maxHealth: stats.maxHealth,
+          ammo: stats.maxAmmo,
+          maxAmmo: stats.maxAmmo,
+          placedWave: state.waveNumber,
+        };
+        state.towers[tower.id] = tower;
+        state.grid.cells[trace.position.y][trace.position.x] = CellType.TOWER;
+
+        // Increment dynamic pricing
+        if (trace.type !== TowerType.BASIC && trace.type !== TowerType.WALL) {
+          state.globalPurchaseCounts[trace.type] = (state.globalPurchaseCounts[trace.type] ?? 0) + 1;
+        }
+
+        tracesToRemove.push(i);
+      }
+    }
+    // Remove rebuilt traces (reverse order to preserve indices)
+    for (const idx of tracesToRemove.sort((a, b) => b - a)) {
+      state.destroyedTowerTraces.splice(idx, 1);
     }
   }
 

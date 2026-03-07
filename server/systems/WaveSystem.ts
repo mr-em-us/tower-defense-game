@@ -1,5 +1,5 @@
 import { GameState, GamePhase, GameMode, Enemy, EnemyType, PlayerSide, GameSettings } from '../../shared/types/game.types.js';
-import { ENEMY_STATS } from '../../shared/types/constants.js';
+import { ENEMY_STATS, GOAL_ROWS, CENTER_SPAWN, GRID } from '../../shared/types/constants.js';
 import { findPath } from '../../shared/logic/pathfinding.js';
 import { v4 as uuid } from 'uuid';
 
@@ -36,6 +36,7 @@ function getWaveDefinition(waveNumber: number, settings: GameSettings): WaveEntr
   // Distribute among enemy types based on wave progression
   let basicPct = 1.0;
   if (waveNumber >= 3) basicPct -= 0.30; // fast takes 30%
+  if (waveNumber >= 4) basicPct -= 0.10; // flying takes 10%
   if (waveNumber >= 5) basicPct -= 0.15; // tanks take 15%
 
   entries.push({ type: EnemyType.BASIC, count: Math.max(1, Math.round(baseCount * basicPct)) });
@@ -48,6 +49,11 @@ function getWaveDefinition(waveNumber: number, settings: GameSettings): WaveEntr
   // Tanks from wave 5 (15% of total)
   if (waveNumber >= 5) {
     entries.push({ type: EnemyType.TANK, count: Math.max(1, Math.round(baseCount * 0.15)) });
+  }
+
+  // Flying enemies from wave 4 (10% of total)
+  if (waveNumber >= 4) {
+    entries.push({ type: EnemyType.FLYING, count: Math.max(1, Math.round(baseCount * 0.10)) });
   }
 
   // Boss every 10 waves
@@ -138,7 +144,22 @@ export class WaveSystem {
     const creditValue = Math.round(stats.creditValue * hpScale * (overrides?.creditValue ?? 1));
     const contactDamage = stats.contactDamage * (overrides?.contactDamage ?? 1);
 
-    const path = findPath(state.grid, targetSide);
+    // Flying enemies go straight from spawn to goal (no BFS pathfinding)
+    let path;
+    if (type === EnemyType.FLYING) {
+      const goalRow = GOAL_ROWS[Math.floor(Math.random() * GOAL_ROWS.length)];
+      const goalX = targetSide === PlayerSide.LEFT ? 0 : GRID.WIDTH - 1;
+      const spawnY = CENTER_SPAWN.Y_ROWS[0];
+      const spawnX = targetSide === PlayerSide.LEFT
+        ? CENTER_SPAWN.X_MIN
+        : CENTER_SPAWN.X_MAX;
+      path = [
+        { x: spawnX, y: spawnY },
+        { x: goalX, y: goalRow },
+      ];
+    } else {
+      path = findPath(state.grid, targetSide);
+    }
     if (!path || path.length === 0) return;
 
     const spawnPoint = path[0];

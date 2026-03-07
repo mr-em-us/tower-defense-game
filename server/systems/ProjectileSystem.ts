@@ -1,4 +1,4 @@
-import { GameState, GamePhase } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, TowerType, EnemyType } from '../../shared/types/game.types.js';
 import { ENEMY_STATS } from '../../shared/types/constants.js';
 import { distance } from '../../shared/utils/math.js';
 
@@ -62,7 +62,15 @@ export class ProjectileSystem {
     const enemy = state.enemies[enemyId];
     if (!enemy) return;
 
-    enemy.health -= damage;
+    let finalDamage = damage;
+    // Non-AA towers deal 50% damage to flying enemies
+    if (enemy.type === EnemyType.FLYING) {
+      const tower = state.towers[towerId];
+      if (tower && tower.type !== TowerType.AA) {
+        finalDamage = Math.round(damage * 0.5);
+      }
+    }
+    enemy.health -= finalDamage;
 
     if (enemy.health <= 0) {
       // Award credits to the tower owner for the kill

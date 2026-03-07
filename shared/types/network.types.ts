@@ -10,10 +10,13 @@ export type ClientMessage =
   | { type: 'RESTOCK_TOWER'; towerId: string }
   | { type: 'RESTOCK_ALL' }
   | { type: 'BRUSH_REPAIR'; center: GridCell; radius: number }
+  | { type: 'BRUSH_UPGRADE'; center: GridCell; radius: number }
+  | { type: 'BRUSH_SELL'; center: GridCell; radius: number }
   | { type: 'READY_FOR_WAVE' }
   | { type: 'SET_STARTING_CREDITS'; credits: number }
   | { type: 'SET_GAME_SETTINGS'; settings: GameSettings }
   | { type: 'TOGGLE_AUTO_REPAIR' }
+  | { type: 'TOGGLE_AUTO_REBUILD' }
   | { type: 'TOGGLE_FAST_MODE' };
 
 // Server -> Client messages

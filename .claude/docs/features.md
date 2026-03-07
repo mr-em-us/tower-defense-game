@@ -117,7 +117,15 @@ StatsTracker tracks strengthIndex. ChartsOverlay has strength rendering code.
 All numbers use .toLocaleString() across HUD, Renderer, PostGameOverlay.
 
 ## Planned / Ideas
-- More tower/enemy types
+
+### Big Features
+- **4-Player Mode** — Quadrant-based grid (instead of left/right halves), diagonal BFS pathfinding, 4 spawn zones. Would require major grid/zone architecture changes.
+- **AI Opponents (Single Player)** — Server-side AI that builds towers on the opposite side, competing against the player. Difficulty tiers (greedy, strategic, economy-aware). Could reuse existing 2-player architecture with AI replacing one WebSocket client.
+- **Offense Buildings (Barracks)** — Player-built structures that produce and send enemies at opponent. Adds offense/defense tradeoff. Shifts game toward Clash Royale/StarCraft hybrid.
+- **Enemy-Produced Streams** — Variant where ALL enemies come from player-built producers, no neutral center spawn. Pure PvP offense/defense.
+- **Army/Defender Units** — Mobile defense units that patrol and intercept enemies. Tradeoff between static towers (reliable, positional) vs mobile army (flexible, redirectable). Adds real-time tactics layer.
+
+### Infrastructure
 - Cloud leaderboard sync
 - Test suite
 - Delta state compression for bandwidth

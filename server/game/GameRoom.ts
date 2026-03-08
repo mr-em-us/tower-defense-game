@@ -42,6 +42,52 @@ export class GameRoom {
     log(`Room ${this.roomId} created (${gameMode})`);
   }
 
+  static fromSave(savedState: GameState, newPlayerId: string, ws: WebSocket, playerName: string): GameRoom {
+    const room = new GameRoom(GameMode.SINGLE);
+
+    const restored = JSON.parse(JSON.stringify(savedState)) as GameState;
+    restored.roomId = room.roomId;
+
+    // Remap old player ID to new connection's ID
+    const oldPlayerIds = Object.keys(restored.players);
+    if (oldPlayerIds.length !== 1) {
+      throw new Error('Save must be singleplayer (exactly 1 player)');
+    }
+    const oldId = oldPlayerIds[0];
+    const player = restored.players[oldId];
+    delete restored.players[oldId];
+    player.id = newPlayerId;
+    player.name = playerName;
+    player.isReady = false;
+    restored.players[newPlayerId] = player;
+
+    for (const tower of Object.values(restored.towers)) {
+      if (tower.ownerId === oldId) tower.ownerId = newPlayerId;
+    }
+    for (const trace of restored.destroyedTowerTraces) {
+      if (trace.ownerId === oldId) trace.ownerId = newPlayerId;
+    }
+    if (restored.waveEconomy[oldId]) {
+      restored.waveEconomy[newPlayerId] = restored.waveEconomy[oldId];
+      delete restored.waveEconomy[oldId];
+    }
+
+    // Clear transient combat state
+    restored.enemies = {};
+    restored.projectiles = {};
+    restored.waveEnemiesRemaining = 0;
+    restored.waveEnemiesTotal = 0;
+    restored.waveEnemiesKilled = 0;
+    restored.phase = GamePhase.BUILD;
+
+    room.state = restored;
+    room.connections.set(newPlayerId, ws);
+    room.startLoop();
+
+    log(`Room ${room.roomId} restored from save (wave ${restored.waveNumber})`);
+    return room;
+  }
+
   get gameMode(): GameMode {
     return this.state.gameMode;
   }
@@ -864,10 +910,29 @@ export class GameRoom {
       const econ = this.getPlayerEconomy(player.id);
       const ownedTowers = Object.values(this.state.towers).filter(t => t.ownerId === player.id);
 
-      // Repair: sort by damage ratio ascending (most damaged first)
+      // Repair: prioritize structural towers (bridges) first, then most damaged
+      // A tower with more empty orthogonal neighbors is more critical — its destruction creates path gaps
+      const countEmptyNeighbors = (t: Tower): number => {
+        const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+        let empty = 0;
+        for (const [dx, dy] of dirs) {
+          const nx = t.position.x + dx;
+          const ny = t.position.y + dy;
+          if (nx < 0 || nx >= GRID.WIDTH || ny < 0 || ny >= GRID.HEIGHT) continue;
+          const cellType = this.state.grid.cells[ny]?.[nx];
+          if (cellType === undefined || cellType === CellType.EMPTY) empty++;
+        }
+        return empty;
+      };
       const damagedTowers = ownedTowers
         .filter(t => t.health < t.maxHealth)
-        .sort((a, b) => (a.health / a.maxHealth) - (b.health / b.maxHealth));
+        .sort((a, b) => {
+          // More empty neighbors = more structural importance (repair first)
+          const emptyDiff = countEmptyNeighbors(b) - countEmptyNeighbors(a);
+          if (emptyDiff !== 0) return emptyDiff;
+          // Tie-break: most damaged first
+          return (a.health / a.maxHealth) - (b.health / b.maxHealth);
+        });
 
       for (const tower of damagedTowers) {
         if (player.credits <= AUTO_REPAIR_RESERVE) break;

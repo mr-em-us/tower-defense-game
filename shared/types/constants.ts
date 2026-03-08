@@ -116,9 +116,9 @@ export const TOWER_STATS: Record<TowerType, {
   },
   [TowerType.AA]: {
     cost: 100,
-    damage: 10,
+    damage: 5,
     range: 6,
-    fireRate: 1.5,
+    fireRate: 4.5,
     upgradeCostMultiplier: 1.0,
     upgradeStatMultiplier: 1.5,
     splashRadius: 0,

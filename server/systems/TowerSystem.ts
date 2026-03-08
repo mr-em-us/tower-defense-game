@@ -57,8 +57,8 @@ export class TowerSystem {
     for (const enemy of Object.values(state.enemies)) {
       if (!enemy.spawned || enemy.health <= 0) continue;
 
-      // AA towers only target flying enemies
-      if (tower.type === TowerType.AA && enemy.type !== EnemyType.FLYING) continue;
+      // Non-AA towers deal reduced damage to flying (handled in ProjectileSystem)
+      // AA towers can target both ground and flying enemies
 
       // Only target enemies on the tower owner's half of the board
       if (ownerSide === PlayerSide.LEFT && enemy.position.x > GRID.LEFT_ZONE_END) continue;

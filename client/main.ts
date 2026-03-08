@@ -9,6 +9,7 @@ import { HUD } from './ui/HUD.js';
 import { SettingsPanel } from './ui/SettingsPanel.js';
 import { UsernamePanel } from './ui/UsernamePanel.js';
 import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
+import { SavePanel } from './ui/SavePanel.js';
 
 const HUD_HEIGHT = window.innerWidth <= 900 ? 36 : 48;
 
@@ -46,7 +47,11 @@ function updateDifficultyIndicator(): void {
   el.classList.remove('hidden');
 }
 
-function showModeMenu(): Promise<GameMode> {
+type MenuResult = { type: 'new'; gameMode: GameMode } | { type: 'load'; saveId: string };
+
+let savePanel: SavePanel | null = null;
+
+function showModeMenu(playerName: string): Promise<MenuResult> {
   return new Promise((resolve) => {
     const menu = document.getElementById('mode-menu')!;
     menu.classList.remove('hidden');
@@ -55,12 +60,12 @@ function showModeMenu(): Promise<GameMode> {
     const onSingle = () => {
       menu.classList.add('hidden');
       cleanup();
-      resolve(GameMode.SINGLE);
+      resolve({ type: 'new', gameMode: GameMode.SINGLE });
     };
     const onMulti = () => {
       menu.classList.add('hidden');
       cleanup();
-      resolve(GameMode.MULTI);
+      resolve({ type: 'new', gameMode: GameMode.MULTI });
     };
     const onSettings = async () => {
       menu.classList.add('hidden');
@@ -81,6 +86,25 @@ function showModeMenu(): Promise<GameMode> {
       });
       observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
     };
+    const onLoadSave = () => {
+      menu.classList.add('hidden');
+      if (!savePanel) {
+        savePanel = new SavePanel('save-panel', (saveId: string) => {
+          cleanup();
+          resolve({ type: 'load', saveId });
+        });
+      }
+      savePanel.show(playerName);
+
+      const panel = document.getElementById('save-panel')!;
+      const observer = new MutationObserver(() => {
+        if (panel.classList.contains('hidden')) {
+          observer.disconnect();
+          menu.classList.remove('hidden');
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
+    };
     const onDifficultyClick = async () => {
       menu.classList.add('hidden');
       currentSettings = await settingsPanel.show(currentSettings);
@@ -92,12 +116,14 @@ function showModeMenu(): Promise<GameMode> {
     const btnMulti = document.getElementById('btn-multi')!;
     const btnSettings = document.getElementById('btn-settings')!;
     const btnLeaderboard = document.getElementById('btn-leaderboard')!;
+    const btnLoadSave = document.getElementById('btn-load-save')!;
     const diffIndicator = document.getElementById('menu-difficulty')!;
 
     btnSingle.addEventListener('click', onSingle);
     btnMulti.addEventListener('click', onMulti);
     btnSettings.addEventListener('click', onSettings);
     btnLeaderboard.addEventListener('click', onLeaderboard);
+    btnLoadSave.addEventListener('click', onLoadSave);
     diffIndicator.addEventListener('click', onDifficultyClick);
 
     function cleanup() {
@@ -105,6 +131,7 @@ function showModeMenu(): Promise<GameMode> {
       btnMulti.removeEventListener('click', onMulti);
       btnSettings.removeEventListener('click', onSettings);
       btnLeaderboard.removeEventListener('click', onLeaderboard);
+      btnLoadSave.removeEventListener('click', onLoadSave);
       diffIndicator.removeEventListener('click', onDifficultyClick);
     }
   });
@@ -133,7 +160,7 @@ async function main(): Promise<void> {
 
   const playerName = await usernamePanel.show();
   settingsPanel.setUsername(playerName);
-  const gameMode = await showModeMenu();
+  const menuResult = await showModeMenu(playerName);
 
   const network = new NetworkClient(getServerUrl());
   const gameClient = new GameClient(network);
@@ -142,7 +169,11 @@ async function main(): Promise<void> {
   const hud = new HUD(gameClient);
 
   await network.connect();
-  gameClient.joinGame(gameMode, playerName, currentSettings);
+  if (menuResult.type === 'load') {
+    gameClient.loadSave(menuResult.saveId);
+  } else {
+    gameClient.joinGame(menuResult.gameMode, playerName, currentSettings);
+  }
 
   let lastTime = performance.now();
 

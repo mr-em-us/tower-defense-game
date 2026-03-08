@@ -101,7 +101,7 @@ export class HUD {
     if (state.phase === GamePhase.BUILD) {
       const players = Object.values(state.players);
       const readyCount = players.filter(p => p.isReady).length;
-      this.hudCenter.appendChild(span(`BUILD  ${readyCount}/${players.length} ready`, 'font-weight:500'));
+      this.hudCenter.appendChild(span(`WAVE ${state.waveNumber}  BUILD  ${readyCount}/${players.length} ready`, 'font-weight:500'));
     } else {
       const waveText = `WAVE ${state.waveNumber}`;
       this.hudCenter.appendChild(span(waveText, 'font-weight:500'));
@@ -223,6 +223,11 @@ export class HUD {
     const readyBtn = document.getElementById('ready-btn');
     if (readyBtn) {
       readyBtn.classList.toggle('disabled', !isBuild);
+    }
+
+    const saveBtn = document.getElementById('save-btn');
+    if (saveBtn) {
+      saveBtn.style.display = (isBuild && state.gameMode === GameMode.SINGLE) ? '' : 'none';
     }
 
     // Auto R&R button
@@ -512,7 +517,7 @@ export class HUD {
 
       // Tooltip with tower stats
       if (type === TowerType.AA) {
-        btn.title = `AA — ${stats.damage} dmg (${stats.damage * 3} vs air)\nRange: ${stats.range} | Rate: ${stats.fireRate}/s\nAmmo: ${stats.maxAmmo}`;
+        btn.title = `AA — ${stats.damage} ground / ${stats.damage * 3} air dmg\nRange: ${stats.range} | Rate: ${stats.fireRate}/s\nAmmo: ${stats.maxAmmo}`;
       } else if (type === TowerType.WALL) {
         btn.title = `Wall — HP: ${stats.maxHealth}\nBlocks enemy paths`;
       } else {
@@ -583,6 +588,19 @@ export class HUD {
     const rightGroup = document.createElement('div');
     rightGroup.id = 'tower-persistent-right';
     rightGroup.className = 'bar-group no-divider tower-group-right';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.id = 'save-btn';
+    saveBtn.className = 'action-btn';
+    saveBtn.textContent = 'Save';
+    saveBtn.style.display = 'none';
+    saveBtn.addEventListener('click', async () => {
+      const name = prompt('Save name (leave blank for default):');
+      const success = await this.gameClient.saveGame(name || undefined);
+      saveBtn.textContent = success ? 'Saved!' : 'Failed';
+      setTimeout(() => { saveBtn.textContent = 'Save'; }, 1500);
+    });
+    rightGroup.appendChild(saveBtn);
 
     const readyBtn = document.createElement('button');
     readyBtn.id = 'ready-btn';

@@ -544,7 +544,11 @@ export class Renderer {
 
       let y = panelY + 6;
       ctx.fillText(`Lvl ${tower.level} ${tower.type}`, panelX + 8, y); y += 16;
-      ctx.fillText(`DMG: ${tower.damage}  RNG: ${tower.range}`, panelX + 8, y); y += 16;
+      if (tower.type === TowerType.AA) {
+        ctx.fillText(`DMG: ${tower.damage} gnd / ${tower.damage * 3} air  RNG: ${tower.range}`, panelX + 8, y); y += 16;
+      } else {
+        ctx.fillText(`DMG: ${tower.damage}  RNG: ${tower.range}`, panelX + 8, y); y += 16;
+      }
       ctx.fillText(`HP: ${Math.ceil(tower.health).toLocaleString()}/${tower.maxHealth.toLocaleString()}  AMMO: ${tower.ammo.toLocaleString()}/${tower.maxAmmo.toLocaleString()}`, panelX + 8, y); y += 16;
       ctx.fillText(`Income: +${stats.incomePerTurn.toLocaleString()}c  Maint: -${stats.maintenancePerTurn.toLocaleString()}c`, panelX + 8, y); y += 16;
       ctx.fillText(`Upgrade: ${upgradeCost.toLocaleString()}c  Sell: ${sellValue.toLocaleString()}c (${sellPct})`, panelX + 8, y); y += 16;

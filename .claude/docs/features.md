@@ -116,6 +116,21 @@ StatsTracker tracks strengthIndex. ChartsOverlay has strength rendering code.
 ### Comma Delimiters -- shipped (uncommitted)
 All numbers use .toLocaleString() across HUD, Renderer, PostGameOverlay.
 
+### AA Tower Rebalance -- shipped (uncommitted)
+AA damage 10→5 (half of Basic), fireRate 1.5→4.5 (3x faster). AA now targets both ground and air enemies. Info panel shows "DMG: 5 gnd / 15 air". Auto-repair prioritizes structural/bridge towers (sorted by empty orthogonal neighbor count).
+
+### Keyboard Hotkeys -- shipped (uncommitted)
+1-6 for tower type selection, U upgrade, R repair, E restock, X/Delete sell, Space ready, F cycle speed, Escape deselect. All guarded against input field focus.
+
+### Save/Resume System -- shipped (uncommitted)
+Singleplayer BUILD-phase-only saves. Server-side SaveStore (data/saves/, max 10/player). HTTP REST API (GET/POST/DELETE /api/saves). Client SavePanel UI. Save button in HUD. Load Game in main menu. GameRoom.fromSave() factory remaps player IDs.
+
+### Wave Number Always Visible -- shipped (uncommitted)
+BUILD phase HUD shows "WAVE N  BUILD  0/1 ready".
+
+### Chart Divergence Fix -- shipped (uncommitted)
+Difficulty line only steps up on COMBAT start, not during BUILD when waveNumber is pre-incremented.
+
 ## Planned / Ideas
 
 ### Big Features

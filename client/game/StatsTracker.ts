@@ -22,6 +22,8 @@ export class StatsTracker {
   private lastSampleTime = -Infinity;
   private sampleInterval = 1.0;
   private started = false;
+  private lastDifficulty = 1.0;
+  private lastCombatWave = 0;
 
   recordTick(state: GameState, dt: number): void {
     // Only track once game has started (BUILD or COMBAT)
@@ -38,10 +40,16 @@ export class StatsTracker {
     if (this.elapsed - this.lastSampleTime < this.sampleInterval) return;
     this.lastSampleTime = this.elapsed;
 
-    // Compute difficulty for current wave
-    const curve = state.settings.difficultyCurve;
-    const waveIdx = Math.min(state.waveNumber - 1, curve.length - 1);
-    const difficulty = waveIdx >= 0 ? curve[waveIdx] : 1.0;
+    // Only step difficulty up when COMBAT begins for a new wave.
+    // During BUILD, waveNumber is already incremented but the wave hasn't started —
+    // keep showing previous difficulty to avoid visual jump ahead of strength.
+    if (state.phase === GamePhase.COMBAT && state.waveNumber > this.lastCombatWave) {
+      this.lastCombatWave = state.waveNumber;
+      const curve = state.settings.difficultyCurve;
+      const waveIdx = Math.min(state.waveNumber - 1, curve.length - 1);
+      this.lastDifficulty = waveIdx >= 0 ? curve[waveIdx] : 1.0;
+    }
+    const difficulty = this.lastDifficulty;
 
     for (const player of Object.values(state.players)) {
       let history = this.histories.get(player.id);

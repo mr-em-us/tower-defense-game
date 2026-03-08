@@ -9,7 +9,7 @@
 | SPLASH | 150 | 20 | 4 | 1.0 | 160 | 50 | 1.0 | 12 | 6 |
 | SLOW | 80 | 5 | 3 | 1.5 | 200 | 60 | 0.3 | 7 | 3 |
 | WALL | 25 | 0 | 0 | 0 | 150 | 0 | 0 | 0 | 0 |
-| AA | 100 | 10 | 6 | 1.5 | 100 | 40 | 1.0 | 8 | 4 |
+| AA | 100 | 5 | 6 | 4.5 | 100 | 40 | 1.0 | 8 | 4 |
 
 Additional tower stats: upgradeCostMultiplier (BASIC 1.5, SNIPER 1.6, SPLASH 1.5, SLOW 1.4, WALL 1.3), upgradeStatMultiplier (1.4, 1.5, 1.4, 1.3, 1.0), splashRadius (SPLASH=2), slowAmount (SLOW=0.5), slowDuration (SLOW=2s).
 
@@ -24,10 +24,11 @@ Additional tower stats: upgradeCostMultiplier (BASIC 1.5, SNIPER 1.6, SPLASH 1.5
 | FLYING | 80 | 3 | 20 | 0.4 |
 
 ### Flying Damage Model
-- AA towers deal 3x damage to flying enemies (10 base × 3 = 30/hit, 45 DPS)
+- AA towers deal 3x damage to flying enemies (5 base × 3 = 15/hit, 67.5 DPS)
+- AA towers target both ground AND air (5 dmg to ground = half of Basic)
 - Non-AA towers deal 25% damage to flying (small arms vs plane)
-- AA towers ONLY target flying enemies (skip ground)
 - Flying enemies bypass BFS pathfinding — fly straight from spawn to goal
+- AA burns ammo fast: 40 rounds at 4.5/s = ~9 seconds before empty
 
 ### Air Wave Scheduling
 - ~35% chance per wave (from wave 2+) to schedule an air wave 3 waves ahead

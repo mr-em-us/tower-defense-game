@@ -1,5 +1,5 @@
 import { GRID } from '../../shared/types/constants.js';
-import { GamePhase, PlayerSide } from '../../shared/types/game.types.js';
+import { GamePhase, PlayerSide, TowerType } from '../../shared/types/game.types.js';
 import { GameClient } from './GameClient.js';
 
 export class InputHandler {
@@ -138,6 +138,63 @@ export class InputHandler {
       } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
         this.gameClient.clientState.panOffset.y -= panStep;
         this.clampPan();
+      }
+
+      const key = e.key.toLowerCase();
+      const cs = this.gameClient.clientState;
+      const state = this.gameClient.getState();
+
+      // Tower type selection: 1-6
+      const TOWER_ORDER = [TowerType.BASIC, TowerType.SNIPER, TowerType.SPLASH, TowerType.SLOW, TowerType.WALL, TowerType.AA];
+      if (key >= '1' && key <= '6') {
+        this.gameClient.selectTowerType(TOWER_ORDER[parseInt(key) - 1]);
+        return;
+      }
+
+      if (!state) return;
+
+      // Escape: deselect
+      if (e.key === 'Escape') {
+        cs.selectedTowerIds = [];
+        cs.selectedTowerType = null;
+        cs.activeTool = 'place';
+        return;
+      }
+
+      // Space: ready for wave
+      if (e.key === ' ') {
+        e.preventDefault();
+        if (state.phase === GamePhase.BUILD) {
+          this.gameClient.readyForWave();
+        }
+        return;
+      }
+
+      // F: cycle game speed
+      if (key === 'f') {
+        this.gameClient.toggleFastMode();
+        return;
+      }
+
+      // Tower action hotkeys (require selection)
+      if (cs.selectedTowerIds.length > 0) {
+        if (key === 'u') {
+          for (const id of cs.selectedTowerIds) this.gameClient.upgradeTower(id);
+          return;
+        }
+        if (key === 'r') {
+          for (const id of cs.selectedTowerIds) this.gameClient.repairTower(id);
+          return;
+        }
+        if (key === 'e') {
+          for (const id of cs.selectedTowerIds) this.gameClient.restockTower(id);
+          return;
+        }
+        if (key === 'x' || e.key === 'Delete') {
+          for (const id of cs.selectedTowerIds) this.gameClient.sellTower(id);
+          cs.selectedTowerIds = [];
+          return;
+        }
       }
     });
 

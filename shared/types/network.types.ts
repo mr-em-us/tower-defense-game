@@ -17,7 +17,8 @@ export type ClientMessage =
   | { type: 'SET_GAME_SETTINGS'; settings: GameSettings }
   | { type: 'TOGGLE_AUTO_REPAIR' }
   | { type: 'TOGGLE_AUTO_REBUILD' }
-  | { type: 'TOGGLE_FAST_MODE' };
+  | { type: 'TOGGLE_FAST_MODE' }
+  | { type: 'LOAD_SAVE'; saveId: string };
 
 // Server -> Client messages
 export type ServerMessage =

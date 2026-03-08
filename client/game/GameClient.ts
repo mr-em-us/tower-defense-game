@@ -285,6 +285,46 @@ export class GameClient {
     this.network.send({ type: 'READY_FOR_WAVE' });
   }
 
+  async saveGame(displayName?: string): Promise<boolean> {
+    if (!this.gameState || !this.playerId) return false;
+    if (this.gameState.phase !== GamePhase.BUILD) return false;
+    if (this.gameState.gameMode !== GameMode.SINGLE) return false;
+
+    const player = this.gameState.players[this.playerId];
+    if (!player) return false;
+
+    const save = {
+      metadata: {
+        id: crypto.randomUUID(),
+        playerName: player.name,
+        displayName: displayName || `Wave ${this.gameState.waveNumber}`,
+        timestamp: Date.now(),
+        waveReached: this.gameState.waveNumber,
+        playerHealth: player.health,
+        credits: player.credits,
+        gameMode: this.gameState.gameMode,
+      },
+      gameState: structuredClone(this.gameState),
+    };
+
+    const host = window.location.hostname || 'localhost';
+    const port = window.location.port || '8080';
+    try {
+      const resp = await fetch(`${window.location.protocol}//${host}:${port}/api/saves`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(save),
+      });
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  loadSave(saveId: string): void {
+    this.network.send({ type: 'LOAD_SAVE', saveId });
+  }
+
   setStartingCredits(credits: number): void {
     this.network.send({ type: 'SET_STARTING_CREDITS', credits });
   }

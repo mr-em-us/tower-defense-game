@@ -76,8 +76,12 @@ This project uses a structured persistent memory system. Follow these protocols 
 2. Read the "Last Save" line from MEMORY.md to get the previous session's save timestamp
 3. Based on the user's task, read relevant shared docs (e.g., `.claude/docs/economy.md` for balance work, `.claude/docs/architecture.md` for structural changes)
 4. Run `git status --short` and `git log --oneline -3` to check for any changes since last save
-5. Create a fresh `memory/current-session.md` with today's date as the header
-6. Output confirmation: `Loaded - [last save timestamp from MEMORY.md]`
+5. **Sync with remote:** Run `git fetch origin` then check for divergence:
+   - If remote has new commits: run `git pull --rebase origin main` to incorporate them
+   - If pull fails due to conflicts: alert the user and do NOT proceed until resolved
+   - Report what was pulled (e.g., "Pulled 3 new commits from Michael")
+6. Create a fresh `memory/current-session.md` with today's date as the header
+7. Output confirmation: `Loaded - [last save timestamp from MEMORY.md]` + sync status
 
 ### During Session (live logging)
 After each significant action (file edit, bug fix, feature addition, design decision, failed attempt), append a timestamped entry to `memory/current-session.md`:
@@ -109,6 +113,8 @@ Steps:
    - `git add` specific changed files (never `git add -A`)
    - Include any modified `.claude/docs/*.md` files in the commit
    - `git commit` with descriptive message
-   - Do NOT push unless user explicitly asks
+   - `git pull --rebase origin main` to pick up any remote changes first
+   - `git push origin main` to sync to GitHub
+   - If push fails (e.g., conflict), alert the user and help resolve
 6. Get actual system time: `date '+%Y-%m-%d - %I:%M %p'` (system clock is PST)
 7. Output confirmation: `Saved - [timestamp in PST]`

@@ -96,6 +96,12 @@
 **Alternatives**: Separate system files per mode (EnemySystem4P, EnemySystemAI), plugin architecture (over-engineered for current scope)
 **Consequences**: Adding a mode means adding a config block, not duplicating systems. Existing systems gain small conditional branches but remain unified. Reduces maintenance burden as core game evolves. Example: 4-player would change grid dimensions + zone count in config, not rewrite BFS or PhaseSystem.
 
+### 2026-03 -- Auto-Sync with GitHub on Save/Resume
+**Context**: Jason assumed git was auto-syncing to GitHub, but commits were only local. Michael couldn't see any of the recent work. Claude Cloud was pulling from a stale fork (jlsavard/tower-defense-game) instead of the shared repo (mr-em-us/tower-defense-game).
+**Decision**: Updated save protocol to `git push origin main` after every commit. Updated resume protocol to `git fetch origin` + `git pull --rebase origin main` before starting work. Added collaborator identity map to CLAUDE.md (git email → display name) and personalized welcome messages on resume.
+**Alternatives**: Manual push/pull (error-prone, forgot for 9 commits), GitHub Actions auto-sync (over-engineered), branch-per-person (unnecessary complexity for 2 collaborators)
+**Consequences**: Both collaborators stay in sync automatically through the save/resume workflow. Welcome messages provide context on what the other person changed. Risk: simultaneous work on main could cause rebase conflicts, but unlikely with 2 people and save-based workflow.
+
 ### 2026-03 -- Wave Rebalancing (firstWaveEnemies 60 -> 15)
 **Context**: Default difficulty was too hard. Wave 3 had 165 enemies due to formula `(4 + wave*2) * 10 * countScale`. User reported game was unplayable at defaults.
 **Decision**: Rewrote wave formula to `baseCount = firstWaveEnemies * (1 + (wave-1) * 0.2) * diffRatio` with percentage-based type distribution. Reduced default firstWaveEnemies from 60 to 15.

@@ -11,14 +11,16 @@ Multiplayer and singleplayer tower defense with ASCII art style. Server-authorit
 - Deploy: Render free tier (render.yaml)
 
 ## Collaborators
-Map git identity → display name. Use `git config user.email` to identify the current user.
+Map git identity → display name. Identification priority:
+1. **Cloud (preferred):** Check if `/home/claude/.claude/remote/.session_ingress_token` exists. If so, decode the JWT payload (base64 middle segment) and extract `account_email`. Match against the table below.
+2. **Local CLI:** Use `git config user.email` and match against the table below.
+3. **Fallback:** If neither method identifies the user, ask: "Hey! I can't tell who you are. Are you Jason or Michael?"
+
 | Email pattern          | Name    |
 |------------------------|---------|
 | jvsfernando@gmail.com  | Jason   |
 | 168463487+jlsavard@*   | Jason   |
 | mike@ochotta.com       | Michael |
-
-**Cloud sessions:** If git email is `noreply@anthropic.com` or otherwise unrecognized, ask the user: "Hey! I can't tell who you are from the git config. Are you Jason or Michael?" Then proceed with that identity for the rest of the session.
 
 ## Stack
 TypeScript monorepo | Node.js + ws (server) | Canvas 2D + DOM (client) | esbuild bundler | DM Mono font

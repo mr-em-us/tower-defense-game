@@ -10,6 +10,14 @@ Multiplayer and singleplayer tower defense with ASCII art style. Server-authorit
 - Server: http://localhost:8080 | WS: ws://localhost:8080
 - Deploy: Render free tier (render.yaml)
 
+## Collaborators
+Map git identity → display name. Use `git config user.email` to identify the current user.
+| Email pattern          | Name    |
+|------------------------|---------|
+| jvsfernando@gmail.com  | Jason   |
+| 168463487+jlsavard@*   | Jason   |
+| mike@ochotta.com       | Michael |
+
 ## Stack
 TypeScript monorepo | Node.js + ws (server) | Canvas 2D + DOM (client) | esbuild bundler | DM Mono font
 
@@ -73,15 +81,21 @@ This project uses a structured persistent memory system. Follow these protocols 
 
 ### Session Start (do this automatically at the beginning of every new session)
 1. CLAUDE.md and MEMORY.md auto-load — read them
-2. Read the "Last Save" line from MEMORY.md to get the previous session's save timestamp
-3. Based on the user's task, read relevant shared docs (e.g., `.claude/docs/economy.md` for balance work, `.claude/docs/architecture.md` for structural changes)
-4. Run `git status --short` and `git log --oneline -3` to check for any changes since last save
-5. **Sync with remote:** Run `git fetch origin` then check for divergence:
+2. **Identify the user:** Run `git config user.email` and match against the Collaborators table above
+3. Read the "Last Save" line from MEMORY.md to get the previous session's save timestamp
+4. Based on the user's task, read relevant shared docs (e.g., `.claude/docs/economy.md` for balance work, `.claude/docs/architecture.md` for structural changes)
+5. Run `git status --short` to check for uncommitted local changes
+6. **Sync with remote:** Run `git fetch origin` then check for divergence:
    - If remote has new commits: run `git pull --rebase origin main` to incorporate them
    - If pull fails due to conflicts: alert the user and do NOT proceed until resolved
-   - Report what was pulled (e.g., "Pulled 3 new commits from Michael")
-6. Create a fresh `memory/current-session.md` with today's date as the header
-7. Output confirmation: `Loaded - [last save timestamp from MEMORY.md]` + sync status
+7. **Build welcome message:** Check `git log` to determine what happened since the user's last commit:
+   - Find the user's most recent commit (by their email)
+   - Check if other collaborators committed anything after that
+   - If no new commits from others: "Hey [Name]! Nothing new since your last session. As a reminder, you last worked on: [summary of their recent commits]."
+   - If new commits from others: "Hey [Name]! Since you last worked on this, [OtherName] made some changes: [summary of their commits]. Before that, you last worked on: [summary]."
+   - Keep summaries concise — bullet the key changes, not every commit message verbatim
+8. Create a fresh `memory/current-session.md` with today's date as the header
+9. Output the welcome message + sync status
 
 ### During Session (live logging)
 After each significant action (file edit, bug fix, feature addition, design decision, failed attempt), append a timestamped entry to `memory/current-session.md`:

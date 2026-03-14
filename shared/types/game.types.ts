@@ -34,6 +34,12 @@ export enum GameMode {
   MULTI = 'MULTI',
 }
 
+export enum AIDifficulty {
+  EASY = 'EASY',
+  MEDIUM = 'MEDIUM',
+  HARD = 'HARD',
+}
+
 export enum PlayerSide {
   LEFT = 'LEFT',
   RIGHT = 'RIGHT',
@@ -104,6 +110,7 @@ export interface Player {
   autoRepairEnabled: boolean;
   autoRebuildEnabled: boolean;
   requestedSpeed: number;  // 1 = normal, 2 = fast, 4 = turbo
+  isAI: boolean;
 }
 
 export interface TowerTrace {
@@ -198,4 +205,6 @@ export interface GameSettings {
   towerOverrides: Partial<Record<TowerType, Partial<TowerStatOverrides>>>;
   // Per-enemy stat multipliers (all default to 1.0 if absent)
   enemyOverrides: Partial<Record<EnemyType, Partial<EnemyStatOverrides>>>;
+  aiEnabled: boolean;
+  aiDifficulty: AIDifficulty;
 }

@@ -7,7 +7,7 @@ Multiplayer and singleplayer tower defense with ASCII art style. Server-authorit
 - `npm run dev` — build + concurrently run dev server + esbuild watcher
 - `npm start` — run production server (dist/server/server/index.js)
 - `npm run tunnel` — build + run + localtunnel for remote play
-- Server: http://localhost:8080 | WS: ws://localhost:8080
+- Server: http://localhost:9090 | WS: ws://localhost:9090
 - Deploy: Render free tier (render.yaml)
 
 ## Collaborators
@@ -30,7 +30,7 @@ TypeScript monorepo | Node.js + ws (server) | Canvas 2D + DOM (client) | esbuild
 - `server/` — Authoritative game server: WebSocket, ECS-like system pipeline, HTTP static + API
 - `shared/` — Cross-boundary: types, constants, pathfinding, difficulty calc
 - `data/` — Runtime data (gitignored): leaderboard.json
-- `.claude/launch.json` — Preview server config (port 8080)
+- `.claude/launch.json` — Preview server config (port 9090)
 
 ## Architecture
 - Server is authoritative: all game logic server-side, client sends action requests
@@ -58,7 +58,7 @@ TypeScript monorepo | Node.js + ws (server) | Canvas 2D + DOM (client) | esbuild
 - Wave enemy count formula: `baseCount = firstWaveEnemies * (1 + (wave-1) * 0.2) * diffRatio`
 
 ## Gotchas
-- WebSocket URL hardcoded to port 8080 even in dev (esbuild serves client on different port)
+- WebSocket URL hardcoded to port 9090 even in dev (esbuild serves client on different port)
 - Canvas uses internal buffer coordinates; CSS scaling handled separately via applyResponsiveScaling
 - SettingsPanel.buildCurveSection() creates a new canvas each time switchTab('general') runs — must call drawCurve() after switchTab, not before
 - Phase transitions use waveEnemiesRemaining sentinel to prevent race conditions

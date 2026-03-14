@@ -2,9 +2,11 @@ import { WebSocket } from 'ws';
 import { v4 as uuid } from 'uuid';
 import {
   GameState, GamePhase, GameMode, Player, PlayerSide,
-  CellType, TowerType, Tower, GameSettings, WaveStats, WaveEconomy,
+  CellType, TowerType, Tower, GameSettings, WaveStats, WaveEconomy, AIDifficulty,
 } from '../../shared/types/game.types.js';
 import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION, MIN_DYNAMIC_PRICE, DEFAULT_GAME_SETTINGS } from '../../shared/types/constants.js';
+import { AIController } from '../ai/AIController.js';
+import { pickAIName } from '../ai/names.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { ClientMessage, ServerMessage } from '../../shared/types/network.types.js';
 import { GameResultRecord } from '../../shared/types/leaderboard.types.js';
@@ -36,6 +38,9 @@ export class GameRoom {
   private currentWaveStats: WaveStats | null = null;
   private prevPhase: GamePhase = GamePhase.WAITING;
 
+  // AI opponent
+  private aiController: AIController | null = null;
+
   constructor(gameMode: GameMode = GameMode.MULTI) {
     this.roomId = uuid();
     this.state = this.createInitialState(gameMode);
@@ -48,28 +53,41 @@ export class GameRoom {
     const restored = JSON.parse(JSON.stringify(savedState)) as GameState;
     restored.roomId = room.roomId;
 
-    // Remap old player ID to new connection's ID
-    const oldPlayerIds = Object.keys(restored.players);
-    if (oldPlayerIds.length !== 1) {
-      throw new Error('Save must be singleplayer (exactly 1 player)');
+    // Find human and AI players
+    const oldPlayers = Object.values(restored.players);
+    const humanPlayer = oldPlayers.find(p => !p.isAI);
+    const aiPlayer = oldPlayers.find(p => p.isAI);
+
+    if (!humanPlayer) {
+      throw new Error('Save must contain a human player');
     }
-    const oldId = oldPlayerIds[0];
-    const player = restored.players[oldId];
-    delete restored.players[oldId];
-    player.id = newPlayerId;
-    player.name = playerName;
-    player.isReady = false;
-    restored.players[newPlayerId] = player;
+
+    // Remap human player ID to new connection's ID
+    const oldHumanId = humanPlayer.id;
+    delete restored.players[oldHumanId];
+    humanPlayer.id = newPlayerId;
+    humanPlayer.name = playerName;
+    humanPlayer.isReady = false;
+    restored.players[newPlayerId] = humanPlayer;
 
     for (const tower of Object.values(restored.towers)) {
-      if (tower.ownerId === oldId) tower.ownerId = newPlayerId;
+      if (tower.ownerId === oldHumanId) tower.ownerId = newPlayerId;
     }
     for (const trace of restored.destroyedTowerTraces) {
-      if (trace.ownerId === oldId) trace.ownerId = newPlayerId;
+      if (trace.ownerId === oldHumanId) trace.ownerId = newPlayerId;
     }
-    if (restored.waveEconomy[oldId]) {
-      restored.waveEconomy[newPlayerId] = restored.waveEconomy[oldId];
-      delete restored.waveEconomy[oldId];
+    if (restored.waveEconomy[oldHumanId]) {
+      restored.waveEconomy[newPlayerId] = restored.waveEconomy[oldHumanId];
+      delete restored.waveEconomy[oldHumanId];
+    }
+
+    // If there was an AI player, create a fresh AIController for it
+    if (aiPlayer) {
+      aiPlayer.isReady = false;
+      room.aiController = new AIController(
+        aiPlayer.id, aiPlayer.name, aiPlayer.side,
+        restored.settings.aiDifficulty,
+      );
     }
 
     // Clear transient combat state
@@ -177,6 +195,7 @@ export class GameRoom {
       autoRepairEnabled: false,
       autoRebuildEnabled: false,
       requestedSpeed: 1,
+      isAI: false,
     };
 
     this.state.players[newPlayerId] = player;
@@ -187,10 +206,38 @@ export class GameRoom {
     const playerCount = Object.keys(this.state.players).length;
     const neededPlayers = this.state.gameMode === GameMode.SINGLE ? 1 : 2;
     if (playerCount >= neededPlayers) {
+      // If AI enabled in singleplayer, add the AI opponent before starting
+      if (this.state.gameMode === GameMode.SINGLE && this.state.settings.aiEnabled) {
+        this.addAIPlayer(this.state.settings.aiDifficulty);
+      }
       this.startGame();
     }
 
     return { playerId: newPlayerId, side };
+  }
+
+  private addAIPlayer(difficulty: AIDifficulty): void {
+    const aiId = 'ai-' + uuid();
+    const name = pickAIName();
+
+    const player: Player = {
+      id: aiId,
+      name,
+      side: PlayerSide.RIGHT,
+      credits: this.state.settings.startingCredits,
+      health: this.state.settings.startingHealth,
+      maxHealth: this.state.settings.startingHealth,
+      isReady: false,
+      autoRepairEnabled: false,
+      autoRebuildEnabled: false,
+      requestedSpeed: 1,
+      isAI: true,
+    };
+
+    this.state.players[aiId] = player;
+    // AI has no WebSocket — not added to this.connections
+    this.aiController = new AIController(aiId, name, PlayerSide.RIGHT, difficulty);
+    log(`AI player ${name} (${difficulty}) added to room ${this.roomId}`);
   }
 
   removePlayer(playerId: string): void {
@@ -266,6 +313,14 @@ export class GameRoom {
     if (this.autoRepairCounter >= GAME.TICK_RATE) {
       this.autoRepairCounter = 0;
       this.processAutoRepair();
+    }
+
+    // AI controller: tick and execute action
+    if (this.aiController) {
+      const aiAction = this.aiController.tick(this.state);
+      if (aiAction) {
+        this.handleMessage(this.aiController.playerId, aiAction);
+      }
     }
 
     this.broadcast({ type: 'GAME_STATE', state: this.state });
@@ -886,8 +941,9 @@ export class GameRoom {
   private updateGameSpeed(): void {
     const players = Object.values(this.state.players);
     if (this.state.gameMode === GameMode.SINGLE) {
-      const player = players[0];
-      this.state.gameSpeed = player?.requestedSpeed ?? 1;
+      // In singleplayer (with or without AI), human controls speed
+      const humanPlayer = players.find(p => !p.isAI) ?? players[0];
+      this.state.gameSpeed = humanPlayer?.requestedSpeed ?? 1;
     } else {
       // Multiplayer: game speed = minimum of all players' requested speeds
       if (players.length < 2) {

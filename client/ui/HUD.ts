@@ -88,11 +88,14 @@ export class HUD {
     myPanel.appendChild(span(`${Math.ceil(myHp.current).toLocaleString()}HP`, hpColor));
     myPanel.appendChild(span(`${Math.floor(credits).toLocaleString()}c`, credits > 0 ? 'color:#4ADE80' : 'color:#EF4444'));
 
-    // Opponent info on their side (multiplayer only)
-    if (state.gameMode !== GameMode.SINGLE) {
+    // Opponent info on their side (multiplayer or AI opponent)
+    const players = Object.values(state.players);
+    const opponent = players.find(p => p.id !== this.gameClient.getPlayerId());
+    if (opponent) {
       const oppHp = this.gameClient.getOpponentHealth();
       const oppSide = side === PlayerSide.LEFT ? '>' : '<';
-      oppPanel.appendChild(span(`${oppSide} Opp`, 'opacity:0.6'));
+      const oppLabel = opponent.isAI ? `${oppSide} ${opponent.name}` : `${oppSide} Opp`;
+      oppPanel.appendChild(span(oppLabel, 'opacity:0.6'));
       oppPanel.appendChild(span(`${Math.ceil(oppHp.current).toLocaleString()}HP`, 'opacity:0.6'));
       oppPanel.appendChild(span(`${Math.floor(oppCredits).toLocaleString()}c`, 'opacity:0.6'));
     }

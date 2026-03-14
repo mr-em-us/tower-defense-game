@@ -56,7 +56,7 @@ export class SavePanel {
 
   private async fetchAndRender(): Promise<void> {
     const host = window.location.hostname || 'localhost';
-    const port = window.location.port || '8080';
+    const port = window.location.port || '9090';
     try {
       const resp = await fetch(`${window.location.protocol}//${host}:${port}/api/saves?player=${encodeURIComponent(this.playerName)}`);
       const data = await resp.json();
@@ -120,7 +120,7 @@ export class SavePanel {
       delBtn.style.cssText = 'padding:4px 8px;font-size:12px;color:#EF4444;';
       delBtn.addEventListener('click', async () => {
         const host = window.location.hostname || 'localhost';
-        const port = window.location.port || '8080';
+        const port = window.location.port || '9090';
         await fetch(`${window.location.protocol}//${host}:${port}/api/saves?id=${save.id}&player=${encodeURIComponent(this.playerName)}`, { method: 'DELETE' });
         await this.fetchAndRender();
       });

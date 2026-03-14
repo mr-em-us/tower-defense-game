@@ -102,6 +102,24 @@
 **Alternatives**: Manual push/pull (error-prone, forgot for 9 commits), GitHub Actions auto-sync (over-engineered), branch-per-person (unnecessary complexity for 2 collaborators)
 **Consequences**: Both collaborators stay in sync automatically through the save/resume workflow. Welcome messages provide context on what the other person changed. Risk: simultaneous work on main could cause rebase conflicts, but unlikely with 2 people and save-based workflow.
 
+### 2026-03 -- AI Opponents as Virtual Client (not separate process)
+**Context**: Adding AI opponents for singleplayer. Needed to decide where the AI runs and how it interacts with game systems.
+**Decision**: AI runs inside GameRoom as a "virtual client" — AIController produces ClientMessages that go through the same handleMessage() validation pipeline as human WebSocket messages. No separate process, no WebSocket connection. AI player is a normal Player with `isAI: true` on the RIGHT side.
+**Alternatives**: Separate AI process over WebSocket (unnecessary complexity), client-side AI (violates server-authoritative design), direct state mutation (bypasses validation)
+**Consequences**: AI is subject to all the same rules as humans — same economy, same validation, same pathfinding checks. Zero new network code. AI difficulty comes purely from decision quality (depth dial 0-1), not cheats. Virtual client pattern is lightweight and testable.
+
+### 2026-03 -- AI Maze Strategy: Vertical Walls with Alternating Gaps
+**Context**: Initial AI maze used horizontal walls, which didn't create effective serpentine paths. User builds much better mazes.
+**Decision**: Switched to vertical wall columns spanning nearly the full grid height, with alternating top/bottom gaps. Each column forces enemies to traverse the full grid height for just a few columns of horizontal progress. Offensive towers placed in horizontal lines for dual coverage (ground kill zones + flying enemy linear coverage).
+**Alternatives**: Horizontal walls with alternating left/right gaps (original, less effective), greedy single-cell placement (scattered, no structure), pre-computed maze templates (inflexible)
+**Consequences**: Much longer enemy paths. AI maze performance competitive with human maze-building. Vertical walls naturally create corridors where offensive towers can cover both zigzagging ground enemies and straight-line flying enemies.
+
+### 2026-03 -- AI Difficulty as Decision Depth, Not Resource Cheats
+**Context**: User strongly requested that AI difficulty be "fair" — same resources, same information, no cheating. Difficulty should come from how well the AI evaluates the same set of concerns.
+**Decision**: Single unified decision engine with a depth float (0.25 easy, 0.55 medium, 0.90 hard). Depth controls: number of candidates evaluated, noise added to scores, gap sizes in maze walls, skip chance for wall cells, savings ratio, upgrade ROI threshold. All three difficulties think about the same things (placement scoring, economy planning, maze building) — depth determines how thoroughly.
+**Alternatives**: Separate strategy classes per difficulty (code duplication), resource multipliers (cheating), hard-coded behavior differences (brittle)
+**Consequences**: Single codebase for all difficulties. Easy AI makes reasonable but imperfect decisions. Hard AI evaluates more candidates with less noise. No information asymmetry — AI sees the same GameState broadcast as clients.
+
 ### 2026-03 -- Wave Rebalancing (firstWaveEnemies 60 -> 15)
 **Context**: Default difficulty was too hard. Wave 3 had 165 enemies due to formula `(4 + wave*2) * 10 * countScale`. User reported game was unplayable at defaults.
 **Decision**: Rewrote wave formula to `baseCount = firstWaveEnemies * (1 + (wave-1) * 0.2) * diffRatio` with percentage-based type distribution. Reduced default firstWaveEnemies from 60 to 15.

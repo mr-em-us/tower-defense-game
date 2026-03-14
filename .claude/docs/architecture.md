@@ -60,7 +60,7 @@ Client Action (click/key)
 ### Bootstrap (client/main.ts)
 1. UsernamePanel.show() -> player enters/selects name (localStorage: td_usernames)
 2. showModeMenu() -> player picks Single/Multi, optionally adjusts Settings
-3. NetworkClient connects to ws://localhost:8080
+3. NetworkClient connects to ws://localhost:9090
 4. GameClient.joinGame() sends JOIN_GAME with mode, name, settings
 5. requestAnimationFrame loop starts: update -> render -> HUD
 

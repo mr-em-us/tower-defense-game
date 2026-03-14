@@ -1,5 +1,5 @@
 import { GRID, DEFAULT_GAME_SETTINGS } from '../shared/types/constants.js';
-import { GameMode, GameSettings } from '../shared/types/game.types.js';
+import { GameMode, GameSettings, AIDifficulty } from '../shared/types/game.types.js';
 import { computeDifficultyFactor, getDifficultyLabel } from '../shared/utils/difficulty.js';
 import { NetworkClient } from './network/NetworkClient.js';
 import { GameClient } from './game/GameClient.js';
@@ -17,8 +17,8 @@ function getServerUrl(): string {
   const host = window.location.hostname || 'localhost';
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   // In production, server handles both static files and WS on the same port.
-  // In dev, esbuild serves client on a different port, so always target 8080.
-  const wsPort = window.location.port === '8080' ? '8080' : '8080';
+  // In dev, esbuild serves client on a different port, so always target 9090.
+  const wsPort = window.location.port === '9090' ? '9090' : '9090';
   return `${protocol}://${host}:${wsPort}`;
 }
 
@@ -57,7 +57,20 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
     menu.classList.remove('hidden');
     updateDifficultyIndicator();
 
+    const aiToggle = document.getElementById('ai-toggle') as HTMLInputElement;
+    const aiDiffSelect = document.getElementById('ai-difficulty') as HTMLSelectElement;
+
+    // Show/hide difficulty dropdown when checkbox toggled
+    const onAIToggle = () => {
+      aiDiffSelect.style.display = aiToggle.checked ? '' : 'none';
+    };
+    aiToggle.addEventListener('change', onAIToggle);
+
     const onSingle = () => {
+      currentSettings.aiEnabled = aiToggle.checked;
+      if (aiToggle.checked) {
+        currentSettings.aiDifficulty = (aiDiffSelect.value as AIDifficulty) || AIDifficulty.MEDIUM;
+      }
       menu.classList.add('hidden');
       cleanup();
       resolve({ type: 'new', gameMode: GameMode.SINGLE });
@@ -129,6 +142,7 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
     function cleanup() {
       btnSingle.removeEventListener('click', onSingle);
       btnMulti.removeEventListener('click', onMulti);
+      aiToggle.removeEventListener('change', onAIToggle);
       btnSettings.removeEventListener('click', onSettings);
       btnLeaderboard.removeEventListener('click', onLeaderboard);
       btnLoadSave.removeEventListener('click', onLoadSave);
@@ -142,7 +156,7 @@ function applyResponsiveScaling(canvas: HTMLCanvasElement): void {
   const gameHeight = GRID.HEIGHT * GRID.CELL_SIZE;
   const availWidth = window.innerWidth;
   const availHeight = window.innerHeight;
-  const scale = Math.min(1, availWidth / gameWidth, availHeight / gameHeight);
+  const scale = Math.min(availWidth / gameWidth, availHeight / gameHeight);
   canvas.style.width = `${gameWidth * scale}px`;
   canvas.style.height = `${gameHeight * scale}px`;
   canvas.style.marginTop = `${Math.max(0, (availHeight - gameHeight * scale) / 2)}px`;

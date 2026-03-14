@@ -108,8 +108,10 @@ export class WaveSystem {
     const definition = getWaveDefinition(state.waveNumber, state.settings, hasAir);
     this.waveQueue = [];
 
-    // In single player, only spawn enemies toward the player's side
-    const singlePlayerSide = state.gameMode === GameMode.SINGLE
+    // In single player without AI, only spawn enemies toward the player's side.
+    // With AI opponent (2 players), spawn for both sides like multiplayer.
+    const playerCount = Object.keys(state.players).length;
+    const singlePlayerSide = (state.gameMode === GameMode.SINGLE && playerCount === 1)
       ? Object.values(state.players)[0]?.side ?? PlayerSide.LEFT
       : null;
 

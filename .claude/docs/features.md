@@ -131,11 +131,19 @@ BUILD phase HUD shows "WAVE N  BUILD  0/1 ready".
 ### Chart Divergence Fix -- shipped (uncommitted)
 Difficulty line only steps up on COMBAT start, not during BUILD when waveNumber is pre-incremented.
 
+### AI Opponents -- shipped (uncommitted)
+Server-side AI opponent for singleplayer. Virtual client pattern: AIController inside GameRoom produces ClientMessages through same validation pipeline as human players. Three difficulties (Easy/Medium/Hard) via depth dial (0.25/0.55/0.90) — same resources, same information, deeper evaluation. Strategy modules: economy planning (budget allocation, maintenance, upgrades), maze building (vertical wall columns with alternating top/bottom gaps for serpentine paths), tower placement scoring (path coverage, synergy, gap analysis). Visible "thinking" during BUILD phase (one action per 5 ticks). Random thematic name from 40-name pool, logged to leaderboard. Menu: "Play vs AI" button with difficulty dropdown. Files: server/ai/ (AIController.ts, names.ts, strategies/*.ts), shared/types/ (AIDifficulty enum, aiEnabled/aiDifficulty settings, isAI player flag).
+
+### Port Change 8080→9090 -- shipped (uncommitted)
+All server/client/config references updated from port 8080 to 9090 to avoid conflicts when running multiple games.
+
+### Canvas Full-Screen Scaling -- shipped (uncommitted)
+Removed Math.min(..., 1) scale cap in applyResponsiveScaling so the game grid fills the entire browser viewport without blue borders, even when zoomed.
+
 ## Planned / Ideas
 
 ### Big Features
 - **4-Player Mode** — Quadrant-based grid (instead of left/right halves), diagonal BFS pathfinding, 4 spawn zones. Would require major grid/zone architecture changes.
-- **AI Opponents (Single Player)** — Server-side AI that builds towers on the opposite side, competing against the player. Difficulty tiers (greedy, strategic, economy-aware). Could reuse existing 2-player architecture with AI replacing one WebSocket client.
 - **Offense Buildings (Barracks)** — Player-built structures that produce and send enemies at opponent. Adds offense/defense tradeoff. Shifts game toward Clash Royale/StarCraft hybrid.
 - **Enemy-Produced Streams** — Variant where ALL enemies come from player-built producers, no neutral center spawn. Pure PvP offense/defense.
 - **Army/Defender Units** — Mobile defense units that patrol and intercept enemies. Tradeoff between static towers (reliable, positional) vs mobile army (flexible, redirectable). Adds real-time tactics layer.

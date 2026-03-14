@@ -1,4 +1,4 @@
-import { GameSettings, TowerType, EnemyType, TowerStatOverrides, EnemyStatOverrides } from '../types/game.types.js';
+import { GameSettings, TowerType, EnemyType, TowerStatOverrides, EnemyStatOverrides, AIDifficulty } from '../types/game.types.js';
 import { DEFAULT_GAME_SETTINGS, TOWER_STATS, ENEMY_STATS } from '../types/constants.js';
 
 // Reference values for Normal difficulty
@@ -158,6 +158,8 @@ export const EASY_SETTINGS: GameSettings = {
   ],
   towerOverrides: {},
   enemyOverrides: {},
+  aiEnabled: false,
+  aiDifficulty: AIDifficulty.MEDIUM,
 };
 
 export const HARD_SETTINGS: GameSettings = {
@@ -172,4 +174,6 @@ export const HARD_SETTINGS: GameSettings = {
   ],
   towerOverrides: {},
   enemyOverrides: {},
+  aiEnabled: false,
+  aiDifficulty: AIDifficulty.MEDIUM,
 };

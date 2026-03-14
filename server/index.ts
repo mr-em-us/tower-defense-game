@@ -10,7 +10,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 
-const PORT = parseInt(process.env.PORT || '8080', 10);
+const PORT = parseInt(process.env.PORT || '9090', 10);
 const leaderboardStore = new LeaderboardStore();
 const saveStore = new SaveStore();
 

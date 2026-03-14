@@ -15,6 +15,16 @@
       <div class="menu-subtitle">Select Mode</div>
       <div class="menu-buttons">
         <button id="btn-single" class="menu-btn">Single Player</button>
+        <div id="ai-options" style="display:flex;align-items:center;justify-content:center;gap:8px;margin:-4px 0 4px;">
+          <label style="font-size:12px;color:#94A3B8;cursor:pointer;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" id="ai-toggle" style="cursor:pointer;"> Include AI
+          </label>
+          <select id="ai-difficulty" style="display:none;font-family:inherit;font-size:12px;padding:2px 6px;background:#1E293B;color:#fff;border:1px solid #475569;border-radius:4px;">
+            <option value="EASY">Easy</option>
+            <option value="MEDIUM" selected>Medium</option>
+            <option value="HARD">Hard</option>
+          </select>
+        </div>
         <button id="btn-multi" class="menu-btn">Multiplayer</button>
       </div>
       <div id="menu-difficulty" class="menu-difficulty hidden">

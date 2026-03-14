@@ -1,5 +1,16 @@
 # Session Log Archive
 
+## Session — 2026-03-14 (AI Opponents + Port + Scaling)
+- 10:16 AM — Session resumed. Local and remote in sync.
+- 10:30 AM — Port changed 8080→9090 across all files.
+- 10:45 AM — Canvas scaling fix: removed scale cap so grid fills screen.
+- 11:00 AM — Planned AI Opponents feature. Key decisions: offline, depth-based difficulty, no cheats, visible thinking, random names.
+- 12:00-02:00 PM — Full AI implementation: types, strategy modules (economy/placement/maze), AIController, GameRoom integration, WaveSystem fix, HUD, save/load.
+- 02:30 PM — Menu UI redesigned after user feedback ("dumb UI"): three separate buttons instead of sub-panel.
+- 04:00 PM — Rewrote maze strategy: vertical walls with alternating gaps, horizontal offensive lines.
+- 04:15 PM — Verified via preview: AI builds proper serpentine maze.
+- 04:23 PM — Save. Clean build. All committed + pushed.
+
 ## Session — 2026-03-07 (Afternoon, continued)
 
 - 12:58 PM — Session resumed. All previous work committed (6b233d8). No uncommitted changes. Picking up from 12-item batch review.

@@ -308,7 +308,7 @@ export class GameClient {
     };
 
     const host = window.location.hostname || 'localhost';
-    const port = window.location.port || '8080';
+    const port = window.location.port || '9090';
     try {
       const resp = await fetch(`${window.location.protocol}//${host}:${port}/api/saves`, {
         method: 'POST',

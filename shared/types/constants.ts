@@ -1,4 +1,4 @@
-import { TowerType, EnemyType, GameSettings } from './game.types.js';
+import { TowerType, EnemyType, GameSettings, AIDifficulty } from './game.types.js';
 
 export const GRID = {
   WIDTH: 60,
@@ -167,6 +167,19 @@ export const SELL_REFUND_RATIO = 0.6;
 
 export const REPAIR_COST_RATIO = 0.5;
 
+export const AI = {
+  ACTION_DELAY_TICKS: 5,         // ~250ms at 20Hz between tower placements
+  READY_DELAY_TICKS: 20,         // ~1s pause before readying up after queue empty
+  COMBAT_CHECK_INTERVAL: 20,     // check repair/restock once per second during combat
+  DEPTH_EASY: 0.25,
+  DEPTH_MEDIUM: 0.55,
+  DEPTH_HARD: 0.90,
+  MAX_CANDIDATES_BASE: 5,        // easy evaluates ~5 candidate cells
+  MAX_CANDIDATES_SCALE: 40,      // hard evaluates up to ~45 candidates
+  PLACEMENT_NOISE_BASE: 0.4,     // easy adds +/-40% noise to placement scores
+  ECONOMY_RESERVE_RATIO: 0.1,    // save 10% of credits as buffer
+} as const;
+
 export const VISUAL = {
   BG_COLOR: '#007BE5',
   FG_COLOR: '#FFFFFF',
@@ -188,4 +201,6 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   ],
   towerOverrides: {},
   enemyOverrides: {},
+  aiEnabled: false,
+  aiDifficulty: AIDifficulty.MEDIUM,
 };

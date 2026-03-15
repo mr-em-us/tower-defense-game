@@ -100,8 +100,9 @@ Claude auto-loads `MEMORY.md` from the **auto-memory directory** (`~/.claude/pro
 7. **Build welcome message:** Check `git log` to determine what happened since the user's last commit:
    - Find the user's most recent commit (by their email)
    - Check if other collaborators committed anything after that
-   - If no new commits from others: "Hey [Name]! Nothing new since your last session. As a reminder, you last worked on: [summary of their recent commits]."
-   - If new commits from others: "Hey [Name]! Since you last worked on this, [OtherName] made some changes: [summary of their commits]. Before that, you last worked on: [summary]."
+   - **Always include the exact "Last Save" timestamp from MEMORY.md** in the welcome message so the user can verify the right state was loaded
+   - If no new commits from others: "Hey [Name]! Last save: [exact timestamp]. Nothing new since then. You last worked on: [summary of their recent commits]."
+   - If new commits from others: "Hey [Name]! Last save: [exact timestamp]. Since then, [OtherName] made some changes: [summary of their commits]. Before that, you last worked on: [summary]."
    - Keep summaries concise — bullet the key changes, not every commit message verbatim
 8. Create a fresh `memory/current-session.md` with today's date as the header
 9. Output the welcome message + sync status

@@ -1,5 +1,13 @@
 # Session Log Archive
 
+## Session — 2026-03-14 Late Night (Maze Problem Diagnosis)
+- Jason reviewed AI maze output, identified fundamental strategy flaws (not just tuning issues)
+- Shared screenshot of human-built maze: compact serpentine near goal + horizontal AA tail
+- Three principles: (1) don't waste money on grid edges, (2) build a real maze with tight switchbacks, (3) handle air deliberately
+- Code review: colSpacing=10 too wide, full-height columns wasteful, AA scattered
+- Decision: full maze strategy rewrite needed — incremental iteration won't fix it
+- Key file: server/ai/strategies/maze.ts
+
 ## Session — 2026-03-14 Night (AI Maze Iteration 7→8)
 - Ran iteration 7: died wave 15 (best ground result, air wave killed it)
 - Iteration 8: wider search, lower wall threshold, aggressive AA — died wave 13 (worse)

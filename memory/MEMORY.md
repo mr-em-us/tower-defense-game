@@ -1,31 +1,48 @@
 # Project Memory -- Tower Defense Game
-Last Save: 2026-03-14 - 11:10 PM PST
+Last Save: 2026-03-14 - 11:52 PM PST
 
 ## Current State
-AI maze strategy iteration in progress. Iteration 8 implemented with air defense corridor, wider search radius, and economy improvements. Ground defense is solved (0 leaks waves 7-14 consistently). Air waves are the remaining killer — placeAirDefense function now implemented and ready for testing. Clean build.
+AI maze strategy needs a REWRITE. After 8 iterations of incremental tuning, Jason identified that the fundamental approach is flawed — the AI doesn't build a real maze. Current code (server/ai/strategies/maze.ts) has three core problems that no amount of parameter tuning will fix. Clean build, uncommitted iteration 8 changes in working tree.
+
+## *** NEXT SESSION: Rewrite AI Maze Strategy ***
+The maze rewrite is the #1 priority. Here's what's wrong and what to do:
+
+### Problem Diagnosis (from code review + Jason's feedback)
+1. **Wasted towers at grid edges:** Columns span full height (rows 0-29) but enemies only travel around rows 8-22. Towers at rows 0-5 and 25-29 do nothing.
+2. **Not a real maze:** `colSpacing=10` means columns are 10 cells apart. On a 30-cell zone, that's ~3 columns. Enemies barely zigzag. Need tight switchbacks.
+3. **Air defense is an afterthought:** `placeAirDefense` scatters AA in rows 11-19 within the zone. Needs to be a deliberate corridor along the flight path.
+
+### Design Principles (from Jason)
+- Do NOT copy any single layout. Mazes should be varied/generalized.
+- Measure success by **path length increase**, not tower count.
+- Build where enemies actually travel, not at the fringes.
+- Force enemies through tight switchbacks (real serpentine, not wide fence posts).
+- AA defense must be deliberate, not scattered.
+
+### Key File
+- `server/ai/strategies/maze.ts` — the file to rewrite
 
 ## Uncommitted Work
-None (committing everything this save).
+Iteration 8 changes still in working tree (not being committed this save — they represent the flawed approach being replaced).
 
 ## Recent Sessions
 
+### 2026-03-14 Late Night -- Maze Problem Diagnosis
+- Jason reviewed AI maze output, identified fundamental strategy flaws
+- Shared screenshot of human-built maze showing what good looks like
+- Clarified 3 principles: don't waste money on edges, build real maze, handle air
+- Code review confirmed: colSpacing=10 too wide, full-height columns wasteful, AA scattered
+- Decision: full maze strategy rewrite needed (not more iteration)
+
 ### 2026-03-14 PM/Night -- AI Maze Iteration (Iter 7→8)
 - Ran iteration 7: died wave 15 (best result). Ground defense perfect waves 9-14. Air wave killed from 396→0HP.
-- Identified root cause: air waves bypass maze, AA towers placed on maze path can't reach flight corridor
-- Implemented iteration 8 changes:
-  - Lowered wall column threshold (1000→500c reserve for 2nd+ columns)
-  - Expanded search radius 3→5 cells (prevents grid saturation)
-  - More aggressive AA in chooseTowerType (deterministic, not random)
-  - Higher upgrade ratio when 150+ towers (grid saturated)
-- Ran iteration 8: died wave 13 (worse — wave 6 leaked 7 ground enemies)
-- Added dedicated placeAirDefense function: places AA towers along actual flight path (rows 8-22), not maze corridor
-- Flight corridor scoring: samples 6 flight lines from spawn to goal rows, rewards spread from existing AA
-- Ready for iteration 9 testing next session
+- Iteration 8: wider search, lower thresholds, aggressive AA — died wave 13 (worse)
+- Added placeAirDefense function but fundamental maze shape is wrong
+- Concluded: incremental tuning won't fix the core layout problem
 
 ### 2026-03-14 PM -- AI Opponents + Port Change + Canvas Scaling
 - Port 8080→9090, canvas scaling fills screen
 - AI Opponents feature (full implementation)
-- Maze strategy: vertical walls, alternating gaps, path-traffic scoring
 - Menu UI: Single Player / Play vs AI / Watch AI Play
 
 ## Known Issues / Tech Debt
@@ -36,7 +53,6 @@ None (committing everything this save).
 - [ ] format.ts utility created but unused (toLocaleString used directly)
 - [ ] Save/resume is singleplayer only (BUILD phase only)
 - [ ] SavePanel onLoad callback gets stale if user goes Back then reopens
-- [ ] Air defense needs testing (placeAirDefense just implemented)
 
 ## User Preferences
 - Username: Jason
@@ -46,13 +62,6 @@ None (committing everything this save).
 - Likes parallel agent workflows for large features
 - Prefers memos/output displayed as text in chat, not just saved to files
 - AI difficulty should be based on decision quality, NOT cheats (same resources/info)
-
-## Next Steps (Priority Order)
-1. Test iteration 9 (air defense corridor) — run observer mode and verify wave 20+
-2. If air defense works, tune budget split (currently 40% cap for air)
-3. If ground still leaks wave 6, investigate — may need more offense towers early
-4. Balance AA tower ammo economy (burns through 40 rounds in 9 seconds)
-5. Consider 3rd+ wall columns for ultra-late game path extension
 
 ## Shared Docs (git-tracked in .claude/docs/)
 - `architecture.md` -- Server/client data flow, system pipeline, network protocol

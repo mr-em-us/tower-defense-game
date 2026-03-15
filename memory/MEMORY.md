@@ -1,5 +1,5 @@
 # Project Memory -- Tower Defense Game
-Last Save: 2026-03-14 - 11:00 PM PST
+Last Save: 2026-03-14 - 11:10 PM PST
 
 ## Current State
 AI maze strategy iteration in progress. Iteration 8 implemented with air defense corridor, wider search radius, and economy improvements. Ground defense is solved (0 leaks waves 7-14 consistently). Air waves are the remaining killer — placeAirDefense function now implemented and ready for testing. Clean build.

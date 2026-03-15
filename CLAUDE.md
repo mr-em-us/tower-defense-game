@@ -78,10 +78,15 @@ This project uses a structured persistent memory system. Follow these protocols 
 - `.claude/docs/economy.md` — tower/enemy stats, pricing formulas, wave scaling
 - `.claude/docs/features.md` — feature inventory with status and commit refs
 
-**Personal (local auto memory dir, per-developer):**
+**Personal (local, per-developer — exists in TWO locations that must stay in sync):**
 - `memory/MEMORY.md` — dynamic state, session history, known issues, next steps
 - `memory/current-session.md` — live log of current session
 - `memory/session-log.md` — archived session history
+
+**IMPORTANT — Dual MEMORY.md locations:**
+Claude auto-loads `MEMORY.md` from the **auto-memory directory** (`~/.claude/projects/<project-hash>/memory/MEMORY.md`), NOT from the project's `memory/MEMORY.md`. Both must be kept in sync. On save, always write to BOTH:
+1. `memory/MEMORY.md` (project dir — git-tracked)
+2. `~/.claude/projects/C--Users-jvsfe-Desktop-Claude-Tower-Defense-Game/memory/MEMORY.md` (auto-memory — what new sessions actually read)
 
 ### Session Start (do this automatically at the beginning of every new session)
 1. CLAUDE.md and MEMORY.md auto-load — read them
@@ -113,7 +118,7 @@ IMPORTANT: Use intelligent semantic context. "Save our progress" or "let's save"
 
 Steps:
 1. Run `npm run build` — verify clean build
-2. Update `memory/MEMORY.md`:
+2. Update `memory/MEMORY.md` (project dir) AND copy to auto-memory:
    - Update "Current State" to reflect what's true now
    - Update "Uncommitted Work" (clear if committing everything)
    - Add/update session entry in "Recent Sessions"
@@ -121,6 +126,7 @@ Steps:
    - Update "Last Save" timestamp
    - If >5 session entries, move oldest to `session-log.md`
    - Verify file stays under 190 lines
+   - **CRITICAL:** Copy the updated file to `~/.claude/projects/C--Users-jvsfe-Desktop-Claude-Tower-Defense-Game/memory/MEMORY.md` so new sessions load current state
 3. Update relevant shared docs (in `.claude/docs/`):
    - Design decision made → append to `decisions.md`
    - Feature completed/started → update `features.md`

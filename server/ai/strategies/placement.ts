@@ -131,60 +131,82 @@ export function scorePlacement(
 /**
  * Choose the best tower type for the current situation.
  */
+/**
+ * Choose the best tower type for the current situation.
+ * This is called from the OFFENSIVE tower placement — never returns WALL
+ * since maze walls are handled separately in placeVerticalWalls().
+ */
 export function chooseTowerType(
   state: GameState,
   playerId: string,
   depth: number,
+  extraCounts?: Record<string, number>,
 ): TowerType {
   const wave = state.waveNumber;
   const player = state.players[playerId];
   if (!player) return TowerType.BASIC;
 
   const ownedTowers = Object.values(state.towers).filter(t => t.ownerId === playerId);
+  const offensiveTowers = ownedTowers.filter(t => t.type !== TowerType.WALL);
   const typeCounts: Record<string, number> = {};
-  for (const t of ownedTowers) {
+  for (const t of offensiveTowers) {
     typeCounts[t.type] = (typeCounts[t.type] ?? 0) + 1;
   }
-
-  // Early waves: mostly BASIC and WALL for maze building
-  if (wave <= 2) {
-    return Math.random() < 0.4 ? TowerType.WALL : TowerType.BASIC;
+  // Merge in extra counts from planning phase
+  if (extraCounts) {
+    for (const [type, count] of Object.entries(extraCounts)) {
+      typeCounts[type] = (typeCounts[type] ?? 0) + count;
+    }
   }
+  const total = (offensiveTowers.length + Object.values(extraCounts ?? {}).reduce((s, c) => s + c, 0)) || 1;
 
-  // Air wave coming — prioritize AA if we don't have enough
+  // Air wave coming — aggressively build AA towers
+  // Flying enemies have 80HP, speed 3, and non-AA towers only do 25% damage
+  // Need ~1 AA per 4 expected flying enemies to kill them all
   const aaCount = typeCounts[TowerType.AA] ?? 0;
-  if (state.airWaveCountdown >= 0 && state.airWaveCountdown <= 2 && aaCount < 3 + Math.floor(wave / 5)) {
-    if (Math.random() < 0.3 + depth * 0.4) return TowerType.AA;
+  const expectedFlying = Math.max(2, Math.round((15 + wave * 4) * 0.15)); // ~15% of wave
+  const aaTarget = Math.ceil(expectedFlying / 3) + Math.floor(wave / 4);
+  if (state.airWaveCountdown >= 0 && state.airWaveCountdown <= 3 && aaCount < aaTarget) {
+    return TowerType.AA; // deterministic — always build AA when needed
+  }
+  // Even without air warning, maintain a minimum AA presence from wave 3+
+  if (wave >= 3 && aaCount < 2 + Math.floor(wave / 5)) {
+    if (Math.random() < 0.3) return TowerType.AA;
   }
 
   // Boss wave coming — SNIPER is high value
   if (wave % 10 >= 8 && depth > 0.3) {
     const sniperCount = typeCounts[TowerType.SNIPER] ?? 0;
-    if (sniperCount < 3 && Math.random() < 0.3) return TowerType.SNIPER;
+    if (sniperCount < 4 && Math.random() < 0.4) return TowerType.SNIPER;
   }
 
-  // Build a balanced composition based on depth
-  const total = ownedTowers.length || 1;
-  const splashRatio = (typeCounts[TowerType.SPLASH] ?? 0) / total;
+  // Early waves: maximize tower count with BASIC + a few SLOW
+  // BASIC at 0.4 DPS/credit is the most efficient damage tower
+  if (wave <= 4) {
+    const slowCount = typeCounts[TowerType.SLOW] ?? 0;
+    // 2-3 SLOW towers for the slow debuff, rest BASIC
+    if (slowCount < 2) return TowerType.SLOW;
+    if (slowCount < 3 && total > 10) return TowerType.SLOW;
+    return TowerType.BASIC;
+  }
+
+  // Mid/late game: deterministic balanced composition
+  // Priority order: fill whichever type is furthest below its target ratio
   const slowRatio = (typeCounts[TowerType.SLOW] ?? 0) / total;
+  const splashRatio = (typeCounts[TowerType.SPLASH] ?? 0) / total;
   const sniperRatio = (typeCounts[TowerType.SNIPER] ?? 0) / total;
-  const wallRatio = (typeCounts[TowerType.WALL] ?? 0) / total;
 
-  // Target ratios (higher depth = more precise targeting)
-  const rand = Math.random();
+  // Target ratios: 15% SLOW, 20% SPLASH, 12% SNIPER, rest BASIC
+  const gaps: { type: TowerType; gap: number }[] = [
+    { type: TowerType.SLOW, gap: 0.15 - slowRatio },
+    { type: TowerType.SPLASH, gap: 0.20 - splashRatio },
+    { type: TowerType.SNIPER, gap: 0.12 - sniperRatio },
+  ];
 
-  // Always want some walls for maze structure
-  if (wallRatio < 0.15 && rand < 0.2) return TowerType.WALL;
+  // Pick the type with the largest gap below target
+  gaps.sort((a, b) => b.gap - a.gap);
+  if (gaps[0].gap > 0) return gaps[0].type;
 
-  // Want SLOW towers for synergy
-  if (slowRatio < 0.12 && wave >= 3 && rand < 0.25) return TowerType.SLOW;
-
-  // Want SPLASH for groups
-  if (splashRatio < 0.15 && wave >= 3 && rand < 0.25) return TowerType.SPLASH;
-
-  // Want SNIPER for range
-  if (sniperRatio < 0.10 && wave >= 4 && rand < 0.2) return TowerType.SNIPER;
-
-  // Default to BASIC (reliable, cheap)
-  return Math.random() < 0.3 ? TowerType.WALL : TowerType.BASIC;
+  // All ratios met — default to BASIC
+  return TowerType.BASIC;
 }

@@ -1,8 +1,9 @@
 import { GameState, PlayerSide, TowerType, CellType } from '../../../shared/types/game.types.js';
-import { GRID, TOWER_STATS } from '../../../shared/types/constants.js';
+import { GRID } from '../../../shared/types/constants.js';
 import { findPath, validateTowerPlacement } from '../../../shared/logic/pathfinding.js';
-import { scorePlacement, getCandidateCells, chooseTowerType } from './placement.js';
+import { chooseTowerType } from './placement.js';
 import { getDynamicPrice } from './economy.js';
+import { log } from '../../utils/logger.js';
 
 interface PlannedPlacement {
   x: number;
@@ -12,17 +13,16 @@ interface PlannedPlacement {
 }
 
 /**
- * Generate a sequence of tower placements that form a maze and fill it with
- * offensive towers. Returns placements in order (walls/maze first, then offense).
+ * AI maze strategy: wall columns FIRST to extend path, then offense along it.
  *
- * The maze strategy builds vertical wall columns spanning nearly the full grid
- * height with alternating top/bottom gaps, forcing enemies to zigzag vertically.
- * Each column of horizontal progress requires traveling the full grid height,
- * maximizing path length while minimizing horizontal progress.
+ * A complete wall column (29 walls, 725c) doubles the path length from 30 to ~57.
+ * This means every offense tower fires for 2x as long. Building the column first
+ * is more DPS-efficient than placing 14 extra BASIC towers (same cost).
  *
- * Offensive towers are placed in horizontal lines for dual coverage:
- * ground enemies pass through kill zones in the corridors, and flying enemies
- * (which ignore the maze) hit a horizontal line of AA/damage towers.
+ * Strategy:
+ * - Every wave: build as many wall columns as budget allows (up to 2 per wave)
+ * - Remaining budget: offense towers along the (now longer) path
+ * - Wall columns use alternating top/bottom gaps for serpentine pathing
  */
 export function generateMazeLayout(
   state: GameState,
@@ -35,160 +35,298 @@ export function generateMazeLayout(
 
   const side = player.side;
   const placements: PlannedPlacement[] = [];
-  let spent = 0;
+  const wave = state.waveNumber;
 
-  // Phase 1: Vertical maze walls
-  const wallBudgetRatio = 0.55 + depth * 0.15; // 55-70% of budget on walls
-  const wallBudget = Math.round(budget * wallBudgetRatio);
   const wallCost = getDynamicPrice(state, TowerType.WALL);
+  const gapSize = Math.max(1, Math.round(2 - depth));
+  const wallsPerColumn = GRID.HEIGHT - gapSize;
+  const costPerColumn = wallsPerColumn * wallCost;
 
-  spent = placeVerticalWalls(state, playerId, side, wallBudget, wallCost, depth, placements);
+  const wallCols = getWallColumns(side);
+  let nextCol = findNextUnbuiltColumn(state, side, wallCols, gapSize);
 
-  // Phase 2: Offensive towers in horizontal lines along corridors
-  const offenseBudget = budget - spent;
-  spent += placeOffensiveTowers(state, playerId, side, offenseBudget, depth, placements);
+  // Measure path before
+  const pathBefore = findPath(state.grid, side);
+  const pathLenBefore = pathBefore?.length ?? 0;
+
+  let wallSpent = 0;
+  let wallsPlaced = 0;
+  const wallSimulated: { x: number; y: number }[] = [];
+
+  // Phase 1: Build wall columns
+  // Each column roughly doubles path length. Building columns is the single
+  // highest-value investment because every existing tower fires longer.
+  // Wave 1: need 1000c+ left for offense. Later waves: 500c is enough since
+  // we already have a tower base generating DPS.
+  const minOffenseReserve = wave <= 1 ? 1000 : 500;
+  const maxColsPerWave = budget >= costPerColumn * 2 + minOffenseReserve ? 2 : 1;
+
+  if (nextCol !== -1 && budget >= costPerColumn + minOffenseReserve) {
+    let colsBuilt = 0;
+    while (nextCol !== -1 && colsBuilt < maxColsPerWave &&
+           budget - wallSpent >= costPerColumn + minOffenseReserve) {
+      const { spent, simulated } = buildWallsInColumn(
+        state, side, nextCol, wallCols, wallCost, gapSize,
+        costPerColumn, placements,
+      );
+      wallSimulated.push(...simulated);
+      wallsPlaced += simulated.length;
+      if (spent > 0) {
+        wallSpent += spent;
+        colsBuilt++;
+        nextCol = findNextUnbuiltColumn(state, side, wallCols, gapSize);
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Phase 2: Air defense — place AA towers along the flight corridor
+  // Flying enemies go straight from spawn (col 29-30, row 14) to goal (col 59, rows 12-17)
+  // AA towers must be along this corridor, NOT along the maze path
+  let airSpent = 0;
+  const airBudget = budget - wallSpent;
+  if (airBudget > 100) {
+    airSpent = placeAirDefense(state, playerId, side, airBudget, placements);
+  }
+
+  // Phase 3: Offense towers along the (now extended) path
+  const offenseBudget = budget - wallSpent - airSpent;
+  let offenseSpent = 0;
+  if (offenseBudget > 40) {
+    offenseSpent = placeOffensiveTowers(state, playerId, side, offenseBudget, depth, gapSize, placements);
+  }
+
+  // Now undo all wall simulations
+  for (const cell of wallSimulated) {
+    state.grid.cells[cell.y][cell.x] = CellType.EMPTY;
+  }
+
+  // Measure path after (simulate all placements)
+  const simCells: { x: number; y: number }[] = [];
+  for (const p of placements) {
+    if (state.grid.cells[p.y][p.x] === CellType.EMPTY) {
+      state.grid.cells[p.y][p.x] = CellType.TOWER;
+      simCells.push({ x: p.x, y: p.y });
+    }
+  }
+  const pathAfter = findPath(state.grid, side);
+  const pathLenAfter = pathAfter?.length ?? 0;
+  for (const c of simCells) state.grid.cells[c.y][c.x] = CellType.EMPTY;
+
+  log(`[MAZE] Wave ${wave} | Budget ${budget} | Walls: ${wallsPlaced} (${wallSpent}c), Air: ${airSpent}c, Offense: ${placements.length - wallsPlaced} (${offenseSpent}c) | Path: ${pathLenBefore} → ${pathLenAfter} | NextCol: ${nextCol === -1 ? 'all done' : 'in progress'}`);
 
   return placements;
 }
 
-/**
- * Build vertical wall columns with alternating top/bottom gaps.
- *
- * For the RIGHT side (cols 30-59), enemies enter at col 30 row 14 and
- * must reach col 59 rows 12-17. Vertical walls at regular column intervals
- * force enemies to travel up/down the full grid height for each few columns
- * of horizontal progress.
- *
- * Layout example (RIGHT side, gap=2, spacing=3):
- *   col 33: wall rows 0-27, gap at bottom (rows 28-29)
- *   col 36: wall rows 2-29, gap at top (rows 0-1)
- *   col 39: wall rows 0-27, gap at bottom
- *   ...etc
- *
- * Depth controls:
- * - Column spacing (easy: 4 cols apart, hard: 3 cols apart)
- * - Gap size (easy: 3 rows, hard: 2 rows)
- * - Wall completeness (easy: skip some cells randomly)
- */
-function placeVerticalWalls(
-  state: GameState,
-  _playerId: string,
-  side: PlayerSide,
-  budget: number,
-  wallCost: number,
-  depth: number,
-  placements: PlannedPlacement[],
-): number {
-  let spent = 0;
-  const maxWalls = Math.floor(budget / wallCost);
-  if (maxWalls <= 0) return 0;
-
+/** Get the planned wall column X positions for a side. */
+function getWallColumns(side: PlayerSide): number[] {
   const xMin = side === PlayerSide.RIGHT ? GRID.RIGHT_ZONE_START : 0;
   const xMax = side === PlayerSide.RIGHT ? GRID.WIDTH - 1 : GRID.LEFT_ZONE_END;
-
-  // Gap size at top/bottom of each column: easy=3, hard=2
-  const gapSize = Math.max(2, Math.round(3 - depth));
-
-  // Column spacing: easy=5, hard=3 columns between wall columns
-  const colSpacing = Math.max(3, Math.round(5 - depth * 2));
-
-  // Determine which columns to build walls on.
-  // Start a few columns in from the entry side to give enemies room to enter,
-  // then build columns at regular intervals toward the exit.
-  const wallCols: number[] = [];
-  const startOffset = 3; // Don't wall right at the entry
+  const startOffset = 2;
+  const colSpacing = 3;
+  const cols: number[] = [];
 
   if (side === PlayerSide.RIGHT) {
-    // Entry at xMin (col 30), exit at xMax (col 59)
-    for (let x = xMin + startOffset; x <= xMax - 2; x += colSpacing) {
-      wallCols.push(x);
+    for (let x = xMin + startOffset; x <= xMax - 1; x += colSpacing) {
+      cols.push(x);
     }
   } else {
-    // Entry at xMax (col 29), exit at xMin (col 0)
-    for (let x = xMax - startOffset; x >= xMin + 2; x -= colSpacing) {
-      wallCols.push(x);
+    for (let x = xMax - startOffset; x >= xMin + 1; x -= colSpacing) {
+      cols.push(x);
     }
   }
+  return cols;
+}
 
-  // Track which columns are already substantially built (from previous waves)
-  const builtCols = new Set<number>();
-  for (const col of wallCols) {
+/** Find the index of the next column that isn't fully built. */
+function findNextUnbuiltColumn(
+  state: GameState,
+  side: PlayerSide,
+  wallCols: number[],
+  gapSize: number,
+): number {
+  const minWalls = GRID.HEIGHT - gapSize - 2; // allow some slack
+  for (let i = 0; i < wallCols.length; i++) {
+    const colX = wallCols[i];
     let wallCount = 0;
     for (let y = 0; y < GRID.HEIGHT; y++) {
-      if (state.grid.cells[y][col] === CellType.TOWER) wallCount++;
+      if (state.grid.cells[y][colX] === CellType.TOWER) wallCount++;
     }
-    // If >50% of the column has towers, consider it "built"
-    if (wallCount > GRID.HEIGHT * 0.5) builtCols.add(col);
+    if (wallCount < minWalls) return i;
   }
+  return -1;
+}
 
-  // Save grid state for simulation
+/**
+ * Build walls incrementally in a column up to a budget cap.
+ * Places walls top-to-bottom (skipping gap rows), validates each.
+ * Leaves simulated walls ON the grid for caller to use.
+ */
+function buildWallsInColumn(
+  state: GameState,
+  side: PlayerSide,
+  colIdx: number,
+  wallCols: number[],
+  wallCost: number,
+  gapSize: number,
+  maxBudget: number,
+  placements: PlannedPlacement[],
+): { spent: number; simulated: { x: number; y: number }[] } {
+  let spent = 0;
+  const colX = wallCols[colIdx];
+  const gapAtBottom = colIdx % 2 === 0;
   const simulated: { x: number; y: number }[] = [];
-  let wallColIndex = 0;
 
-  for (const colX of wallCols) {
-    if (spent + wallCost > budget) break;
-    if (builtCols.has(colX)) {
-      wallColIndex++;
+  for (let y = 0; y < GRID.HEIGHT; y++) {
+    if (spent + wallCost > maxBudget) break;
+    if (gapAtBottom && y >= GRID.HEIGHT - gapSize) continue;
+    if (!gapAtBottom && y < gapSize) continue;
+    if (state.grid.cells[y][colX] !== CellType.EMPTY) continue;
+
+    const v = validateTowerPlacement(state.grid, colX, y, side);
+    if (!v.valid) continue;
+
+    state.grid.cells[y][colX] = CellType.TOWER;
+    const testPath = findPath(state.grid, side);
+    if (!testPath) {
+      state.grid.cells[y][colX] = CellType.EMPTY;
       continue;
     }
 
-    // Alternate gap position: even columns gap at bottom, odd at top
-    const gapAtBottom = wallColIndex % 2 === 0;
-    wallColIndex++;
+    simulated.push({ x: colX, y });
+    placements.push({ x: colX, y, type: TowerType.WALL, cost: wallCost });
+    spent += wallCost;
+  }
 
-    // Build cells for this column (top to bottom)
-    const colCells: { x: number; y: number }[] = [];
-    for (let y = 0; y < GRID.HEIGHT; y++) {
-      // Leave gap
-      if (gapAtBottom && y >= GRID.HEIGHT - gapSize) continue;
-      if (!gapAtBottom && y < gapSize) continue;
+  // Walls stay on grid — caller is responsible for cleanup
+  return { spent, simulated };
+}
 
-      // Skip if already occupied
-      if (state.grid.cells[y][colX] !== CellType.EMPTY) continue;
+/**
+ * Place AA towers along the flying enemy flight corridor.
+ * Flying enemies go straight from spawn (col 29-30, row 14) to goal edge (rows 12-17).
+ * AA towers need range 6 coverage along this diagonal path, NOT the maze path.
+ *
+ * Budget is capped: only spend what's needed for air defense, leave rest for ground offense.
+ */
+function placeAirDefense(
+  state: GameState,
+  playerId: string,
+  side: PlayerSide,
+  totalBudget: number,
+  placements: PlannedPlacement[],
+): number {
+  const wave = state.waveNumber;
 
-      colCells.push({ x: colX, y });
-    }
+  // Only invest in air defense when air wave is approaching (countdown <= 3)
+  // or maintain a baseline from wave 5+
+  const airWaveImminent = state.airWaveCountdown >= 0 && state.airWaveCountdown <= 3;
+  const needBaseline = wave >= 5;
+  if (!airWaveImminent && !needBaseline) return 0;
 
-    // Easy mode: randomly skip some cells (makes walls gappier)
-    const skipChance = Math.max(0, 0.25 - depth * 0.25); // 25% at easy, 0% at hard
+  // Count existing AA towers
+  const existingAA = Object.values(state.towers)
+    .filter(t => t.ownerId === playerId && t.type === TowerType.AA).length;
 
-    for (const cell of colCells) {
-      if (spent + wallCost > budget) break;
+  // Target AA count: more aggressive when air wave is imminent
+  const expectedFlying = Math.max(2, Math.round((15 + wave * 4) * 0.15));
+  let aaTarget: number;
+  if (airWaveImminent) {
+    aaTarget = Math.ceil(expectedFlying / 2.5) + Math.floor(wave / 3);
+  } else {
+    aaTarget = 2 + Math.floor(wave / 5); // baseline
+  }
 
-      // Random skip for lower difficulty
-      if (skipChance > 0 && Math.random() < skipChance) continue;
+  const aaNeeded = Math.max(0, aaTarget - existingAA);
+  if (aaNeeded === 0) return 0;
 
-      // Validate placement
-      const v = validateTowerPlacement(state.grid, cell.x, cell.y, side);
-      if (!v.valid) continue;
+  const aaCost = getDynamicPrice(state, TowerType.AA);
+  // Cap air budget: don't spend more than 40% of total on air defense
+  const maxAirBudget = Math.min(totalBudget * 0.4, aaNeeded * aaCost);
 
-      // Simulate placement to verify path isn't blocked
-      state.grid.cells[cell.y][cell.x] = CellType.TOWER;
-      const testPath = findPath(state.grid, side);
-      if (!testPath) {
-        state.grid.cells[cell.y][cell.x] = CellType.EMPTY;
-        continue;
+  // Flight corridor: rows 8-22 (generous band around rows 12-17 goal + range 6)
+  // Spread across full zone width for coverage
+  const xMin = side === PlayerSide.RIGHT ? GRID.RIGHT_ZONE_START : 0;
+  const xMax = side === PlayerSide.RIGHT ? GRID.WIDTH - 1 : GRID.LEFT_ZONE_END;
+  const flightRowMin = 8;
+  const flightRowMax = 22;
+
+  // Generate candidates in the flight corridor, scored by coverage of flight lines
+  const candidates: { x: number; y: number; score: number }[] = [];
+  for (let y = flightRowMin; y <= flightRowMax && y < GRID.HEIGHT; y++) {
+    for (let x = xMin; x <= xMax; x++) {
+      if (state.grid.cells[y][x] !== CellType.EMPTY) continue;
+
+      // Score by how many flight lines this position covers (range 6)
+      let flightCoverage = 0;
+      for (const goalRow of [12, 13, 14, 15, 16, 17]) {
+        // Flight line goes from (30, 14) to (59, goalRow) for RIGHT side
+        // Sample points along the line
+        const startX = side === PlayerSide.RIGHT ? 30 : 29;
+        const endX = side === PlayerSide.RIGHT ? 59 : 0;
+        for (let t = 0; t <= 1; t += 0.1) {
+          const fx = startX + (endX - startX) * t;
+          const fy = 14 + (goalRow - 14) * t;
+          const d = Math.sqrt((fx - x) ** 2 + (fy - y) ** 2);
+          if (d <= 6) flightCoverage++;
+        }
       }
 
-      simulated.push({ x: cell.x, y: cell.y });
-      placements.push({ x: cell.x, y: cell.y, type: TowerType.WALL, cost: wallCost });
-      spent += wallCost;
+      if (flightCoverage > 0) {
+        // Bonus for being spread out from existing AA
+        let spreadBonus = 0;
+        const existingAAPositions = Object.values(state.towers)
+          .filter(t => t.ownerId === playerId && t.type === TowerType.AA);
+        if (existingAAPositions.length > 0) {
+          let minDist = Infinity;
+          for (const aa of existingAAPositions) {
+            const d = Math.sqrt((aa.position.x - x) ** 2 + (aa.position.y - y) ** 2);
+            if (d < minDist) minDist = d;
+          }
+          spreadBonus = Math.min(5, minDist); // reward spacing
+        } else {
+          spreadBonus = 3;
+        }
+        candidates.push({ x, y, score: flightCoverage + spreadBonus });
+      }
     }
   }
 
-  // Undo all simulated placements
-  for (const cell of simulated) {
-    state.grid.cells[cell.y][cell.x] = CellType.EMPTY;
+  candidates.sort((a, b) => b.score - a.score);
+
+  let spent = 0;
+  let placed = 0;
+  for (const c of candidates) {
+    if (placed >= aaNeeded || spent + aaCost > maxAirBudget) break;
+
+    const v = validateTowerPlacement(state.grid, c.x, c.y, side);
+    if (!v.valid) continue;
+
+    // Check path isn't blocked
+    state.grid.cells[c.y][c.x] = CellType.TOWER;
+    const testPath = findPath(state.grid, side);
+    if (!testPath) {
+      state.grid.cells[c.y][c.x] = CellType.EMPTY;
+      continue;
+    }
+    state.grid.cells[c.y][c.x] = CellType.EMPTY; // undo — placements are tracked separately
+
+    placements.push({ x: c.x, y: c.y, type: TowerType.AA, cost: aaCost });
+    spent += aaCost;
+    placed++;
+  }
+
+  if (placed > 0) {
+    log(`[MAZE] Air defense: ${placed} AA towers (${spent}c), target=${aaTarget}, existing=${existingAA}`);
   }
 
   return spent;
 }
 
 /**
- * Place offensive towers in horizontal lines along the maze corridors.
- * This provides:
- * - Kill zones for ground enemies zigzagging through the maze
- * - Linear horizontal coverage against flying enemies that ignore walls
+ * Place offensive towers adjacent to the enemy path.
+ * Prioritizes positions near turn points with high path coverage.
  */
 function placeOffensiveTowers(
   state: GameState,
@@ -196,76 +334,133 @@ function placeOffensiveTowers(
   side: PlayerSide,
   budget: number,
   depth: number,
+  gapSize: number,
   placements: PlannedPlacement[],
 ): number {
   let spent = 0;
-  const maxTowers = 12;
 
-  // Temporarily apply planned wall placements for accurate scoring
+  // Apply planned placements temporarily (walls already on grid from buildWallsInColumn)
   const simulated: { x: number; y: number }[] = [];
   for (const p of placements) {
-    state.grid.cells[p.y][p.x] = CellType.TOWER;
-    simulated.push({ x: p.x, y: p.y });
-  }
-
-  // Get the current path to find the best kill zone rows
-  const path = findPath(state.grid, side);
-  const pathRowCounts: Record<number, number> = {};
-  if (path) {
-    for (const cell of path) {
-      pathRowCounts[cell.y] = (pathRowCounts[cell.y] ?? 0) + 1;
+    if (state.grid.cells[p.y][p.x] === CellType.EMPTY) {
+      state.grid.cells[p.y][p.x] = CellType.TOWER;
+      simulated.push({ x: p.x, y: p.y });
     }
   }
 
-  for (let i = 0; i < maxTowers; i++) {
-    const towerType = chooseTowerType(state, playerId, depth);
-    const cost = getDynamicPrice(state, towerType);
-    if (spent + cost > budget) break;
+  const path = findPath(state.grid, side);
+  if (!path || path.length === 0) {
+    for (const cell of simulated) state.grid.cells[cell.y][cell.x] = CellType.EMPTY;
+    return 0;
+  }
 
-    const candidates = getCandidateCells(state, side, depth);
-    if (candidates.length === 0) break;
+  // Find turn points
+  const turnPoints = new Set<string>();
+  for (let i = 1; i < path.length - 1; i++) {
+    const dx1 = path[i].x - path[i - 1].x;
+    const dy1 = path[i].y - path[i - 1].y;
+    const dx2 = path[i + 1].x - path[i].x;
+    const dy2 = path[i + 1].y - path[i].y;
+    if (dx1 !== dx2 || dy1 !== dy2) {
+      turnPoints.add(`${path[i].x},${path[i].y}`);
+    }
+  }
 
-    // Score candidates with bonus for horizontal alignment with other towers
-    // and for being on rows the path traverses heavily
-    let bestCell: { x: number; y: number } | null = null;
-    let bestScore = -Infinity;
+  const pathSet = new Set<string>();
+  for (const cell of path) pathSet.add(`${cell.x},${cell.y}`);
 
-    for (const cell of candidates) {
-      let s = scorePlacement(state, playerId, cell.x, cell.y, towerType, depth);
+  // Reserve only UNBUILT wall column Xs — completed columns are fine for offense
+  const wallCols = getWallColumns(side);
+  const reservedXs = new Set<number>();
+  for (let i = 0; i < wallCols.length; i++) {
+    const colX = wallCols[i];
+    let wallCount = 0;
+    for (let y = 0; y < GRID.HEIGHT; y++) {
+      if (state.grid.cells[y][colX] === CellType.TOWER) wallCount++;
+    }
+    if (wallCount < GRID.HEIGHT - gapSize - 2) reservedXs.add(colX);
+  }
 
-      // Bonus for rows with heavy path traffic (kill zones)
-      const rowTraffic = pathRowCounts[cell.y] ?? 0;
-      s += rowTraffic * 0.5;
+  // Generate candidates within range 5 of path (covers SNIPER range)
+  // Wider search prevents grid saturation from choking placement
+  const searchRadius = 5;
+  const candidateSet = new Set<string>();
+  const candidates: { x: number; y: number; score: number }[] = [];
 
-      // Bonus for horizontal alignment — encourages linear AA coverage
-      if (towerType === TowerType.AA || towerType === TowerType.SNIPER) {
-        const ownedTowers = Object.values(state.towers).filter(t => t.ownerId === playerId);
-        for (const t of ownedTowers) {
-          if (Math.abs(t.position.y - cell.y) <= 1) {
-            s += 1.0; // Bonus for being on the same row as existing towers
+  for (const pathCell of path) {
+    for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+      for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+        const nx = pathCell.x + dx;
+        const ny = pathCell.y + dy;
+        if (nx < 0 || nx >= GRID.WIDTH || ny < 0 || ny >= GRID.HEIGHT) continue;
+        const key = `${nx},${ny}`;
+        if (candidateSet.has(key)) continue;
+        if (pathSet.has(key)) continue;
+        if (state.grid.cells[ny][nx] !== CellType.EMPTY) continue;
+        if (reservedXs.has(nx)) continue;
+
+        candidateSet.add(key);
+
+        let coverage = 0;
+        let nearTurn = false;
+        for (const pc of path) {
+          const d = Math.sqrt((pc.x - nx) ** 2 + (pc.y - ny) ** 2);
+          if (d <= 3) {
+            coverage++;
+            if (turnPoints.has(`${pc.x},${pc.y}`)) nearTurn = true;
           }
         }
-      }
 
-      if (s > bestScore) {
-        bestScore = s;
-        bestCell = cell;
+        if (coverage > 0) {
+          candidates.push({ x: nx, y: ny, score: coverage + (nearTurn ? 8 : 0) });
+        }
       }
     }
-
-    if (!bestCell) break;
-
-    placements.push({ x: bestCell.x, y: bestCell.y, type: towerType, cost });
-    spent += cost;
-
-    state.grid.cells[bestCell.y][bestCell.x] = CellType.TOWER;
-    simulated.push({ x: bestCell.x, y: bestCell.y });
   }
 
-  // Undo all simulated placements
+  candidates.sort((a, b) => b.score - a.score);
+
+  const maxTowers = Math.min(100, Math.max(30, Math.floor(budget / 40)));
+  let towersPlaced = 0;
+  const towerTypeCounts: Record<string, number> = {};
+
+  for (const candidate of candidates) {
+    if (towersPlaced >= maxTowers || spent >= budget) break;
+
+    const towerType = chooseTowerType(state, playerId, depth, towerTypeCounts);
+    const cost = getDynamicPrice(state, towerType);
+
+    let finalType = towerType;
+    let finalCost = cost;
+    if (spent + cost > budget) {
+      finalType = TowerType.BASIC;
+      finalCost = getDynamicPrice(state, TowerType.BASIC);
+      if (spent + finalCost > budget) continue;
+    }
+
+    const v = validateTowerPlacement(state.grid, candidate.x, candidate.y, side);
+    if (!v.valid) continue;
+
+    state.grid.cells[candidate.y][candidate.x] = CellType.TOWER;
+    const testPath = findPath(state.grid, side);
+    if (!testPath) {
+      state.grid.cells[candidate.y][candidate.x] = CellType.EMPTY;
+      continue;
+    }
+
+    simulated.push({ x: candidate.x, y: candidate.y });
+    placements.push({ x: candidate.x, y: candidate.y, type: finalType, cost: finalCost });
+    spent += finalCost;
+    towersPlaced++;
+    towerTypeCounts[finalType] = (towerTypeCounts[finalType] ?? 0) + 1;
+  }
+
   for (const cell of simulated) {
     state.grid.cells[cell.y][cell.x] = CellType.EMPTY;
   }
+
+  const typeStr = Object.entries(towerTypeCounts).map(([t, c]) => `${t}:${c}`).join(' ');
+  log(`[MAZE] Offensive: ${towersPlaced} towers (${typeStr}), ${spent}c, path=${path.length}`);
 
   return spent;
 }

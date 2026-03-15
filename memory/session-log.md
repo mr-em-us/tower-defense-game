@@ -1,5 +1,12 @@
 # Session Log Archive
 
+## Session — 2026-03-14 Night (AI Maze Iteration 7→8)
+- Ran iteration 7: died wave 15 (best ground result, air wave killed it)
+- Iteration 8: wider search, lower wall threshold, aggressive AA — died wave 13 (worse)
+- Root cause: AA towers on maze path can't reach flying enemies on straight-line flight corridor
+- Implemented placeAirDefense: dedicated flight corridor AA placement (rows 8-22)
+- Ready for iteration 9 testing
+
 ## Session — 2026-03-14 (AI Opponents + Port + Scaling)
 - 10:16 AM — Session resumed. Local and remote in sync.
 - 10:30 AM — Port changed 8080→9090 across all files.

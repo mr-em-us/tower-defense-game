@@ -12,6 +12,11 @@ export interface EconomyPlan {
 
 /**
  * Plan how to allocate credits across repair, restock, build, and upgrade.
+ *
+ * Economy phases:
+ * - Waves 1-3: Aggressive building (minimal reserve, no upgrades)
+ * - Waves 4-7: Balanced (moderate reserve, start upgrading)
+ * - Waves 8+: Mature economy (upgrades + maintenance focused)
  */
 export function planEconomy(
   state: GameState,
@@ -24,9 +29,16 @@ export function planEconomy(
   }
 
   const credits = player.credits;
+  const wave = state.waveNumber;
 
-  // Higher depth = more savings for emergencies
-  const reserveRatio = AI.ECONOMY_RESERVE_RATIO * (1 + depth * 0.5);
+  // Reserve ratio: minimal — maximize spending on towers
+  let reserveRatio: number;
+  if (wave <= 5) {
+    reserveRatio = 0.02; // 2% reserve early — build aggressively
+  } else {
+    reserveRatio = 0.05; // 5% late game — still prioritize building
+  }
+
   const savingsTarget = Math.round(credits * reserveRatio);
   const available = credits - savingsTarget;
 
@@ -58,9 +70,20 @@ export function planEconomy(
   const restockBudget = Math.min(restockCost, afterRepair);
   const afterRestock = afterRepair - restockBudget;
 
-  // Split remaining between build (70%) and upgrade (30%)
-  // Higher depth slightly favors upgrades (better ROI awareness)
-  const upgradeRatio = 0.25 + depth * 0.1;
+  // Upgrade ratio: low until maze is established, then scale up
+  // Late game: grid saturates around 150+ towers, upgrades become primary DPS growth
+  const towerCount = Object.values(state.towers).filter(t => t.ownerId === playerId).length;
+  let upgradeRatio: number;
+  if (wave <= 5) {
+    upgradeRatio = 0; // all building early — new towers >> upgrades
+  } else if (wave <= 10) {
+    upgradeRatio = 0.10; // 10% mid-game — mostly build, some upgrades
+  } else if (towerCount >= 150) {
+    upgradeRatio = 0.50 + depth * 0.1; // grid saturated — invest heavily in upgrades
+  } else {
+    upgradeRatio = 0.25 + depth * 0.05; // late game with room to build
+  }
+
   const upgradeBudget = Math.round(afterRestock * upgradeRatio);
   const buildBudget = afterRestock - upgradeBudget;
 

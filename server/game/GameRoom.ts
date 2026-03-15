@@ -204,11 +204,18 @@ export class GameRoom {
     log(`Player ${newPlayerId} joined room ${this.roomId} as ${side}`);
 
     const playerCount = Object.keys(this.state.players).length;
-    const neededPlayers = this.state.gameMode === GameMode.SINGLE ? 1 : 2;
+    const neededPlayers = (this.state.gameMode === GameMode.SINGLE || this.state.gameMode === GameMode.OBSERVER) ? 1 : 2;
     if (playerCount >= neededPlayers) {
       // If AI enabled in singleplayer, add the AI opponent before starting
       if (this.state.gameMode === GameMode.SINGLE && this.state.settings.aiEnabled) {
         this.addAIPlayer(this.state.settings.aiDifficulty);
+      }
+      // Observer mode: always add AI as the sole active player
+      if (this.state.gameMode === GameMode.OBSERVER) {
+        this.addAIPlayer(this.state.settings.aiDifficulty);
+        // Set human to turbo speed
+        player.requestedSpeed = 4;
+        this.updateGameSpeed();
       }
       this.startGame();
     }
@@ -258,7 +265,7 @@ export class GameRoom {
   }
 
   isFull(): boolean {
-    const max = this.state.gameMode === GameMode.SINGLE ? 1 : 2;
+    const max = (this.state.gameMode === GameMode.SINGLE || this.state.gameMode === GameMode.OBSERVER) ? 1 : 2;
     return this.connections.size >= max;
   }
 
@@ -307,6 +314,15 @@ export class GameRoom {
       this.initWaveStats();
     }
     this.prevPhase = this.state.phase;
+
+    // Observer mode: auto-ready the human player each BUILD phase
+    if (this.state.gameMode === GameMode.OBSERVER && this.state.phase === GamePhase.BUILD) {
+      for (const player of Object.values(this.state.players)) {
+        if (!player.isAI && !player.isReady) {
+          player.isReady = true;
+        }
+      }
+    }
 
     // Auto-repair: process once per second (every TICK_RATE ticks)
     this.autoRepairCounter++;
@@ -440,6 +456,11 @@ export class GameRoom {
   // --- Message handling ---
 
   handleMessage(playerId: string, msg: ClientMessage): void {
+    // In observer mode, human can only toggle speed
+    if (this.state.gameMode === GameMode.OBSERVER) {
+      const player = this.state.players[playerId];
+      if (player && !player.isAI && msg.type !== 'TOGGLE_FAST_MODE') return;
+    }
     switch (msg.type) {
       case 'PLACE_TOWER':
         this.handlePlaceTower(playerId, msg.position.x, msg.position.y, msg.towerType);
@@ -940,8 +961,8 @@ export class GameRoom {
 
   private updateGameSpeed(): void {
     const players = Object.values(this.state.players);
-    if (this.state.gameMode === GameMode.SINGLE) {
-      // In singleplayer (with or without AI), human controls speed
+    if (this.state.gameMode === GameMode.SINGLE || this.state.gameMode === GameMode.OBSERVER) {
+      // In singleplayer/observer, human controls speed
       const humanPlayer = players.find(p => !p.isAI) ?? players[0];
       this.state.gameSpeed = humanPlayer?.requestedSpeed ?? 1;
     } else {

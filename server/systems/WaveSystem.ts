@@ -110,10 +110,16 @@ export class WaveSystem {
 
     // In single player without AI, only spawn enemies toward the player's side.
     // With AI opponent (2 players), spawn for both sides like multiplayer.
+    // In observer mode, only spawn toward the AI's side.
     const playerCount = Object.keys(state.players).length;
-    const singlePlayerSide = (state.gameMode === GameMode.SINGLE && playerCount === 1)
-      ? Object.values(state.players)[0]?.side ?? PlayerSide.LEFT
-      : null;
+    let singlePlayerSide: PlayerSide | null = null;
+    if (state.gameMode === GameMode.SINGLE && playerCount === 1) {
+      singlePlayerSide = Object.values(state.players)[0]?.side ?? PlayerSide.LEFT;
+    } else if (state.gameMode === GameMode.OBSERVER) {
+      // Only target the AI player's side
+      const aiPlayer = Object.values(state.players).find(p => p.isAI);
+      singlePlayerSide = aiPlayer?.side ?? PlayerSide.RIGHT;
+    }
 
     for (const entry of definition) {
       for (let i = 0; i < entry.count; i++) {

@@ -1,5 +1,6 @@
-import { GameState, GamePhase, TowerType, CellType, Tower, WaveEconomy } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, GameMode, TowerType, CellType, Tower, WaveEconomy } from '../../shared/types/game.types.js';
 import { GAME, TOWER_STATS, PRICE_ESCALATION, PRICE_DECAY_RATE, MIN_DYNAMIC_PRICE } from '../../shared/types/constants.js';
+import { log } from '../utils/logger.js';
 
 export class PhaseSystem {
   update(state: GameState, dt: number): void {
@@ -15,8 +16,10 @@ export class PhaseSystem {
     }
 
     // Check game over: a player loses when their HP reaches 0
+    // In observer mode, only the AI player's health matters
     if (state.phase === GamePhase.COMBAT) {
       for (const player of Object.values(state.players)) {
+        if (state.gameMode === GameMode.OBSERVER && !player.isAI) continue;
         if (player.health <= 0) {
           state.phase = GamePhase.GAME_OVER;
           return;
@@ -38,6 +41,14 @@ export class PhaseSystem {
   }
 
   transitionToBuild(state: GameState): void {
+    // Log wave results before transitioning
+    const killed = state.waveEnemiesKilled ?? 0;
+    const total = state.waveEnemiesTotal ?? 0;
+    const leaked = total - killed;
+    const playerHealths = Object.values(state.players).map(p => `${p.name}:${Math.round(p.health)}HP`).join(', ');
+    const towerCount = Object.keys(state.towers).length;
+    log(`[WAVE ${state.waveNumber} END] Killed: ${killed}/${total} (${leaked} leaked) | Towers: ${towerCount} | ${playerHealths}`);
+
     state.waveNumber += 1;
     state.phase = GamePhase.BUILD;
     state.phaseTimeRemaining = GAME.BUILD_PHASE_DURATION;

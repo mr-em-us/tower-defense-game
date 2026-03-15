@@ -168,8 +168,8 @@ export const SELL_REFUND_RATIO = 0.6;
 export const REPAIR_COST_RATIO = 0.5;
 
 export const AI = {
-  ACTION_DELAY_TICKS: 5,         // ~250ms at 20Hz between tower placements
-  READY_DELAY_TICKS: 20,         // ~1s pause before readying up after queue empty
+  ACTION_DELAY_TICKS: 1,         // ~50ms at 20Hz between tower placements
+  READY_DELAY_TICKS: 10,         // ~0.5s pause before readying up after queue empty
   COMBAT_CHECK_INTERVAL: 20,     // check repair/restock once per second during combat
   DEPTH_EASY: 0.25,
   DEPTH_MEDIUM: 0.55,

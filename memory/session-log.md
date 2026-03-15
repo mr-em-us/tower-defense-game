@@ -1,5 +1,15 @@
 # Session Log Archive
 
+## Session — 2026-03-15 PM (Maze Rewrite Experiments — 11 iterations)
+- Ran 11 experiments with automated test loop (greedy, columns, serpentine, WALL-heavy, mixed)
+- Best result: Exp 9 — wave 7, 0 leaks waves 1-5, path 82 (2 full-height columns, mixed offense/WALL)
+- Worst: Exp 7 — all WALLs, path 87, died wave 4 (path without DPS = useless)
+- Key lessons: greedy fails on open grids; full-height columns waste towers at edges; DPS essential
+- Jason screenshot comparison: compact box maze vs tall columns = fundamentally different approach
+- Jason's verdict: must build compact rectangular maze with horizontal switchback lanes, not columns
+- WALLs are strategic tools (larger maze, protect upgraded towers), not the main building block
+- Budget reality: ~40 BASIC × 50c = 2000c = fits wave 1 budget for compact maze
+
 ## Session — 2026-03-14 Late Night (Maze Problem Diagnosis)
 - Jason reviewed AI maze output, identified fundamental strategy flaws (not just tuning issues)
 - Shared screenshot of human-built maze: compact serpentine near goal + horizontal AA tail

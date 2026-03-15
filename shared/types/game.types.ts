@@ -32,6 +32,7 @@ export enum GamePhase {
 export enum GameMode {
   SINGLE = 'SINGLE',
   MULTI = 'MULTI',
+  OBSERVER = 'OBSERVER',
 }
 
 export enum AIDifficulty {

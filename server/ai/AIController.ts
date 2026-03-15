@@ -95,6 +95,7 @@ export class AIController {
     }
 
     // 3. Build new towers (maze + offense)
+    log(`[ECON] Wave ${state.waveNumber} | Credits: ${Math.round(player.credits)} | Repair: ${Math.round(plan.repairBudget)} | Restock: ${Math.round(plan.restockBudget)} | Build: ${Math.round(plan.buildBudget)} | Upgrade: ${Math.round(plan.upgradeBudget)} | Save: ${Math.round(plan.savingsTarget)}`);
     const mazePlacements = generateMazeLayout(state, this.playerId, plan.buildBudget, this.depth);
     for (const placement of mazePlacements) {
       this.actionQueue.push({

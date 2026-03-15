@@ -51,9 +51,15 @@ export class PostGameOverlay {
     let headerText: string;
     let subText: string;
 
-    if (state.gameMode === GameMode.SINGLE) {
+    if (state.gameMode === GameMode.SINGLE || state.gameMode === GameMode.OBSERVER) {
       headerText = 'GAME OVER';
-      subText = `Survived to wave ${state.waveNumber} | HP: ${Math.ceil(myHp.current).toLocaleString()}/${myHp.max.toLocaleString()}`;
+      subText = `Survived to wave ${state.waveNumber}`;
+      const oppHp = this.gameClient.getOpponentHealth();
+      if (state.gameMode === GameMode.OBSERVER && oppHp) {
+        subText += ` | AI HP: ${Math.ceil(oppHp.current).toLocaleString()}/${oppHp.max.toLocaleString()}`;
+      } else {
+        subText += ` | HP: ${Math.ceil(myHp.current).toLocaleString()}/${myHp.max.toLocaleString()}`;
+      }
     } else {
       const oppHp = this.gameClient.getOpponentHealth();
       const won = myHp.current > 0 && oppHp.current <= 0;

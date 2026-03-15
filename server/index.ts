@@ -141,6 +141,9 @@ function getOrCreateRoom(gameMode: GameMode): GameRoom {
   if (gameMode === GameMode.SINGLE) {
     return new GameRoom(GameMode.SINGLE);
   }
+  if (gameMode === GameMode.OBSERVER) {
+    return new GameRoom(GameMode.OBSERVER);
+  }
   if (!currentMultiRoom || currentMultiRoom.isFull()) {
     currentMultiRoom = new GameRoom(GameMode.MULTI);
   }

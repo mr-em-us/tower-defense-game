@@ -1,18 +1,26 @@
-# Session: 2026-03-14 Late Night
+# Session: 2026-03-15 PM — Maze Rewrite Experiments
 
-- 11:12 PM — Session resumed. Uncommitted changes present in working tree. Ready to continue AI iteration work.
-- 11:48 PM — Jason asked to describe the AI maze problem. Reviewed maze strategy code together.
-- 11:50 PM — Jason shared screenshot of what a GOOD maze looks like (human-built). Key observations:
-  - Compact serpentine maze near the goal edge, NOT spanning full grid height
-  - Horizontal AA "tail" extending outward along flight path
-  - Tight switchbacks, dense structure, every tower serves a purpose
-- 11:51 PM — Jason clarified: don't copy the exact layout, understand the PRINCIPLES:
-  1. Don't waste money building at grid edges (rows 0-5, 25-29) where enemies never go
-  2. Actually force enemies through a real maze (tight switchbacks, long path)
-  3. Don't get destroyed by flying enemies (deliberate AA corridor)
-- 11:52 PM — Diagnosed current code problems:
-  - colSpacing=10 is way too wide (barely a maze)
-  - Columns span full grid height (rows 0-29) — wasteful
-  - AA placement is scattered, not a deliberate corridor
-  - Need to measure success by PATH LENGTH increase, not tower count
-- 11:52 PM — Save triggered. Maze rewrite is next priority.
+- 01:45 PM — Resumed from compacted context. Read experiment log and maze.ts.
+- 01:50 PM — Built project, started preview server, began testing serpentine approach (Exp 2)
+- 01:52 PM — Exp 2: Connected serpentine. Died wave 6, path 30→44. Columns too spread, no caps.
+- 01:55 PM — Exp 3: Capped serpentine with cap rows. Path 30→39. Cap gaps let enemies bypass.
+- 02:00 PM — Exp 4: Full-height WALL columns + offense mix. Path 30→55. Died wave 5.
+- 02:02 PM — Exp 5: Same but plan all columns for growth. Still died wave 5, budget too low.
+- 02:05 PM — Exp 6: Greedy path extension only. 1 WALL placed on open grid (+1). Useless alone.
+  - BUT: wave 2 greedy on constrained grid gave +17 from 6 WALLs. Key insight.
+- 02:09 PM — Exp 7: All WALLs, max path. Path 87 but ZERO DPS. Died wave 4 (worst yet).
+  - Lesson: path without DPS is completely useless.
+- 02:13 PM — Exp 8: One offense column + WALLs. Bug: towerTypeCounts not updated during planning.
+  - 13 SLOW towers instead of 2. Fixed the bug.
+- 02:19 PM — Exp 9: First column offense, second WALL. **Best result: wave 7, 0 leaks waves 1-5.**
+  - Path 30→82. 59 towers: 45 WALL + 3 SLOW + 11 BASIC.
+- 02:22 PM — Exp 10: Narrower offense zone (±4). Died wave 6 (worse). More DPS > more path.
+- 02:26 PM — Exp 11: Wider offense zone (±8). Path 30→56. Testing...
+- 02:30 PM — Jason shared screenshot comparison: his compact box maze vs AI's tall columns.
+  - His maze: compact ~12×12 box, horizontal switchback lanes, all offense, fits wave 1 budget
+  - AI maze: two full-height columns with WALLs at edges. Fundamentally different geometry.
+- 02:35 PM — Jason's feedback: approach is STILL fundamentally wrong. Must build compact box maze.
+  - WALLs not banned but should be strategic (larger maze, protect valuable towers)
+  - Start with all offense towers (BASIC)
+  - Budget fits: ~40 BASIC × 50c = 2000c = wave 1 budget
+- 02:46 PM — Save requested. Committing checkpoint before next rewrite.

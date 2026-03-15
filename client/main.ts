@@ -80,6 +80,14 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
       cleanup();
       resolve({ type: 'new', gameMode: GameMode.MULTI });
     };
+    const onObserver = () => {
+      const obsDiffSelect = document.getElementById('observer-difficulty') as HTMLSelectElement;
+      currentSettings.aiEnabled = true;
+      currentSettings.aiDifficulty = (obsDiffSelect.value as AIDifficulty) || AIDifficulty.HARD;
+      menu.classList.add('hidden');
+      cleanup();
+      resolve({ type: 'new', gameMode: GameMode.OBSERVER });
+    };
     const onSettings = async () => {
       menu.classList.add('hidden');
       currentSettings = await settingsPanel.show(currentSettings);
@@ -127,6 +135,7 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
 
     const btnSingle = document.getElementById('btn-single')!;
     const btnMulti = document.getElementById('btn-multi')!;
+    const btnObserver = document.getElementById('btn-observer')!;
     const btnSettings = document.getElementById('btn-settings')!;
     const btnLeaderboard = document.getElementById('btn-leaderboard')!;
     const btnLoadSave = document.getElementById('btn-load-save')!;
@@ -134,6 +143,7 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
 
     btnSingle.addEventListener('click', onSingle);
     btnMulti.addEventListener('click', onMulti);
+    btnObserver.addEventListener('click', onObserver);
     btnSettings.addEventListener('click', onSettings);
     btnLeaderboard.addEventListener('click', onLeaderboard);
     btnLoadSave.addEventListener('click', onLoadSave);
@@ -142,6 +152,7 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
     function cleanup() {
       btnSingle.removeEventListener('click', onSingle);
       btnMulti.removeEventListener('click', onMulti);
+      btnObserver.removeEventListener('click', onObserver);
       aiToggle.removeEventListener('change', onAIToggle);
       btnSettings.removeEventListener('click', onSettings);
       btnLeaderboard.removeEventListener('click', onLeaderboard);

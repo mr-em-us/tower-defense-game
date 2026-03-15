@@ -48,7 +48,7 @@ export class HUD {
     }
 
     if (state.phase === GamePhase.WAITING) {
-      if (state.gameMode === GameMode.SINGLE) {
+      if (state.gameMode === GameMode.SINGLE || state.gameMode === GameMode.OBSERVER) {
         this.showOverlay('Starting game...');
       } else {
         this.showLobby(state.startingCredits);
@@ -83,28 +83,43 @@ export class HUD {
     clearChildren(this.hudLeft);
     clearChildren(this.hudRight);
 
-    // My info on my side
-    myPanel.appendChild(span(side === PlayerSide.LEFT ? '< You' : 'You >'));
-    myPanel.appendChild(span(`${Math.ceil(myHp.current).toLocaleString()}HP`, hpColor));
-    myPanel.appendChild(span(`${Math.floor(credits).toLocaleString()}c`, credits > 0 ? 'color:#4ADE80' : 'color:#EF4444'));
+    if (state.gameMode === GameMode.OBSERVER) {
+      // In observer mode, show AI info prominently on the right panel
+      const aiPlayer = Object.values(state.players).find(p => p.isAI);
+      if (aiPlayer) {
+        const aiHpColor = aiPlayer.health > aiPlayer.maxHealth * 0.5 ? 'color:#4ADE80' : aiPlayer.health > aiPlayer.maxHealth * 0.25 ? 'color:#FBBF24' : 'color:#EF4444';
+        this.hudRight.appendChild(span(`${aiPlayer.name}`, 'font-weight:500'));
+        this.hudRight.appendChild(span(`${Math.ceil(aiPlayer.health).toLocaleString()}HP`, aiHpColor));
+        this.hudRight.appendChild(span(`${Math.floor(aiPlayer.credits).toLocaleString()}c`, aiPlayer.credits > 0 ? 'color:#4ADE80' : 'color:#EF4444'));
+      }
+    } else {
+      // My info on my side
+      myPanel.appendChild(span(side === PlayerSide.LEFT ? '< You' : 'You >'));
+      myPanel.appendChild(span(`${Math.ceil(myHp.current).toLocaleString()}HP`, hpColor));
+      myPanel.appendChild(span(`${Math.floor(credits).toLocaleString()}c`, credits > 0 ? 'color:#4ADE80' : 'color:#EF4444'));
 
-    // Opponent info on their side (multiplayer or AI opponent)
-    const players = Object.values(state.players);
-    const opponent = players.find(p => p.id !== this.gameClient.getPlayerId());
-    if (opponent) {
-      const oppHp = this.gameClient.getOpponentHealth();
-      const oppSide = side === PlayerSide.LEFT ? '>' : '<';
-      const oppLabel = opponent.isAI ? `${oppSide} ${opponent.name}` : `${oppSide} Opp`;
-      oppPanel.appendChild(span(oppLabel, 'opacity:0.6'));
-      oppPanel.appendChild(span(`${Math.ceil(oppHp.current).toLocaleString()}HP`, 'opacity:0.6'));
-      oppPanel.appendChild(span(`${Math.floor(oppCredits).toLocaleString()}c`, 'opacity:0.6'));
+      // Opponent info on their side (multiplayer or AI opponent)
+      const players = Object.values(state.players);
+      const opponent = players.find(p => p.id !== this.gameClient.getPlayerId());
+      if (opponent) {
+        const oppHp = this.gameClient.getOpponentHealth();
+        const oppSide = side === PlayerSide.LEFT ? '>' : '<';
+        const oppLabel = opponent.isAI ? `${oppSide} ${opponent.name}` : `${oppSide} Opp`;
+        oppPanel.appendChild(span(oppLabel, 'opacity:0.6'));
+        oppPanel.appendChild(span(`${Math.ceil(oppHp.current).toLocaleString()}HP`, 'opacity:0.6'));
+        oppPanel.appendChild(span(`${Math.floor(oppCredits).toLocaleString()}c`, 'opacity:0.6'));
+      }
     }
 
     clearChildren(this.hudCenter);
     if (state.phase === GamePhase.BUILD) {
-      const players = Object.values(state.players);
-      const readyCount = players.filter(p => p.isReady).length;
-      this.hudCenter.appendChild(span(`WAVE ${state.waveNumber}  BUILD  ${readyCount}/${players.length} ready`, 'font-weight:500'));
+      if (state.gameMode === GameMode.OBSERVER) {
+        this.hudCenter.appendChild(span(`WAVE ${state.waveNumber}  OBSERVING`, 'font-weight:500'));
+      } else {
+        const players = Object.values(state.players);
+        const readyCount = players.filter(p => p.isReady).length;
+        this.hudCenter.appendChild(span(`WAVE ${state.waveNumber}  BUILD  ${readyCount}/${players.length} ready`, 'font-weight:500'));
+      }
     } else {
       const waveText = `WAVE ${state.waveNumber}`;
       this.hudCenter.appendChild(span(waveText, 'font-weight:500'));
@@ -158,6 +173,50 @@ export class HUD {
     if (!this.buttonsCreated) {
       this.createTowerButtons();
       this.buttonsCreated = true;
+    }
+
+    // Observer mode: hide interactive elements, keep speed + stats
+    if (state.gameMode === GameMode.OBSERVER) {
+      const mainRow = document.getElementById('tower-main-row');
+      const towerDrawer = document.getElementById('tower-drawer-panel');
+      const brushDrawer = document.getElementById('brush-drawer-panel');
+      if (mainRow) mainRow.style.display = '';
+      if (towerDrawer) towerDrawer.style.display = 'none';
+      if (brushDrawer) brushDrawer.style.display = 'none';
+      // Hide tools group (Towers/Brush buttons) and context group
+      const toolsBtns = mainRow?.querySelectorAll('.bar-group');
+      if (toolsBtns) {
+        toolsBtns.forEach((g, i) => {
+          const el = g as HTMLElement;
+          if (i === 0) el.style.display = 'none'; // tools group
+          else if (i === 1) el.style.display = 'none'; // context group
+          // i === 2 is toggles group - keep visible but hide non-speed buttons
+          else if (i === 2) {
+            el.style.display = '';
+            const autoRepairBtn = document.getElementById('auto-repair-btn');
+            const autoRebuildBtn = document.getElementById('auto-rebuild-btn');
+            if (autoRepairBtn) autoRepairBtn.style.display = 'none';
+            if (autoRebuildBtn) autoRebuildBtn.style.display = 'none';
+          }
+        });
+      }
+      // Hide save and ready buttons
+      const saveBtn = document.getElementById('save-btn');
+      const readyBtn = document.getElementById('ready-btn');
+      if (saveBtn) saveBtn.style.display = 'none';
+      if (readyBtn) readyBtn.style.display = 'none';
+      // Update speed button
+      const fastModeBtn = document.getElementById('fast-mode-btn');
+      if (fastModeBtn) {
+        const activeSpeed = this.gameClient.getGameSpeed();
+        let newText: string;
+        if (activeSpeed >= 4) newText = 'Turbo [>>>]';
+        else if (activeSpeed >= 2) newText = 'Fast [>>]';
+        else newText = 'Normal [>]';
+        if (fastModeBtn.textContent !== newText) fastModeBtn.textContent = newText;
+        fastModeBtn.classList.toggle('selected', activeSpeed > 1);
+      }
+      return;
     }
 
     const credits = this.gameClient.getMyCredits();
@@ -230,7 +289,7 @@ export class HUD {
 
     const saveBtn = document.getElementById('save-btn');
     if (saveBtn) {
-      saveBtn.style.display = (isBuild && state.gameMode === GameMode.SINGLE) ? '' : 'none';
+      saveBtn.style.display = (isBuild && state.gameMode === GameMode.SINGLE && state.gameMode !== GameMode.OBSERVER) ? '' : 'none';
     }
 
     // Auto R&R button
@@ -267,7 +326,7 @@ export class HUD {
       const mySpeed = this.gameClient.getRequestedSpeed();
       const activeSpeed = this.gameClient.getGameSpeed();
       let newText: string;
-      if (state.gameMode === GameMode.SINGLE) {
+      if (state.gameMode === GameMode.SINGLE || state.gameMode === GameMode.OBSERVER) {
         if (activeSpeed >= 4) newText = 'Turbo [>>>]';
         else if (activeSpeed >= 2) newText = 'Fast [>>]';
         else newText = 'Normal [>]';

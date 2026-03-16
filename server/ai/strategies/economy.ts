@@ -74,14 +74,16 @@ export function planEconomy(
   // Late game: grid saturates around 150+ towers, upgrades become primary DPS growth
   const towerCount = Object.values(state.towers).filter(t => t.ownerId === playerId).length;
   let upgradeRatio: number;
-  if (wave <= 5) {
-    upgradeRatio = 0; // all building early — new towers >> upgrades
-  } else if (wave <= 10) {
-    upgradeRatio = 0.10; // 10% mid-game — mostly build, some upgrades
+  if (wave <= 4) {
+    upgradeRatio = 0; // all building early — establish maze
+  } else if (wave <= 7) {
+    upgradeRatio = 0.20; // 20% mid-game — upgrade key towers for DPS
+  } else if (wave <= 12) {
+    upgradeRatio = 0.35; // 35% — upgrades more important as enemies scale
   } else if (towerCount >= 150) {
-    upgradeRatio = 0.50 + depth * 0.1; // grid saturated — invest heavily in upgrades
+    upgradeRatio = 0.60 + depth * 0.1; // grid saturated
   } else {
-    upgradeRatio = 0.25 + depth * 0.05; // late game with room to build
+    upgradeRatio = 0.40 + depth * 0.05; // late game
   }
 
   const upgradeBudget = Math.round(afterRestock * upgradeRatio);

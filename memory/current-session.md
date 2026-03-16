@@ -1,26 +1,30 @@
-# Session: 2026-03-15 PM — Maze Rewrite Experiments
+# Session: 2026-03-15 Evening — Compact Box Maze Implementation
 
-- 01:45 PM — Resumed from compacted context. Read experiment log and maze.ts.
-- 01:50 PM — Built project, started preview server, began testing serpentine approach (Exp 2)
-- 01:52 PM — Exp 2: Connected serpentine. Died wave 6, path 30→44. Columns too spread, no caps.
-- 01:55 PM — Exp 3: Capped serpentine with cap rows. Path 30→39. Cap gaps let enemies bypass.
-- 02:00 PM — Exp 4: Full-height WALL columns + offense mix. Path 30→55. Died wave 5.
-- 02:02 PM — Exp 5: Same but plan all columns for growth. Still died wave 5, budget too low.
-- 02:05 PM — Exp 6: Greedy path extension only. 1 WALL placed on open grid (+1). Useless alone.
-  - BUT: wave 2 greedy on constrained grid gave +17 from 6 WALLs. Key insight.
-- 02:09 PM — Exp 7: All WALLs, max path. Path 87 but ZERO DPS. Died wave 4 (worst yet).
-  - Lesson: path without DPS is completely useless.
-- 02:13 PM — Exp 8: One offense column + WALLs. Bug: towerTypeCounts not updated during planning.
-  - 13 SLOW towers instead of 2. Fixed the bug.
-- 02:19 PM — Exp 9: First column offense, second WALL. **Best result: wave 7, 0 leaks waves 1-5.**
-  - Path 30→82. 59 towers: 45 WALL + 3 SLOW + 11 BASIC.
-- 02:22 PM — Exp 10: Narrower offense zone (±4). Died wave 6 (worse). More DPS > more path.
-- 02:26 PM — Exp 11: Wider offense zone (±8). Path 30→56. Testing...
-- 02:30 PM — Jason shared screenshot comparison: his compact box maze vs AI's tall columns.
-  - His maze: compact ~12×12 box, horizontal switchback lanes, all offense, fits wave 1 budget
-  - AI maze: two full-height columns with WALLs at edges. Fundamentally different geometry.
-- 02:35 PM — Jason's feedback: approach is STILL fundamentally wrong. Must build compact box maze.
-  - WALLs not banned but should be strategic (larger maze, protect valuable towers)
-  - Start with all offense towers (BASIC)
-  - Budget fits: ~40 BASIC × 50c = 2000c = wave 1 budget
-- 02:46 PM — Save requested. Committing checkpoint before next rewrite.
+## Earlier (PM session, saved at 2:46 PM)
+- Ran 11 column-based experiments (best: wave 7)
+- Jason showed his maze: compact box with horizontal switchbacks
+- Concluded: full rewrite needed from columns to compact box
+
+## This Session (continued after save)
+- 06:00 PM — Full rewrite of maze.ts: compact box with horizontal walls
+- 06:05 PM — Exp 12: First box (6×7, 3 lanes). Shape correct but too small, path +5.
+- 06:10 PM — Exp 13-14: Width/height variations. Enemies bypass above/below.
+- 06:15 PM — Exp 15: Added funnel column at x=30. Enemies still bypass via x=30.
+- 06:20 PM — Exp 16: Funnel placed FIRST. Goal side wall rejected by pathfinding.
+- 06:21 PM — KEY FIX: Internal wall gaps must be 1 cell INWARD from edge (not AT edge).
+- 06:22 PM — Exp 17: **SWITCHBACKS WORKING!** Path 30→43. Width 5, 5 walls.
+- 06:23 PM — Exp 18: Width 7, 4 walls. Path 43. 500HP wave 5+. 0 leaks waves 1-4.
+- 06:30 PM — Exp 19: Best yet — **wave 9!** 0 leaks waves 1-4,6. 318 killed.
+- 06:40 PM — Added greedy path extension (80% of remaining budget).
+- 06:45 PM — Exp 22: Path grows 43→62 over waves! Greedy very effective.
+- 06:50 PM — Exp 24: Path 43→75. Wave 9. Consistent.
+- 07:00 PM — Tuned economy: upgrades start wave 5 (20%), scale to 35% wave 8+.
+- 07:05 PM — Exp 25: **Wave 10!** Upgrade budget 442-642c in waves 8-10.
+- 07:30 PM — KEY IMPROVEMENT: WALL towers (25c) for structural elements.
+  - Funnel, first/last walls, side walls all use WALL instead of BASIC.
+  - Internal walls still BASIC (DPS). 2× more cells per budget!
+- 07:45 PM — **Exp 26: WAVE 13! PATH 173!** New record by huge margin.
+  - Wave 1: 49 towers (26 WALL + 23 BASIC), path 60 (was 43 with all BASIC)
+  - Wave 12: path grew to 165! Wave 13: path 173!
+  - Greedy + WALL structural = massive mid-game expansion
+- 09:56 PM — Save requested.

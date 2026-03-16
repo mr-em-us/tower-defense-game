@@ -1,84 +1,44 @@
 # Maze AI Experiment Log
 Last Updated: 2026-03-15
 
-## Current Approach
-Seed + greedy + offense hybrid. Full-height WALL columns create switchbacks (path +52),
-offense towers in first column deal damage to enemies in corridors. Greedy extends path
-in constrained areas. Best result: wave 7, 0 leaks through wave 5.
+## Current Approach — Compact Box + Greedy Extension ★★★
+Wave 1: Build compact box maze (7 wide × 4 walls, all BASIC, ~38 towers).
+Waves 2+: Greedy path extension places towers on BFS path for maximum path increase.
+Result: Path grows from 43 → 70 over 9 waves. Best: wave 9, 0 leaks waves 1-4.
 
-## Key Constraints
-- Grid: 60x30, RIGHT zone cols 30-59, LEFT zone cols 0-29
-- Spawn: col 29-30, row 14. Goal: GOAL_ROWS 12-17 at edge (x=0 or x=59)
-- Budget wave 1: ~1960c (after economy reserves)
-- Tower costs: BASIC=50, SLOW=80, AA=100, SNIPER=120, SPLASH=150, WALL=25
-- BFS pathfinding, cardinal directions only
-- CENTER_SPAWN: X 29-30, Y [14]
+## Best Result: Wave 9 (Exp 24)
+- Path: 43→45→47→54→64→68→70 (grew every wave!)
+- 0 leaks waves 1-4, perfect wave 6
+- ~120 towers built, path 70 at death
+- Greedy extension key to growth: +10 at wave 5, +4 at wave 6
 
-## Critical Lessons Learned
-1. Path extension without DPS is useless — WALLs extend path but enemies walk through unhurt
-2. Full-height columns (rows 0-29) prevent bypass; shorter columns always get bypassed
-3. Single-cell greedy doesn't work on open grids — only +1-2 per placement
-4. Greedy WORKS on constrained grids (after columns+towers placed)
-5. First column should use offense (near spawn), other columns use WALLs (cheap)
-6. chooseTowerType bug: must update towerTypeCounts DURING column planning, not just on commit
-7. Column budget must leave room for greedy and offense
-8. 2 full-height columns (1 offense + 1 WALL) = sweet spot for wave 1 budget (~1900c)
-9. Wave 2+ budgets are low (~250-350c) — mostly AA and incremental additions
+## Architecture
 
-## Design Principles
-1. Compact maze centered on spawn
-2. Full-height columns prevent bypass
-3. Mix of WALL (blocking) + offense (damage) — not ONLY one type
-4. First column = offense (damage), others = WALL (cheap blocking)
-5. Greedy path extension in constrained areas
-6. AA built proactively from wave 3+
+### Wave 1 Box Maze (RIGHT side)
+- Funnel: x=30, rows 10-18 (±4 from entrance), gap at row 14
+- Box: cols 31-37, rows 13-19 (W=7, H=7), 4 walls
+- Wall 0 (row 13): SOLID. Wall 1 (15): gap x=36. Wall 2 (17): gap x=32. Wall 3 (19): SOLID.
+- Side walls: x=31 (entrance gap row 14), x=37 (exit gap row 18)
+- Cost: ~38 BASIC × 50c = 1900c ≤ 1960c budget
 
-## Budget Math (Wave 1, ~1960c)
-- Column 1 (offense): 13 offense (rows 8-20) + 16 WALL = ~1050c
-- Column 2 (WALL): 29 cells × 25c = 725c
-- Total columns: ~1775c
-- Remaining: ~185c for greedy + offense fill
-- Path increase: +52 from 2 columns
+### Greedy Extension (waves 2+)
+- Uses 80% of remaining build budget after box cells placed
+- For each tower: try every cell on current BFS path, pick max path increase
+- Stops after 3 consecutive 0-gain placements
+- Very effective on constrained grid: +2 to +10 per wave
 
-## Experiments
+### Key Constraints
+- Grid: 60×30, RIGHT zone cols 30-59, spawn (30,14), goal x=59 rows 12-17
+- BASIC=50c, WALL=25c, SLOW=80c, AA=100c
+- Budget wave 1: 1960c (39 BASIC). Later waves: 300-1100c.
+- Internal wall gaps must be 1 cell INWARD from edge (not AT edge)
+- Funnel placed FIRST, maze walls second, side walls last
+- First/last walls SOLID, internal walls have alternating gaps
 
-### Exp 0-1 — Early greedy attempts
-- BROKEN — placement bugs, 0-1 towers placed
-
-### Exp 2 — Connected serpentine (band approach)
-- Died wave 6, path 30→44 (+14). Bypass above/below band.
-
-### Exp 3 — Capped serpentine with cap rows
-- Died wave 6, path 30→39. Cap rows had gaps, enemies bypassed.
-
-### Exp 4 — Full-height columns (mixed offense/WALL)
-- Died wave 5, path 30→55. 22 WALL + 26 offense. Good structure but path too short.
-- Maze stopped growing after wave 1 (budget too low for new columns).
-
-### Exp 5 — Full-height columns (plan all, grow over waves)
-- Died wave 5, path 30→55. Same structure, waves 2+ budget too low.
-
-### Exp 6 — Greedy path extension only
-- Died wave 5, path 30→31→48. Greedy placed only 1 WALL on open grid.
-- Wave 2 showed greedy works on constrained grids (+17 from 6 WALLs).
-
-### Exp 7 — All WALLs, max path
-- Died wave 4 (WORSE). Path 30→87 (+57). 78 WALLs, 0 offense. No DPS = useless.
-
-### Exp 8 — One offense column + WALLs (towerTypeCounts bug)
-- Died wave 5. Only 1 column built (too expensive with 13 SLOWs).
-- Bug: chooseTowerType saw stale towerTypeCounts → all got SLOW.
-
-### Exp 9 — Fixed: first column offense, second WALL ★ BEST
-- **Survived to wave 7! 0 leaks waves 1-5!**
-- Path 30→82 (+52). 59 towers: 45 WALL + 3 SLOW + 11 BASIC.
-- Wave 6: 8 leaked, 1 tower lost. Wave 7: died.
-- 191 killed, 31 leaked total. 4636c earned.
-- Key: first column offense (DPS) + second column WALL (cheap path extension)
-
-## Next Steps
-- [ ] Add more offense towers in later waves (currently budget goes to AA)
-- [ ] Try 3 columns wave 1 (reduce first column offense to save budget)
-- [ ] Add greedy extension after columns to push path beyond 82
-- [ ] Test if upgrading existing towers helps in mid-game
-- [ ] Evaluate optimal offense/WALL split per column
+## To Reach Wave 20
+- Need path 100+ and high DPS density
+- Maze expansion: somehow add switchback rows (hard: old solid wall blocks)
+- Tower upgrades: level 2-3 towers have 2-3× DPS
+- SLOW towers at gaps: enemies spend more time in killzone
+- SPLASH towers in corridors: hit multiple enemies in line
+- Consider wider maze (8+) when expansion budget allows

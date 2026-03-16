@@ -1,5 +1,14 @@
 # Session Log Archive
 
+## Session — 2026-03-15 Evening (Compact Box Maze — wave 4 to wave 13)
+- Full rewrite of maze.ts: compact box with horizontal switchback lanes
+- Solved: bypass prevention (funnel), gap positioning (1 inward from edge), side walls
+- Added greedy path extension (path grows 43→75 over 9 waves)
+- Tuned economy upgrade ratios (20% wave 5, 35% wave 8+)
+- KEY: WALL structural towers (25c) for funnel/caps/sides, BASIC (50c) for internal walls
+- Best result: **wave 13, path 173** (up from wave 7 at start of session)
+- Maze now matches Jason's design: compact box, horizontal switchbacks, proper DPS
+
 ## Session — 2026-03-15 PM (Maze Rewrite Experiments — 11 iterations)
 - Ran 11 experiments with automated test loop (greedy, columns, serpentine, WALL-heavy, mixed)
 - Best result: Exp 9 — wave 7, 0 leaks waves 1-5, path 82 (2 full-height columns, mixed offense/WALL)

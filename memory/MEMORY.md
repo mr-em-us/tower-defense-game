@@ -1,90 +1,83 @@
 # Project Memory -- Tower Defense Game
-Last Save: 2026-03-15 - 02:46 PM PST
+Last Save: 2026-03-15 - 09:56 PM PST
 
 ## Current State
-AI maze strategy still needs fundamental rewrite. Ran 11 experiments this session with various approaches (greedy, full-height columns, capped serpentine, WALL-heavy, offense-heavy). Best result: wave 7 survival with 2 full-height columns (1 offense + 1 WALL). But Jason's feedback is clear: this approach is **still fundamentally wrong**. The AI must build a COMPACT RECTANGULAR MAZE with horizontal switchback lanes, not tall skinny columns.
+AI maze strategy REWRITTEN and working well. Compact box maze with horizontal switchback lanes — matches Jason's design. Best result: **wave 13, path 173**. The AI now builds a proper maze like a human player would.
 
-Code in `server/ai/strategies/maze.ts` currently has the column-based approach. Needs full rewrite to compact box maze.
+### Architecture (current working code)
+- `server/ai/strategies/maze.ts` — compact box maze generator
+- Wave 1: builds box (7 wide, 5+ walls) with WALL structural + BASIC offense
+- Waves 2+: greedy path extension on BFS path + offense fill
+- Funnel column at zone edge prevents bypass
+- Economy upgrades start wave 5 (20%), scale to 35% wave 8+
 
-## *** NEXT SESSION: Compact Box Maze (THE correct approach) ***
+### Key Design Elements
+- Horizontal walls with 1-cell gaps (1 inward from edge) at alternating sides
+- Solid first/last walls seal the box
+- Side walls on corridor rows with entrance/exit openings
+- WALL towers (25c) for structure, BASIC (50c) for internal walls (DPS)
+- Greedy extension: places towers on BFS path to maximize path increase
+- Offense fill: SLOW/SPLASH/SNIPER adjacent to path for extra DPS
 
-### What Jason's Maze Looks Like (from screenshot comparison)
-- **Compact rectangular box** ~12 cols wide × 10-14 rows tall, centered on spawn
-- **Horizontal internal walls** running east-west, with 1-cell gaps at alternating ends
-- **Enemies snake through lanes** — forced up and down through 4-6 tight corridors
-- **ALL offense towers** — every tower deals damage, no wasted WALLs
-- **~40-50 BASIC towers** at 50c each = 2000-2500c. FITS wave 1 budget (2000c)!
-- The box itself prevents bypass — no need for full-height columns
+## Progress This Session (Compact Box Maze)
+- Rewrote maze.ts from scratch with box geometry
+- Solved bypass prevention (funnel column, side walls, solid caps)
+- Solved gap-vs-sidewall conflict (gaps 1 cell inward from edges)
+- Added greedy path extension for mid-game growth (path 43→75)
+- Added WALL structural towers (2× more cells per budget) → wave 13!
+- Tuned economy upgrade ratios (20% wave 5-7, 35% wave 8-12)
 
-### What the AI Must Do (from Jason's explicit feedback)
-1. Build a **box**, not columns. Compact rectangle near spawn.
-2. **Horizontal internal walls** with alternating gaps create switchback lanes.
-3. **Start with all offense towers** (BASIC). WALLs useful later for:
-   - Making larger mazes (cheaper blocking, but balance against DPS need)
-   - Protecting valuable upgraded towers ("inner courtyard" pattern)
-4. Tight 1-cell corridors. Maximum path per square foot.
-5. The structure prevents bypass by being sealed on the perimeter.
+## Experiment Results Summary
+- Exp 12-16: Box geometry iterations (bypass fixes, gap positioning)
+- Exp 17: First working switchbacks — path +13, wave 4
+- Exp 18: Width 7 box — path 43, wave 8-9
+- Exp 19-21: + greedy extension — path 70-75, wave 8-9
+- Exp 24: + upgrade economy — path 79, wave 10
+- **Exp 25: + WALL structural towers — path 173, wave 13!**
 
-### Budget Reality (Jason corrected me)
-- Wave 1 budget: 2000c. Jason built his entire maze on turn 1.
-- ~40 BASIC towers × 50c = 2000c. It fits perfectly.
-- I was wrong to think it couldn't fit — count the towers in the screenshot!
-
-### Key Implementation Notes
-- For RIGHT side: box roughly rows 8-22, cols 32-44
-- Internal horizontal walls at rows 10, 12, 14, 16, 18, 20 etc.
-- Each wall spans most of box width, gap at alternating left/right end
-- Enemies enter from spawn side, snake through all lanes, exit toward goal
-- Validate with findPath after each placement to ensure path exists
-- Band can grow outward in later waves
-
-### Key File
-- `server/ai/strategies/maze.ts` — full rewrite needed
+## Next Steps (toward wave 20)
+- [ ] Fix path drop at wave 11 (enemies destroying towers)
+- [ ] Better air defense scaling
+- [ ] Maze expansion: add switchback rows as budget allows
+- [ ] Tower protection: WALLs around upgraded towers ("courtyard" pattern)
+- [ ] Test LEFT side mirror behavior
 
 ## Uncommitted Work
-Experiment 11 code (column-based approach) in working tree. Being committed as checkpoint before next rewrite.
+- `server/ai/strategies/maze.ts` — compact box maze (fully rewritten)
+- `server/ai/strategies/economy.ts` — updated upgrade ratios
+- `memory/maze-experiments.md` — experiment log
 
 ## Recent Sessions
 
-### 2026-03-15 PM -- Maze Rewrite Experiments (11 iterations)
-- Ran 11 experiments with automated test loop
-- Tried: greedy, full-height columns, capped serpentine, WALL-heavy, mixed approaches
-- Best: Exp 9 — wave 7 survival, path 82, 0 leaks waves 1-5 (2 full-height columns, mixed offense/WALL)
-- Worst: Exp 7 — wave 4, all WALLs, path 87 but 0 DPS = useless
-- Jason compared screenshots: AI maze vs human maze. Night and day difference.
-- Jason's verdict: approach is STILL fundamentally wrong. Must build compact box maze.
-- Key lessons: path without DPS is useless; full-height columns waste 40% of towers at edges; compact box is the only correct geometry
+### 2026-03-15 Evening -- Compact Box Maze Implementation ★★★
+- Full rewrite of maze.ts to compact box with horizontal switchbacks
+- Iterated through ~15 experiments fixing bypass, gaps, expansion
+- Added greedy path extension + offense fill + WALL structural towers
+- Progress: wave 4 → wave 13. Path: 30 → 173.
+- Jason confirmed the maze shape matches his design
+
+### 2026-03-15 PM -- Column-Based Experiments (11 iterations)
+- Tried columns, serpentine, greedy — all fundamentally wrong
+- Jason showed screenshot comparison: his compact box vs AI columns
+- Decision: must build compact rectangular maze, not columns
 
 ### 2026-03-14 Late Night -- Maze Problem Diagnosis
-- Jason reviewed AI maze output, identified fundamental strategy flaws
+- Jason identified fundamental strategy flaws
 - Decision: full maze strategy rewrite needed
-
-### 2026-03-14 PM/Night -- AI Maze Iteration (Iter 7→8)
-- Best result: wave 15. Air wave was the killer.
-- Concluded: incremental tuning won't fix the core layout problem
-
-### 2026-03-14 PM -- AI Opponents + Port Change + Canvas Scaling
-- Port 8080→9090, canvas scaling fills screen
-- AI Opponents feature (full implementation)
-- Menu UI: Single Player / Play vs AI / Watch AI Play
 
 ## Known Issues / Tech Debt
 - [ ] Leaderboard data only persists locally (data/leaderboard.json)
 - [ ] No tests exist
 - [ ] Multiplayer room management is basic
 - [ ] Full GameState broadcast every tick (no delta compression)
-- [ ] format.ts utility created but unused (toLocaleString used directly)
 - [ ] Save/resume is singleplayer only (BUILD phase only)
-- [ ] SavePanel onLoad callback gets stale if user goes Back then reopens
 
 ## User Preferences
 - Username: Jason
 - Timezone: PST (America/Los_Angeles)
 - Prefers thorough testing via preview server after changes
 - Values game balance -- wants difficulty to feel fair, not punishing
-- Likes parallel agent workflows for large features
-- Prefers memos/output displayed as text in chat, not just saved to files
-- AI difficulty should be based on decision quality, NOT cheats (same resources/info)
+- AI difficulty should be based on decision quality, NOT cheats
 
 ## Shared Docs (git-tracked in .claude/docs/)
 - `architecture.md` -- Server/client data flow, system pipeline, network protocol

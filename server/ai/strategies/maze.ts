@@ -67,6 +67,41 @@ export function generateMazeLayout(
   // Width stays compact (7). Growth is via more rows (numWalls increases with budget).
   const box = generateBoxMaze(state, side, wave, mazeBudget);
 
+  // === 1.5. TARGETED SELL — open gaps in old seal walls that became internal ===
+  // When maze grows (more walls), the old bottom seal becomes an internal wall.
+  // It was solid, but now needs a gap for the switchback to work.
+  const sellTowerIds: string[] = [];
+  for (let w = 1; w < box.numWalls - 1; w++) {
+    const wallY = box.mazeTop + w * 2;
+    const gapAtRight = w % 2 === 1;
+    const gapX = gapAtRight ? (box.mazeRight - 1) : (box.mazeLeft + 1);
+
+    // If there's an existing tower at the gap position, sell it
+    if (state.grid.cells[wallY]?.[gapX] === CellType.TOWER) {
+      const tower = Object.values(state.towers).find(
+        t => t.position.x === gapX && t.position.y === wallY && t.ownerId === playerId
+      );
+      if (tower) {
+        sellTowerIds.push(tower.id);
+        state.grid.cells[wallY][gapX] = CellType.EMPTY;
+        log(`[MAZE] Sell gap: (${gapX},${wallY}) for switchback w=${w}`);
+      }
+    }
+  }
+  // Also open the exit corridor — lastCorridorY on goal side needs no wall
+  const lastCorridorY = box.mazeTop + (box.numWalls - 1) * 2 - 1;
+  const goalSideX = side === PlayerSide.RIGHT ? box.mazeRight : box.mazeLeft;
+  if (state.grid.cells[lastCorridorY]?.[goalSideX] === CellType.TOWER) {
+    const tower = Object.values(state.towers).find(
+      t => t.position.x === goalSideX && t.position.y === lastCorridorY && t.ownerId === playerId
+    );
+    if (tower) {
+      sellTowerIds.push(tower.id);
+      state.grid.cells[lastCorridorY][goalSideX] = CellType.EMPTY;
+      log(`[MAZE] Sell exit: (${goalSideX},${lastCorridorY})`);
+    }
+  }
+
   // === 2. BATCH PLACE ===
   // Place ALL new maze cells at once, validate with single path check.
   const batchCells: MazeCell[] = [];
@@ -168,26 +203,36 @@ export function generateMazeLayout(
   }
 
   // === 4. OFFENSE FILL ===
+  // Place DPS towers near the path (within 2 cells). Prioritize cells closer
+  // to the path and inside the maze box (corridors) for maximum coverage.
   const fillBudget = mazeBudget - spent;
-  if (fillBudget >= 50 && wave >= 3) {
+  if (fillBudget >= 50 && wave >= 2) {
     const fillPath = findPath(state.grid, side);
     if (fillPath) {
       const pathSet = new Set(fillPath.map(c => `${c.x},${c.y}`));
       const checked = new Set<string>();
-      const candidates: { x: number; y: number }[] = [];
+      const candidates: { x: number; y: number; dist: number }[] = [];
 
+      // Search within 2 cells of path
       for (const cell of fillPath) {
-        for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-          const nx = cell.x + dx, ny = cell.y + dy;
-          const key = `${nx},${ny}`;
-          if (checked.has(key) || pathSet.has(key)) continue;
-          checked.add(key);
-          if (nx < xMin || nx > xMax || ny < 0 || ny >= GRID.HEIGHT) continue;
-          if (state.grid.cells[ny][nx] !== CellType.EMPTY) continue;
-          if (isInSpawnZone(nx, ny)) continue;
-          candidates.push({ x: nx, y: ny });
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dy = -2; dy <= 2; dy++) {
+            if (dx === 0 && dy === 0) continue;
+            const dist = Math.abs(dx) + Math.abs(dy);
+            if (dist > 2) continue;
+            const nx = cell.x + dx, ny = cell.y + dy;
+            const key = `${nx},${ny}`;
+            if (checked.has(key) || pathSet.has(key)) continue;
+            checked.add(key);
+            if (nx < xMin || nx > xMax || ny < 0 || ny >= GRID.HEIGHT) continue;
+            if (state.grid.cells[ny][nx] !== CellType.EMPTY) continue;
+            if (isInSpawnZone(nx, ny)) continue;
+            candidates.push({ x: nx, y: ny, dist });
+          }
         }
       }
+      // Closer cells first
+      candidates.sort((a, b) => a.dist - b.dist);
 
       let fillSpent = 0;
       for (const c of candidates) {
@@ -218,12 +263,27 @@ export function generateMazeLayout(
   const aaSpent = placeAADefense(state, playerId, side, aaBudget, wave, placements, simulated);
   spent += aaSpent;
 
-  // Restore grid
+  // Restore grid (placements + sold cells)
   for (const cell of simulated) {
     state.grid.cells[cell.y][cell.x] = CellType.EMPTY;
   }
+  // Restore sold cells back to TOWER (sell hasn't happened yet in real game)
+  for (const towerId of sellTowerIds) {
+    const tower = state.towers[towerId];
+    if (tower) {
+      state.grid.cells[tower.position.y][tower.position.x] = CellType.TOWER;
+    }
+  }
 
-  // Measure final path
+  // Measure final path (simulate sells + placements)
+  const soldCellsRestored: { x: number; y: number }[] = [];
+  for (const towerId of sellTowerIds) {
+    const tower = state.towers[towerId];
+    if (tower && state.grid.cells[tower.position.y][tower.position.x] === CellType.TOWER) {
+      state.grid.cells[tower.position.y][tower.position.x] = CellType.EMPTY;
+      soldCellsRestored.push({ x: tower.position.x, y: tower.position.y });
+    }
+  }
   const simCells: { x: number; y: number }[] = [];
   for (const p of placements) {
     if (state.grid.cells[p.y][p.x] === CellType.EMPTY) {
@@ -239,12 +299,13 @@ export function generateMazeLayout(
     log(`[MAZE] Path trace: ${pathStr}${pathAfter.length > 30 ? '...' : ''}`);
   }
   for (const c of simCells) state.grid.cells[c.y][c.x] = CellType.EMPTY;
+  for (const c of soldCellsRestored) state.grid.cells[c.y][c.x] = CellType.TOWER;
 
   const typeStr = Object.entries(towerTypeCounts).map(([t, c]) => `${t}:${c}`).join(' ');
   log(`[MAZE] Wave ${wave} | Budget ${budget} | Spent ${spent}c (${typeStr}) AA:${aaSpent}c | Path: ${pathLenBefore} -> ${pathLenAfter} | Placed ${placements.length} towers`);
 
-  // No sells — purely additive
-  return { placements, sellTowerIds: [] };
+  // Targeted sells only (gap openings for expanded switchbacks)
+  return { placements, sellTowerIds };
 }
 
 /**
@@ -296,10 +357,21 @@ function generateBoxMaze(
   const mazeCreditBudget = mazeTowerBudget * basicCost;
   const effectiveCreditBudget = mazeCreditBudget + existingMazeCost;
 
+  // Count existing wall rows to limit growth rate (+2 walls/wave max)
+  let existingWallRows = 0;
+  for (let y = 0; y < GRID.HEIGHT; y++) {
+    let solidCount = 0;
+    for (let x = xMin + 1; x <= xMax - 1; x++) {
+      if (state.grid.cells[y][x] === CellType.TOWER) solidCount++;
+    }
+    if (solidCount >= mazeWidth - 2) existingWallRows++;
+  }
+  const maxWallsThisWave = Math.max(4, existingWallRows + 2);
+
   // Compute numWalls based on budget
   const sliceCreditCost = (mazeWidth - 1) * basicCost + 2 * wallPrice;
   let numWalls = 2 + Math.floor((effectiveCreditBudget - 2 * mazeWidth * wallPrice) / sliceCreditCost);
-  numWalls = Math.max(2, Math.min(numWalls, 12));
+  numWalls = Math.max(2, Math.min(numWalls, maxWallsThisWave, 12));
 
   const estCost = (w: number) => {
     const solidCost = 2 * mazeWidth * wallPrice;

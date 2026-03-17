@@ -1,3 +1,22 @@
 # 2026-03-17 Morning Session
 
-- 08:23 AM — Session started. No changes since last save (03/15 9:56 PM). Reviewed next steps with Jason.
+- 08:23 AM — Session started. No changes since last save (03/15 9:56 PM).
+- 08:30 AM — Booted server, Jason played AI game. AI reached wave 7-10 but had issues.
+- 08:45 AM — Jason identified: no return corridor after maze exit, enemies go straight right.
+- 09:00 AM — Tried return corridor (failed — just a straight hallway, no maze value).
+- 09:10 AM — Tried aggressive box widening (failed — old gap positions can't be filled).
+- 09:20 AM — Tried cell ordering fix (failed — interdependent cells can't be fixed with ordering).
+- 09:30 AM — Jason: "build like a human, additively, never destructively. Like building a road."
+- 09:40 AM — Switched to additive growth: more rows downward, not wider. No sells.
+- 09:50 AM — Side wall priority fix: generate funnel → seals → side walls → internal walls.
+- 10:00 AM — Created headless AI test endpoint `/api/ai-test?speed=4` for fast iteration.
+- 10:10 AM — Baseline test: wave 5, path stuck at 43 (old seal walls block new switchback gaps).
+- 10:20 AM — KEY FIX: targeted sells of specific gap cells in repurposed seal walls.
+- 10:30 AM — Test: wave 12, 464 HP, path 43→61. But game hangs at wave 11+.
+- 10:40 AM — Added growth limiting (+2 walls/wave max). Test: wave 10.
+- 10:50 AM — Expanded offense fill to radius 2, starting wave 2.
+- 11:00 AM — Fixed game hang: broadcast JSON.stringify runs every tick even with no listeners.
+- 11:05 AM — Added `hasOpen` check to skip broadcast when no connections are OPEN.
+- 11:10 AM — **BREAKTHROUGH: Wave 20, 500 HP, zero leaks waves 1-19!**
+- 11:20 AM — Confirmation test: wave 15 (leaked 2 flying wave 6 = key vulnerability).
+- 01:42 PM — Save requested.

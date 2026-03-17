@@ -300,14 +300,26 @@ export class GameRoom {
 
   private autoRepairCounter = 0;
 
+  private tickCounter = 0;
   private tick(dt: number): void {
     const adjustedDt = dt * this.state.gameSpeed;
     const now = Date.now() / 1000;
+    const t0 = performance.now();
     this.phaseSystem.update(this.state, adjustedDt);
     this.waveSystem.update(this.state, adjustedDt);
     this.enemySystem.update(this.state, adjustedDt);
     this.towerSystem.update(this.state, adjustedDt, now);
     this.projectileSystem.update(this.state, adjustedDt);
+    const elapsed = performance.now() - t0;
+    this.tickCounter++;
+    if (this.tickCounter % 200 === 0) {
+      const ec = Object.keys(this.state.enemies).length;
+      const tc = Object.keys(this.state.towers).length;
+      const pc = Object.keys(this.state.projectiles).length;
+      if (ec > 0 || elapsed > 10) {
+        log(`[PERF] Tick ${this.tickCounter}: ${elapsed.toFixed(1)}ms | Phase: ${this.state.phase} | Enemies: ${ec} (remaining: ${this.state.waveEnemiesRemaining}) | Towers: ${tc} | Projectiles: ${pc}`);
+      }
+    }
 
     // Detect phase transitions for wave stats tracking
     if (this.prevPhase === GamePhase.COMBAT && this.state.phase === GamePhase.BUILD) {
@@ -1069,6 +1081,13 @@ export class GameRoom {
   // --- Networking ---
 
   private broadcast(msg: ServerMessage): void {
+    // Skip expensive JSON.stringify if no connections are open
+    let hasOpen = false;
+    for (const ws of this.connections.values()) {
+      if (ws.readyState === WebSocket.OPEN) { hasOpen = true; break; }
+    }
+    if (!hasOpen) return;
+
     const data = JSON.stringify(msg);
     for (const ws of this.connections.values()) {
       if (ws.readyState === WebSocket.OPEN) {

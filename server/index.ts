@@ -28,6 +28,40 @@ const MIME_TYPES: Record<string, string> = {
 const httpServer = http.createServer((req, res) => {
   const url = new URL(req.url!, `http://localhost:${PORT}`);
 
+  // --- AI Test endpoint (headless, no browser needed) ---
+  if (url.pathname === '/api/ai-test' && req.method === 'GET') {
+    const speed = parseInt(url.searchParams.get('speed') || '4', 10);
+    const testRoom = new GameRoom(GameMode.OBSERVER);
+    const dummyWs = { readyState: 0, send: () => {} } as unknown as import('ws').WebSocket;
+    const dummyId = 'test-' + uuid();
+    testRoom.addPlayer(dummyId, dummyWs, 'TestBot');
+    // Override speed
+    const dummyPlayer = Object.values((testRoom as any).state.players).find((p: any) => !p.isAI) as any;
+    if (dummyPlayer) dummyPlayer.requestedSpeed = speed;
+    (testRoom as any).updateGameSpeed();
+
+    testRoom.onGameOver = (results) => {
+      const aiResult = results.find(r => r.playerName !== 'TestBot');
+      const humanResult = results.find(r => r.playerName === 'TestBot');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        waveReached: aiResult?.waveReached ?? 0,
+        aiName: aiResult?.playerName ?? 'unknown',
+        aiHealth: aiResult?.playerHealth ?? 0,
+        humanHealth: humanResult?.playerHealth ?? 0,
+      }));
+    };
+    // Timeout after 5 minutes
+    setTimeout(() => {
+      if (!res.writableEnded) {
+        res.writeHead(408, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'timeout', waveReached: (testRoom as any).state.waveNumber }));
+        (testRoom as any).stopLoop();
+      }
+    }, 300000);
+    return;
+  }
+
   // --- Leaderboard API routes ---
   if (url.pathname === '/api/leaderboard' && req.method === 'GET') {
     const mode = (url.searchParams.get('mode') || 'SINGLE') as GameMode;

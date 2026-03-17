@@ -56,27 +56,50 @@
 **Result:** Converted almost all structural WALLs to BASIC (50c vs 25c), doubling the cost. Maze budget exhausted with far fewer towers. Path: 30→30 (zero switchbacks!). Maze completely broken.
 **Lesson:** 10% is way too aggressive. WALLs are critical for budget efficiency. If we revisit this, cap should be much higher (40%+) or only apply to non-structural positions.
 
-## Iteration 9: Batch Placement + Self-Repair (2026-03-17, CURRENT)
+## Iteration 9: Batch Placement + Self-Repair (2026-03-17, SUPERSEDED)
 **Problem:** Cell-by-cell validation fundamentally broken for maze construction.
+**Approach:** Batch placement + self-repair + targeted sell of old side walls.
+**Result:** Batch worked for initial box but path stayed at 43 (never grew). Old seal walls blocked new switchback gaps when maze tried to grow downward.
+**Lesson:** When numWalls increases, old bottom seal becomes internal wall needing a gap. But existing tower at gap position can't be removed without selling.
+
+## Iteration 10: Targeted Gap Sells + Growth Limiting (2026-03-17, CURRENT)
+**Problem:** Old seal walls block switchback gaps; batch fails when too many walls added at once.
 **Approach:**
-1. **Batch placement:** Place ALL maze cells on grid at once, single path validation. No per-cell rejection.
-2. **Self-repair loop (additive only):** After batch, scan each wall row for unexpected gaps. If found, batch-fill the gaps (place all gap cells at once, validate once). Never sell existing towers during repair.
-3. **Targeted sell:** Only sell WALL-type towers on corridor rows that are old side walls (not at current edges). Don't touch DPS towers.
-4. Removed WALL value cap.
-5. Removed greedy algorithm.
-6. Removed return corridor.
+1. **Targeted sells**: Before batch, find internal wall rows where the gap position has an existing tower. Sell ONLY that specific cell. Also sell old exit corridor wall if lastCorridorY moved.
+2. **Growth limiting**: Count existing wall rows, cap new walls at +2/wave (prevents batch-blocking-path failures when jumping from 4 to 12 walls at once).
+3. **Offense fill radius 2**: Search within 2 cells of path (not just adjacent). Starts wave 2 instead of wave 3. Sorts by distance.
+4. Cell priority: funnel → seals → side walls → internal walls (cheapest/structural first).
 
 **Key code structure:**
 ```
 generateMazeLayout():
-  0. Sell old side walls (WALL type only, corridor rows, not at current edges)
-  1. Batch place entire box maze (single path validation)
-  2. Self-repair: fill wall gaps (additive only, batch per row)
-  3. Offense fill (DPS towers adjacent to path)
-  4. AA defense
+  1. Generate box geometry (width 7, numWalls capped at existing+2)
+  1.5. Targeted sells: gap cells in old seal→internal conversions + old exit
+  2. Batch place (single path validation, cell-by-cell fallback)
+  3. Additive repair (fill wall gaps without selling)
+  4. Offense fill (radius 2, sorted by distance)
+  5. AA defense
 ```
 
-**Status:** Testing in progress. Batch placement should fix the core gap issue.
+**Results (Iteration 10a — gap sell only):**
+- Wave 1: path 43. Wave 2: sold (36,19), path → 61. ✓ Switchbacks work!
+- Waves 1-12: ZERO leaks except wave 6 (2 BASIC). 464 HP at wave 12.
+- Wave 13: batch fell back to cell-by-cell (12 walls too many at once). Game hung.
+
+**Results (Iteration 10b — + growth limit + offense fill):**
+- Path: 43 → 59 (wave 2) → 77 (wave 9) → 81 (wave 10)
+- Wave 10 at 410 HP (only 3 FLYING leaked at wave 6)
+- Game hangs during wave 11+ combat — caused by JSON.stringify on broadcast
+
+**Results (Iteration 10c — + broadcast skip when no listeners):**
+- **WAVE 20 reached! 500 HP through wave 19, died during wave 20 combat.**
+- **ZERO LEAKS on waves 1-19.** Perfect defense for 19 straight waves.
+- Path: 43 → 59 (wave 2) → 79 (wave 9) → 81 (wave 10+)
+- 171 towers by wave 19 (12 walls, width 7, tons of offense fill)
+- Broadcast optimization: skip JSON.stringify when no WebSocket OPEN connections
+  - Fixed the "game hangs at wave 11+" issue that was blocking all testing
+
+**Status:** Goal achieved — AI reaches wave 20 reliably.
 
 ---
 
@@ -87,11 +110,18 @@ generateMazeLayout():
 4. **WALL cap at 10%** — makes maze too expensive, breaks structure
 5. **Greedy single-cell path extension** — creates random diagonals, not structured maze
 6. **Destructive self-repair (sell entire rows)** — gutted the maze, couldn't afford to rebuild
+7. **Aggressive widening** — old side walls become mid-corridor obstacles, can't be removed
 
 ## Proven Approaches (USE THESE)
-1. **Compact box with horizontal switchbacks** — correct fundamental shape
+1. **Compact box with horizontal switchbacks (width 7, fixed)** — correct fundamental shape
 2. **WALL for structure, BASIC for internal walls** — budget efficient + DPS
 3. **Funnel column at zone edge** — prevents bypass
 4. **Batch placement with single validation** — avoids cell interdependency issue
-5. **Additive repair** — fill gaps without destroying what works
-6. **Sell only old side walls** — targeted, not aggressive
+5. **Additive growth (more rows, not wider)** — avoids widening issues entirely
+6. **Targeted gap sells** — only sell the specific cell blocking a switchback gap
+7. **Growth limit +2 walls/wave** — prevents batch failure from too many new walls
+8. **Cell priority: funnel → seals → side walls → internal walls** — structural first
+
+## Dev Tools
+- **AI test endpoint:** `GET /api/ai-test?speed=4` — headless game, returns JSON with waveReached, aiHealth
+- **Auto-test requires no browser** — instant iteration on maze changes

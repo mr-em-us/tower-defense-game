@@ -99,7 +99,33 @@ generateMazeLayout():
 - Broadcast optimization: skip JSON.stringify when no WebSocket OPEN connections
   - Fixed the "game hangs at wave 11+" issue that was blocking all testing
 
-**Status:** Goal achieved — AI reaches wave 20 reliably.
+**Status:** Best single-box result. AA buff needed separately.
+
+## Iteration 11: AA Tower Balance Buff (2026-03-17 PM, CURRENT ★★★)
+**Problem:** Flying enemies too powerful. AA does 15 dmg/shot (5 base × 3x), ground towers do 25% damage (nearly useless). Wave 9/13 air waves kill the AI.
+**Changes (in shared/types/constants.ts and server/systems/ProjectileSystem.ts):**
+1. AA damage: 5 → 8 (= 24/shot vs flying, 108 DPS per tower)
+2. Ground vs flying multiplier: 0.25 → 0.40 (SNIPER now does 20 vs flying)
+**Result (iteration 10 single-box code + AA buff):**
+- **WAVE 22+ reached! Timed out at 5 min limit, AI still alive at 41 HP!**
+- Waves 1-8: ZERO leaks, 500 HP
+- Wave 9: 3 FLYING leaked → 383 HP
+- Waves 10-17: ZERO leaks, 383 HP
+- Wave 18: 3 FLYING leaked → 41 HP
+- Waves 19-21: ZERO leaks, 41 HP, still going
+- 169 towers by wave 20, path ~81
+- Only 6 total enemies leaked across 21+ waves (all FLYING)
+**Key insight:** The AA buff was the critical missing piece. The maze strategy (iteration 10) was already excellent — the problem was AA tower balance, not maze design.
+
+## Iteration 11b: Chained Boxes (2026-03-17 PM, ABANDONED)
+**Problem:** Single box maxes out at ~8 walls (grid height limit), path ~81. Need more path length.
+**Approach:** Build box 2 (cols 39-45) adjacent to box 1 (cols 31-37), connected via last corridor. Enemies exit box 1, enter box 2 for double path length.
+**Result:** Box 2 built correctly but enemies BYPASSED it entirely. Path stayed at 75.
+**Root cause 1:** Old exit corridors (where lastCorridorY was before maze grew) leave holes in the goal-side wall. Enemies escape through these holes instead of going to the current exit.
+**Root cause 2:** Corridor side wall repair (one-at-a-time with path validation) FAILS because blocking the current escape route blocks the current path, even though a longer valid path exists.
+**Root cause 3:** Box 2's entrance/exit logic was wrong — needed entrance at bottom spawn side, exit at top goal side for proper upward traversal.
+**Lesson:** Chained boxes require solving the "old exit hole" problem first. The corridor side wall repair is subject to the same cell-by-cell validation trap as the old gap fill issue. Need batch placement for corridor repairs too.
+**Decision:** REVERTED to single-box (iteration 10). The complexity of chained boxes is high and the core issue (old exit holes) is not yet solved.
 
 ---
 
@@ -111,6 +137,7 @@ generateMazeLayout():
 5. **Greedy single-cell path extension** — creates random diagonals, not structured maze
 6. **Destructive self-repair (sell entire rows)** — gutted the maze, couldn't afford to rebuild
 7. **Aggressive widening** — old side walls become mid-corridor obstacles, can't be removed
+8. **Chained boxes without solving old exit holes** — enemies bypass box 2 entirely
 
 ## Proven Approaches (USE THESE)
 1. **Compact box with horizontal switchbacks (width 7, fixed)** — correct fundamental shape

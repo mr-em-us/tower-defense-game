@@ -69,7 +69,7 @@ export class ProjectileSystem {
       if (tower && tower.type === TowerType.AA) {
         finalDamage = Math.round(damage * 3);
       } else {
-        finalDamage = Math.round(damage * 0.25);
+        finalDamage = Math.round(damage * 0.4);
       }
     }
     enemy.health -= finalDamage;

@@ -1,5 +1,6 @@
-# 2026-03-17 Morning Session
+# 2026-03-17 Full Day Session
 
+## Morning (saved at 01:42 PM)
 - 08:23 AM — Session started. No changes since last save (03/15 9:56 PM).
 - 08:30 AM — Booted server, Jason played AI game. AI reached wave 7-10 but had issues.
 - 08:45 AM — Jason identified: no return corridor after maze exit, enemies go straight right.
@@ -10,13 +11,20 @@
 - 09:40 AM — Switched to additive growth: more rows downward, not wider. No sells.
 - 09:50 AM — Side wall priority fix: generate funnel → seals → side walls → internal walls.
 - 10:00 AM — Created headless AI test endpoint `/api/ai-test?speed=4` for fast iteration.
-- 10:10 AM — Baseline test: wave 5, path stuck at 43 (old seal walls block new switchback gaps).
 - 10:20 AM — KEY FIX: targeted sells of specific gap cells in repurposed seal walls.
-- 10:30 AM — Test: wave 12, 464 HP, path 43→61. But game hangs at wave 11+.
-- 10:40 AM — Added growth limiting (+2 walls/wave max). Test: wave 10.
-- 10:50 AM — Expanded offense fill to radius 2, starting wave 2.
-- 11:00 AM — Fixed game hang: broadcast JSON.stringify runs every tick even with no listeners.
-- 11:05 AM — Added `hasOpen` check to skip broadcast when no connections are OPEN.
+- 11:00 AM — Fixed game hang: broadcast JSON.stringify bottleneck.
 - 11:10 AM — **BREAKTHROUGH: Wave 20, 500 HP, zero leaks waves 1-19!**
-- 11:20 AM — Confirmation test: wave 15 (leaked 2 flying wave 6 = key vulnerability).
-- 01:42 PM — Save requested.
+- 01:42 PM — First save.
+
+## Afternoon
+- 01:45 PM — Jason observed air enemies way too powerful. Investigated AA balance.
+- 02:00 PM — Diagnosis: AA does 15/shot (5×3), ground towers 25% = useless vs flying.
+- 02:10 PM — AA buff: damage 5→8 (24/shot vs flying), ground multiplier 0.25→0.40.
+- 02:15 PM — Test: wave 13, zero leaks on wave 6 (was the old killer). But died wave 13.
+- 02:20 PM — Tried chained boxes (box 2 at cols 39-45 adjacent to box 1).
+- 02:30 PM — Box 2 built but enemies bypass it. Path stuck at 75 (same as single box).
+- 02:40 PM — Root cause: old exit corridor holes not sealed (cell-by-cell validation trap).
+- 02:50 PM — Tried corridor side wall repair — sealed wrong cells (x=0 bug).
+- 03:00 PM — ABANDONED chained boxes. Reverted to single-box + AA buff.
+- 03:05 PM — **WAVE 22+! Timed out, AI still alive at 41 HP. Only 6 leaks in 21 waves.**
+- 03:12 PM — Save requested.

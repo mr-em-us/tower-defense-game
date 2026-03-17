@@ -4,27 +4,30 @@
 - 08:23 AM — Session started. No changes since last save (03/15 9:56 PM).
 - 08:30 AM — Booted server, Jason played AI game. AI reached wave 7-10 but had issues.
 - 08:45 AM — Jason identified: no return corridor after maze exit, enemies go straight right.
-- 09:00 AM — Tried return corridor (failed — just a straight hallway, no maze value).
-- 09:10 AM — Tried aggressive box widening (failed — old gap positions can't be filled).
-- 09:20 AM — Tried cell ordering fix (failed — interdependent cells can't be fixed with ordering).
-- 09:30 AM — Jason: "build like a human, additively, never destructively. Like building a road."
-- 09:40 AM — Switched to additive growth: more rows downward, not wider. No sells.
-- 09:50 AM — Side wall priority fix: generate funnel → seals → side walls → internal walls.
-- 10:00 AM — Created headless AI test endpoint `/api/ai-test?speed=4` for fast iteration.
-- 10:20 AM — KEY FIX: targeted sells of specific gap cells in repurposed seal walls.
-- 11:00 AM — Fixed game hang: broadcast JSON.stringify bottleneck.
-- 11:10 AM — **BREAKTHROUGH: Wave 20, 500 HP, zero leaks waves 1-19!**
+- 09:00-09:20 AM — Tried return corridor, widening, cell ordering — all failed.
+- 09:30 AM — Jason: "build like a human, additively, never destructively."
+- 10:00 AM — Created headless AI test endpoint.
+- 10:20 AM — KEY FIX: targeted sells of specific gap cells.
+- 11:10 AM — **Wave 20, 500 HP, zero leaks waves 1-19!**
 - 01:42 PM — First save.
 
-## Afternoon
-- 01:45 PM — Jason observed air enemies way too powerful. Investigated AA balance.
-- 02:00 PM — Diagnosis: AA does 15/shot (5×3), ground towers 25% = useless vs flying.
-- 02:10 PM — AA buff: damage 5→8 (24/shot vs flying), ground multiplier 0.25→0.40.
-- 02:15 PM — Test: wave 13, zero leaks on wave 6 (was the old killer). But died wave 13.
-- 02:20 PM — Tried chained boxes (box 2 at cols 39-45 adjacent to box 1).
-- 02:30 PM — Box 2 built but enemies bypass it. Path stuck at 75 (same as single box).
-- 02:40 PM — Root cause: old exit corridor holes not sealed (cell-by-cell validation trap).
-- 02:50 PM — Tried corridor side wall repair — sealed wrong cells (x=0 bug).
-- 03:00 PM — ABANDONED chained boxes. Reverted to single-box + AA buff.
-- 03:05 PM — **WAVE 22+! Timed out, AI still alive at 41 HP. Only 6 leaks in 21 waves.**
-- 03:12 PM — Save requested.
+## Afternoon (saved at 03:12 PM)
+- 01:45 PM — Diagnosed air enemy balance problem.
+- 02:10 PM — AA buff: damage 5→8, ground-vs-flying 0.25→0.40.
+- 02:20-02:50 PM — Chained boxes attempt — abandoned (enemies bypass).
+- 03:05 PM — **Wave 22+, timed out, 41 HP. Only 6 leaks in 21 waves.**
+- 03:12 PM — Second save.
+
+## Late Afternoon
+- 03:15 PM — Jason: AI still losing HP to air at wave 5-6.
+- 03:20 PM — Added countdown-driven AA reserve (ramps with airWaveCountdown).
+- 03:25 PM — Over-aggressive AA (wave 8 death) → added 35% budget cap.
+- 03:30 PM — Test: wave 23+, first leak wave 12. Better.
+- 03:35 PM — Jason: "don't hold back credits, just spend everything."
+- 03:38 PM — No-reserve test: wave 14, died (no AA budget at all). Reverted.
+- 03:40 PM — Expanded AA search rows 5-25, higher baseline target (2+wave/3).
+- 03:42 PM — Jason: still leaks at wave 6. Widened AA search area.
+- 03:45 PM — Upgrade ratio capped at 45%, uncapped late-game AA spending.
+- 03:48 PM — Jason: 75k credits unspent at wave 22. Offense fill at radius 4 creates useless walls.
+- 03:50 PM — Reverted offense fill to radius 2. Uncapped AA with leftover budget.
+- 03:52 PM — Jason: "hacky, maze can't turn upward, only air does damage." Save requested.

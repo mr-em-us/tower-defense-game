@@ -56,8 +56,16 @@ export function generateMazeLayout(
   const towerTypeCounts: Record<string, number> = {};
   const placements: PlannedPlacement[] = [];
 
-  const airWaveImminent = state.airWaveCountdown >= 0 && state.airWaveCountdown <= 3;
-  const aaReserve = (airWaveImminent || wave >= 3) ? 200 : 0;
+  const airCountdown = state.airWaveCountdown; // -1 = none, 0 = this wave, 1-3 = N waves away
+  const airWaveImminent = airCountdown >= 0 && airCountdown <= 3;
+  // AA reserve based on air countdown urgency — ramp up as air approaches
+  // Capped at 35% of budget so maze never starves
+  let aaReserve = 200;
+  if (airCountdown === 3) aaReserve = 200 + wave * 20;
+  else if (airCountdown === 2) aaReserve = 300 + wave * 25;
+  else if (airCountdown === 1) aaReserve = 400 + wave * 30;
+  else if (airCountdown === 0) aaReserve = 500 + wave * 40;
+  aaReserve = Math.min(aaReserve, Math.floor(budget * 0.35));
   const mazeBudget = budget - aaReserve;
 
   const xMin = side === PlayerSide.RIGHT ? GRID.RIGHT_ZONE_START : 0;
@@ -213,7 +221,7 @@ export function generateMazeLayout(
       const checked = new Set<string>();
       const candidates: { x: number; y: number; dist: number }[] = [];
 
-      // Search within 2 cells of path
+      // Search within 2 cells of path — stay close to maze structure
       for (const cell of fillPath) {
         for (let dx = -2; dx <= 2; dx++) {
           for (let dy = -2; dy <= 2; dy++) {
@@ -477,7 +485,7 @@ function placeAADefense(
   placements: PlannedPlacement[],
   simulated: { x: number; y: number }[],
 ): number {
-  if (wave < 3 && !(state.airWaveCountdown >= 0 && state.airWaveCountdown <= 3)) return 0;
+  if (wave < 2) return 0;
 
   const existingAA = Object.values(state.towers)
     .filter(t => t.ownerId === playerId && t.type === TowerType.AA).length;
@@ -485,11 +493,29 @@ function placeAADefense(
   const totalAA = existingAA + plannedAA;
 
   const airWaveImminent = state.airWaveCountdown >= 0 && state.airWaveCountdown <= 3;
-  const aaTarget = airWaveImminent
-    ? 3 + Math.floor(wave / 3)
-    : 2 + Math.floor(wave / 5);
+  // AA target: light insurance normally, surge when air is coming
+  const airCountdown = state.airWaveCountdown;
+  let aaTarget: number;
+  if (airCountdown === 0) {
+    // Air THIS wave — maximum AA (but realistic for budget)
+    aaTarget = 4 + Math.floor(wave * 0.6);
+  } else if (airCountdown === 1) {
+    // Air next wave — heavy build
+    aaTarget = 4 + Math.floor(wave * 0.5);
+  } else if (airCountdown === 2 || airCountdown === 3) {
+    // Air in 2-3 waves — ramp up
+    aaTarget = 4 + Math.floor(wave / 3);
+  } else {
+    // No air warning — build steady AA so we're never caught off guard
+    // By wave 10 we want ~5 AA, by wave 15 ~7 AA as baseline
+    aaTarget = 2 + Math.floor(wave / 3);
+  }
 
-  const aaNeeded = Math.max(0, aaTarget - totalAA);
+  let aaNeeded = Math.max(0, aaTarget - totalAA);
+  // Late game: if we have excess budget, uncap AA — spend it all on air defense
+  if (wave >= 10 && totalBudget > 500) {
+    aaNeeded = Math.max(aaNeeded, Math.floor(totalBudget / getDynamicPrice(state, TowerType.AA)));
+  }
   if (aaNeeded === 0) return 0;
 
   const aaCost = getDynamicPrice(state, TowerType.AA);
@@ -502,10 +528,13 @@ function placeAADefense(
     .map(t => t.position);
 
   const candidates: { x: number; y: number; score: number }[] = [];
-  for (let y = 11; y <= 19 && y < GRID.HEIGHT; y++) {
+  // Search wide area — AA has range 6, so towers further out still help
+  for (let y = 5; y <= 25 && y < GRID.HEIGHT; y++) {
     for (let x = xMin; x <= xMax; x++) {
       if (state.grid.cells[y][x] !== CellType.EMPTY) continue;
-      const flightScore = 5 - Math.abs(y - 14.5);
+      if (isInSpawnZone(x, y)) continue;
+      // Prefer cells near flight row (14) but accept wider placement
+      const flightScore = 8 - Math.abs(y - 14);
       let spreadScore = 8;
       for (const pos of existingAAPositions) {
         spreadScore = Math.min(spreadScore, Math.abs(pos.x - x) + Math.abs(pos.y - y));

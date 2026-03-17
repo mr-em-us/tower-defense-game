@@ -81,9 +81,9 @@ export function planEconomy(
   } else if (wave <= 12) {
     upgradeRatio = 0.35; // 35% — upgrades more important as enemies scale
   } else if (towerCount >= 150) {
-    upgradeRatio = 0.60 + depth * 0.1; // grid saturated
+    upgradeRatio = 0.45; // grid filling — still prioritize towers for coverage
   } else {
-    upgradeRatio = 0.40 + depth * 0.05; // late game
+    upgradeRatio = 0.35 + depth * 0.05; // late game — keep building
   }
 
   const upgradeBudget = Math.round(afterRestock * upgradeRatio);

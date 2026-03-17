@@ -127,6 +127,27 @@ generateMazeLayout():
 **Lesson:** Chained boxes require solving the "old exit hole" problem first. The corridor side wall repair is subject to the same cell-by-cell validation trap as the old gap fill issue. Need batch placement for corridor repairs too.
 **Decision:** REVERTED to single-box (iteration 10). The complexity of chained boxes is high and the core issue (old exit holes) is not yet solved.
 
+## Iteration 11c: AA Scaling + Economy Tuning (2026-03-17 PM, CURRENT)
+**Problem:** AI hoards credits (75k+ unspent at wave 22). Only air enemies do damage.
+**Changes:**
+1. AA reserve based on airWaveCountdown (not flat): ramps from 200c (no warning) to 500+wave*40 (this wave), capped at 35% of budget
+2. AA target: countdown-driven (no warning: 2+wave/3, imminent: 4+wave*0.6)
+3. AA candidate search area: rows 5-25 (was 11-19) — more placement options
+4. Upgrade ratio capped at 45% (was 69% at 150+ towers)
+5. Late game (wave 10+): uncapped AA spending with leftover budget
+
+**Results:**
+- Wave 22+, 242 HP at wave 18 (typical). Reliably reaches wave 20+.
+- First damage usually wave 9-12 from FLYING (always air, never ground)
+- Ground defense is essentially perfect — only air ever leaks
+- Credits still accumulate (42k+ by wave 18) — offense fill can't find cells
+
+**Remaining Problems (for next session):**
+1. **Maze can't turn back up** — when it hits the bottom row, enemies exit and go straight right in a hallway. Need the maze to reverse direction (switchback upward) at the bottom.
+2. **Excess AA spending is hacky** — dumping all leftover into AA creates weird tower scatter. Should spend excess on offense fill with wider radius or upgrades.
+3. **Air is the ONLY threat** — ground enemies never leak. Balance might need air enemies buffed or ground enemies buffed so there's variety in the challenge.
+4. **Credits accumulate** — maze saturates around wave 10, offense fill runs out of cells. Need a way to spend credits meaningfully in late game.
+
 ---
 
 ## Failed Approaches Summary (DO NOT RETRY)

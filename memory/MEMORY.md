@@ -89,3 +89,4 @@ AI maze strategy REWRITTEN and working well. Compact box maze with horizontal sw
 - `session-log.md` -- Full session history archive
 - `current-session.md` -- Live log of current/most recent session
 - `maze-experiments.md` -- Detailed experiment log for AI maze iterations
+- `maze-strategy-history.md` -- **MUST READ before any maze changes.** Complete code evolution log with failed approaches and lessons learned.

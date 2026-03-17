@@ -96,6 +96,7 @@ export class GameRoom {
     restored.waveEnemiesRemaining = 0;
     restored.waveEnemiesTotal = 0;
     restored.waveEnemiesKilled = 0;
+    restored.waveLeakedByType = {};
     restored.phase = GamePhase.BUILD;
 
     room.state = restored;
@@ -147,6 +148,7 @@ export class GameRoom {
       waveEnemiesKilled: 0,
       waveTowersDestroyed: 0,
       waveCreditsEarned: 0,
+      waveLeakedByType: {},
       gameSpeed: 1,
       destroyedTowerTraces: [],
       settings: { ...DEFAULT_GAME_SETTINGS },

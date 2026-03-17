@@ -16,10 +16,13 @@ const HUD_HEIGHT = window.innerWidth <= 900 ? 36 : 48;
 function getServerUrl(): string {
   const host = window.location.hostname || 'localhost';
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  // In production, server handles both static files and WS on the same port.
-  // In dev, esbuild serves client on a different port, so always target 9090.
-  const wsPort = window.location.port === '9090' ? '9090' : '9090';
-  return `${protocol}://${host}:${wsPort}`;
+  // In production (Render), server handles both static files and WS on the same port.
+  // The page is served from the server, so location.port is correct.
+  // In dev, esbuild serves client on port 8000, but server is on 9090.
+  const isDev = window.location.port !== '' && window.location.port !== '9090'
+    && window.location.port !== '443' && window.location.port !== '80';
+  const wsPort = isDev ? '9090' : window.location.port;
+  return wsPort ? `${protocol}://${host}:${wsPort}` : `${protocol}://${host}`;
 }
 
 let currentSettings: GameSettings = { ...DEFAULT_GAME_SETTINGS };

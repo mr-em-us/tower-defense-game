@@ -171,6 +171,7 @@ export interface GameState {
   waveEnemiesKilled: number;
   waveTowersDestroyed: number;
   waveCreditsEarned: number;
+  waveLeakedByType: Record<string, number>;
   gameSpeed: number;
   destroyedTowerTraces: TowerTrace[];
   settings: GameSettings;

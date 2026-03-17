@@ -141,6 +141,7 @@ export class WaveSystem {
     state.waveEnemiesTotal = this.waveQueue.length;
     state.waveEnemiesRemaining = this.waveQueue.length;
     state.waveEnemiesKilled = 0;
+    state.waveLeakedByType = {};
     this.spawnTimer = 0.5; // small initial delay
   }
 

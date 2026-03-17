@@ -81,9 +81,8 @@ export class LeaderboardPanel {
     this.showMessage('Loading...');
 
     try {
-      const host = window.location.hostname || 'localhost';
       const mode = this.activeTab === 'singleplayer' ? 'SINGLE' : 'MULTI';
-      const url = `http://${host}:9090/api/leaderboard?mode=${mode}`;
+      const url = `${window.location.origin}/api/leaderboard?mode=${mode}`;
       const resp = await fetch(url);
       const entries: LeaderboardEntry[] = await resp.json();
 

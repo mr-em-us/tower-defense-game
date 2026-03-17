@@ -80,6 +80,7 @@ This project uses a structured persistent memory system. Follow these protocols 
 
 **Personal (local, per-developer — exists in TWO locations that must stay in sync):**
 - `memory/MEMORY.md` — dynamic state, session history, known issues, next steps
+- `memory/maze-strategy-history.md` — **REQUIRED READING** before any maze strategy changes. Complete history of approaches tried, what failed, and why. Prevents repeating dead ends.
 - `memory/current-session.md` — live log of current session
 - `memory/session-log.md` — archived session history
 
@@ -92,7 +93,7 @@ Claude auto-loads `MEMORY.md` from the **auto-memory directory** (`~/.claude/pro
 1. CLAUDE.md and MEMORY.md auto-load — read them
 2. **Identify the user:** Run `git config user.email` and match against the Collaborators table above
 3. Read the "Last Save" line from MEMORY.md to get the previous session's save timestamp
-4. Based on the user's task, read relevant shared docs (e.g., `.claude/docs/economy.md` for balance work, `.claude/docs/architecture.md` for structural changes)
+4. Based on the user's task, read relevant shared docs (e.g., `.claude/docs/economy.md` for balance work, `.claude/docs/architecture.md` for structural changes, **`memory/maze-strategy-history.md` for ANY maze/AI strategy work**)
 5. Run `git status --short` to check for uncommitted local changes
 6. **Sync with remote:** Run `git fetch origin` then check for divergence:
    - If remote has new commits: run `git pull --rebase origin main` to incorporate them

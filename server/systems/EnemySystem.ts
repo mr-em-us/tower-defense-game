@@ -46,6 +46,7 @@ export class EnemySystem {
       if (!target) {
         // Reached the end - deduct money from defending player
         this.enemyReachedGoal(state, enemy.targetSide, enemy.creditValue);
+        state.waveLeakedByType[enemy.type] = (state.waveLeakedByType[enemy.type] ?? 0) + 1;
         toRemove.push(enemy.id);
         continue;
       }

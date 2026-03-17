@@ -47,7 +47,11 @@ export class PhaseSystem {
     const leaked = total - killed;
     const playerHealths = Object.values(state.players).map(p => `${p.name}:${Math.round(p.health)}HP`).join(', ');
     const towerCount = Object.keys(state.towers).length;
-    log(`[WAVE ${state.waveNumber} END] Killed: ${killed}/${total} (${leaked} leaked) | Towers: ${towerCount} | ${playerHealths}`);
+    const leakedTypes = Object.entries(state.waveLeakedByType ?? {})
+      .map(([type, count]) => `${count} ${type}`)
+      .join(', ');
+    const leakDetail = leaked > 0 && leakedTypes ? ` [${leakedTypes}]` : '';
+    log(`[WAVE ${state.waveNumber} END] Killed: ${killed}/${total} (${leaked} leaked${leakDetail}) | Towers: ${towerCount} | ${playerHealths}`);
 
     state.waveNumber += 1;
     state.phase = GamePhase.BUILD;

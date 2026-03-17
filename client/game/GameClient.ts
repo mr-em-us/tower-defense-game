@@ -307,10 +307,8 @@ export class GameClient {
       gameState: structuredClone(this.gameState),
     };
 
-    const host = window.location.hostname || 'localhost';
-    const port = window.location.port || '9090';
     try {
-      const resp = await fetch(`${window.location.protocol}//${host}:${port}/api/saves`, {
+      const resp = await fetch(`${window.location.origin}/api/saves`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(save),

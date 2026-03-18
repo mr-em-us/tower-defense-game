@@ -9,7 +9,7 @@
 | SPLASH | 150 | 20 | 4 | 1.0 | 160 | 50 | 1.0 | 12 | 6 |
 | SLOW | 80 | 5 | 3 | 1.5 | 200 | 60 | 0.3 | 7 | 3 |
 | WALL | 25 | 0 | 0 | 0 | 150 | 0 | 0 | 0 | 0 |
-| AA | 100 | 5 | 6 | 4.5 | 100 | 40 | 1.0 | 8 | 4 |
+| AA | 100 | 8 | 6 | 4.5 | 100 | 40 | 1.0 | 8 | 4 |
 
 Additional tower stats: upgradeCostMultiplier (BASIC 1.5, SNIPER 1.6, SPLASH 1.5, SLOW 1.4, WALL 1.3), upgradeStatMultiplier (1.4, 1.5, 1.4, 1.3, 1.0), splashRadius (SPLASH=2), slowAmount (SLOW=0.5), slowDuration (SLOW=2s).
 
@@ -21,13 +21,24 @@ Additional tower stats: upgradeCostMultiplier (BASIC 1.5, SNIPER 1.6, SPLASH 1.5
 | FAST | 50 | 4 | 18 | 0.3 |
 | TANK | 500 | 1 | 60 | 1.0 |
 | BOSS | 2000 | 1.5 | 500 | 2.0 |
-| FLYING | 80 | 3 | 20 | 0.4 |
+| FLYING | 80 | 2 | 20 | 0.4 |
 
 ### Flying Damage Model
-- AA towers deal 3x damage to flying enemies (5 base × 3 = 15/hit, 67.5 DPS)
-- AA towers target both ground AND air (5 dmg to ground = half of Basic)
-- Non-AA towers deal 25% damage to flying (small arms vs plane)
+- AA towers deal 3x damage to flying enemies (8 base × 3 = 24/hit, 108 DPS)
+- AA towers target both ground AND air (8 dmg to ground)
+- Non-AA towers deal 50% damage to flying
 - Flying enemies bypass BFS pathfinding — fly straight from spawn to goal
+
+### Leak Damage
+- When an enemy reaches the goal, player loses HP = `leakDamage` (flat, NOT scaled by difficulty)
+- `leakDamage` = base creditValue (BASIC=12, FLYING=20, TANK=60, BOSS=500)
+- Kill rewards still scale: `creditValue = base × sqrt(difficulty)`
+
+### Difficulty Scaling
+- Difficulty curve: 40 entries (waves 1-40), from 1.0 to 120.0
+- Beyond wave 40: exponential extrapolation (15% per wave)
+- Enemy HP scales linearly with difficulty multiplier
+- Kill rewards scale with sqrt(difficulty) — income grows slower than enemy HP
 - AA burns ammo fast: 40 rounds at 4.5/s = ~9 seconds before empty
 
 ### Air Wave Scheduling

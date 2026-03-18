@@ -142,7 +142,7 @@ export const ENEMY_STATS: Record<EnemyType, {
   [EnemyType.FAST]: { health: 50, speed: 4, creditValue: 18, contactDamage: 0.3 },
   [EnemyType.TANK]: { health: 500, speed: 1, creditValue: 60, contactDamage: 1 },
   [EnemyType.BOSS]: { health: 2000, speed: 1.5, creditValue: 500, contactDamage: 2 },
-  [EnemyType.FLYING]: { health: 80, speed: 3, creditValue: 20, contactDamage: 0.4 },
+  [EnemyType.FLYING]: { health: 80, speed: 2, creditValue: 20, contactDamage: 0.4 },
 };
 
 // Dynamic pricing: price = baseCost * (1 + globalCount * PRICE_ESCALATION)
@@ -194,10 +194,18 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   startingCredits: 2000,
   firstWaveEnemies: 15,
   difficultyCurve: [
+    // Waves 1-10: gentle ramp
     1.0, 1.0, 1.1, 1.2, 1.3,
     1.5, 1.7, 1.8, 1.95, 2.15,
+    // Waves 11-20: steady acceleration
     2.4, 2.7, 3.1, 3.5, 4.0,
     4.5, 5.1, 5.7, 6.4, 7.2,
+    // Waves 21-30: aggressive scaling
+    8.2, 9.4, 10.8, 12.5, 14.5,
+    16.8, 19.5, 22.5, 26.0, 30.0,
+    // Waves 31-40: extreme late game
+    34.5, 40.0, 46.0, 53.0, 61.0,
+    70.0, 80.0, 92.0, 105.0, 120.0,
   ],
   towerOverrides: {},
   enemyOverrides: {},

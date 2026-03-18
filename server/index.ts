@@ -51,14 +51,14 @@ const httpServer = http.createServer((req, res) => {
         humanHealth: humanResult?.playerHealth ?? 0,
       }));
     };
-    // Timeout after 5 minutes
+    // Timeout after 10 minutes
     setTimeout(() => {
       if (!res.writableEnded) {
         res.writeHead(408, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'timeout', waveReached: (testRoom as any).state.waveNumber }));
         (testRoom as any).stopLoop();
       }
-    }, 300000);
+    }, 600000);
     return;
   }
 

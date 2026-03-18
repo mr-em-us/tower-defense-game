@@ -148,6 +148,37 @@ generateMazeLayout():
 3. **Air is the ONLY threat** — ground enemies never leak. Balance might need air enemies buffed or ground enemies buffed so there's variety in the challenge.
 4. **Credits accumulate** — maze saturates around wave 10, offense fill runs out of cells. Need a way to spend credits meaningfully in late game.
 
+## Iteration 12: Chained Maze Sections + Rebalance (2026-03-17 Evening, CURRENT ★★★★)
+**Problem:** Maze only goes down (single box), then straight to goal. Air way too powerful. Credits pile up 80k+.
+
+**Maze Changes:**
+1. **Return section (U-turn):** Second switchback column going UPWARD. Enemy exits box 1 at bottom, walks through connector, traverses return section upward. Path doubles.
+2. **numWalls cap fix:** Was calculating 12 walls but grid only fits 8. Fixed with `maxWallsFromHeight`.
+3. **Exit path clearing:** Offense fill towers beyond outer funnel blocked exit. Added sells for 3 cells beyond funnel exit.
+4. **Generalized chaining:** `generateChainedSection()` supports N sections alternating down/up. Each section has connector seal + outer funnel. Loop adds sections until budget or space runs out.
+5. **3 sections fit:** Box 1 (31-37), Section 1 UP (39-45), Section 2 DOWN (47-53). Path 43→139.
+
+**Balance Changes:**
+1. Flying speed: 3 → 2 (same as BASIC — 50% more time in kill zones)
+2. Non-AA damage vs flying: 0.4x → 0.5x (regular towers contribute more)
+3. Flat leak damage: new `leakDamage` field = base creditValue (no difficulty scaling). A leaked flying always costs 20 HP, not 114 HP at wave 17.
+4. Kill rewards: `creditValue * sqrt(hpScale)` — income grows slower than enemy HP
+5. Difficulty curve: extended to 40 entries (120x at wave 40), exponential extrapolation (15%/wave) beyond
+6. AA targets boosted: baseline 4+wave*0.5, air-imminent 8+wave*0.9
+7. AA reserve: 0 at waves 1-3, scales with wave and countdown after
+8. Excess AA: 50% of budget after wave 8
+
+**Key Bugs Found:**
+- numWalls not capped by grid height → lastCorridorY off-grid → return section always blocked
+- Offense fill towers at (outerFunnelX+1, exitRow) blocked the only exit from the enclosure
+
+**Results:**
+- **Wave 30+, 60 HP, timed out still alive**
+- 3,063 enemies killed in wave 30 alone
+- Only FLYING leaked (waves 9, 16, 20, 26)
+- Path 139 cells (was 81)
+- 508 towers by wave 30
+
 ---
 
 ## Failed Approaches Summary (DO NOT RETRY)
@@ -170,6 +201,11 @@ generateMazeLayout():
 7. **Growth limit +2 walls/wave** — prevents batch failure from too many new walls
 8. **Cell priority: funnel → seals → side walls → internal walls** — structural first
 
+9. **Chained sections with connector seals** — each section enclosed by seal wall + funnel, alternating direction
+10. **Sell cells beyond outer funnel exit** — offense fill can block the enclosure exit
+11. **Cap numWalls by grid height** — `maxWallsFromHeight = floor((GRID.HEIGHT - 2 - mazeTop) / 2) + 1`
+12. **Flat leak damage (separate from creditValue)** — prevents late-game instant death from a single leak
+
 ## Dev Tools
-- **AI test endpoint:** `GET /api/ai-test?speed=4` — headless game, returns JSON with waveReached, aiHealth
+- **AI test endpoint:** `GET /api/ai-test?speed=10` — headless game, 10min timeout, returns JSON with waveReached, aiHealth
 - **Auto-test requires no browser** — instant iteration on maze changes

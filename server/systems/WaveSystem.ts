@@ -13,13 +13,12 @@ interface WaveEntry {
 const WAVE_SPAWN_DURATION = 8;
 
 function getDifficultyMultiplier(waveNumber: number, curve: number[]): number {
-  // curve has 20 entries for waves 1-20
   const idx = waveNumber - 1;
   if (idx < 0) return curve[0];
   if (idx < curve.length) return curve[idx];
-  // Extrapolate beyond wave 20 using the slope of the last segment
-  const lastSlope = curve[curve.length - 1] - curve[curve.length - 2];
-  return curve[curve.length - 1] + lastSlope * (idx - curve.length + 1);
+  // Extrapolate beyond curve with exponential growth (15% per wave)
+  const beyondIdx = idx - curve.length + 1;
+  return curve[curve.length - 1] * Math.pow(1.15, beyondIdx);
 }
 
 function getWaveDefinition(waveNumber: number, settings: GameSettings, hasAir: boolean = false): WaveEntry[] {
@@ -151,7 +150,10 @@ export class WaveSystem {
     const overrides = state.settings.enemyOverrides?.[type];
     const hp = Math.round(stats.health * hpScale * (overrides?.health ?? 1));
     const speed = stats.speed * (overrides?.speed ?? 1);
-    const creditValue = Math.round(stats.creditValue * hpScale * (overrides?.creditValue ?? 1));
+    // Kill reward scales with sqrt of difficulty — income grows slower than enemy HP
+    const creditValue = Math.round(stats.creditValue * Math.sqrt(hpScale) * (overrides?.creditValue ?? 1));
+    // Leak damage stays flat — a leaked enemy always costs the same HP regardless of wave
+    const leakDamage = Math.round(stats.creditValue * (overrides?.creditValue ?? 1));
     const contactDamage = stats.contactDamage * (overrides?.contactDamage ?? 1);
 
     // Flying enemies go straight from spawn to goal (no BFS pathfinding)
@@ -183,6 +185,7 @@ export class WaveSystem {
       maxHealth: hp,
       speed,
       creditValue,
+      leakDamage,
       path,
       pathIndex: 0,
       spawnDelay: 0,

@@ -1,55 +1,62 @@
 # Project Memory -- Tower Defense Game
-Last Save: 2026-03-17 - 03:52 PM PST
+Last Save: 2026-03-17 - 06:09 PM PST
 
 ## Current State
-AI reliably reaches **wave 20+**. Ground defense is perfect — only FLYING enemies ever leak. Best observed: wave 22+ (timed out still alive). Main remaining issues: maze can't turn upward at bottom edge, credit hoarding in late game, air-only damage suggests balance is off.
+AI reaches **wave 30+** (timed out still alive at 60 HP). Chained maze sections (down→up→down) with path length **139**. Flying enemies rebalanced — slower, flat leak damage. Difficulty curve extends to wave 40 with exponential extrapolation beyond.
 
 ### Architecture (current working code)
-- `server/ai/strategies/maze.ts` — compact box maze generator with batch placement
-- Wave 1: builds box (width 7, 4 walls) with WALL structural + BASIC internal
-- Waves 2+: grows downward (+2 walls/wave max), targeted sells for gap openings
-- Batch placement: all cells at once, single path validation
-- Offense fill: DPS towers within 2 cells of path
-- AA defense: countdown-driven scaling, uncapped in late game
+- `server/ai/strategies/maze.ts` — chained switchback maze generator
+- Box 1: width 7, grows downward (+2 walls/wave max)
+- Chained sections: `generateChainedSection()` adds up/down columns automatically
+- 3 sections fit on RIGHT side (cols 31-37, 39-45, 47-53)
+- Enclosure: connector seals between sections, outer funnel on last section
+- Offense fill: radius 2→3→4 scaling with wave
+- AA defense: aggressive targets, 50% excess budget to AA after wave 8
 
-### Balance Changes (this session)
-- AA tower damage: 5 → 8 (24/shot vs flying with 3x multiplier)
-- Ground vs flying multiplier: 0.25 → 0.40
-- AA reserve: countdown-driven (200c baseline → 500+wave*40 when air is this wave)
-- AA target: countdown-driven (2+wave/3 baseline → 4+wave*0.6 when imminent)
-- Upgrade ratio capped at 45% (was 69% at 150+ towers)
-- Late game: uncapped AA with leftover budget
+### Balance State
+- Flying: speed 2 (was 3), 80 HP, non-AA damage 0.5x (was 0.4x), AA 3x
+- Leak damage: FLAT (creditValue without difficulty scaling) — flying leak = 20 HP always
+- Kill rewards: sqrt(difficulty) scaling — income grows slower than enemy HP
+- Difficulty curve: 40 entries, aggressive late game (120x at wave 40)
+- Post-wave-40: 15% exponential growth per wave
+- Upgrade ratio: 55% wave 13-20, 70% wave 21+
 
 ### Dev Tools
-- **Headless AI test:** `GET /api/ai-test?speed=4` — no browser needed, returns JSON
+- **Headless AI test:** `GET /api/ai-test?speed=10` — 10min timeout, returns JSON
 - **Broadcast optimization:** skips JSON.stringify when no open connections
 
 ## Next Steps
-- [ ] **Maze upward turn** — when maze hits grid bottom, needs to reverse and switchback UP (currently exits into straight hallway at bottom)
-- [ ] **Late-game spending** — AI hoards 40-75k credits. Offense fill saturates, excess AA is hacky. Need meaningful late-game spending.
-- [ ] **Air balance** — only air ever does damage. Either buff ground enemies or nerf air defense slightly for variety.
+- [ ] **Wave 40 target** — needs more AA scaling or 4th maze section to survive deeper
+- [ ] **LEFT side mirror testing** — verify chained sections work mirrored
+- [ ] **Ground enemy variety** — ground never leaks, could buff ground or add new enemy types
 - [ ] Render deployment for mobile play
-- [ ] Test LEFT side mirror behavior
+- [ ] Clean up debug logging in maze.ts
 
 ## Uncommitted Work
-- `server/ai/strategies/maze.ts` — AA countdown scaling, uncapped late-game AA, offense fill radius 2
-- `server/ai/strategies/economy.ts` — upgrade ratio cap 45%
-- `memory/maze-strategy-history.md` — updated with iterations 11, 11b, 11c
+None — committing now.
 
 ## Recent Sessions
+
+### 2026-03-17 Evening -- Chained Maze + Rebalance ★★★★
+- Implemented return section (U-turn): enemy goes down→up through 2 switchback columns
+- Fixed numWalls cap bug (was 12, should be 8 based on grid height)
+- Fixed exit path blocking (offense fill at funnel exit)
+- Generalized to chained sections: down→up→down, 3 columns automatic
+- Path: 43 → 139 (3.2x increase!)
+- Rebalanced flying: speed 3→2, non-AA dmg 0.4→0.5x
+- Flat leak damage (leakDamage field, no difficulty scaling)
+- Extended difficulty curve to 40 waves (aggressive: 120x at wave 40)
+- Post-40 extrapolation: 15% exponential per wave
+- Kill rewards: sqrt scaling (caps income growth)
+- **Wave 30+, 60 HP, timed out still alive. 3,063 enemies killed in wave 30.**
 
 ### 2026-03-17 Afternoon -- AA Balance + Wave 22 ★★★
 - AA damage buff (5→8), ground-vs-flying (0.25→0.40)
 - Countdown-driven AA reserve/target scaling
-- Tried chained boxes — ABANDONED (enemies bypass)
-- Tried no-reserve spending — died wave 14 (no AA budget)
-- Tried offense fill radius 4 — created useless walls in open space
-- Uncapped late-game AA spending (hacky but functional)
 - **Reliably wave 20+, ground defense perfect, only air leaks**
 
 ### 2026-03-17 Morning -- AI Maze to Wave 20 ★★★
 - Targeted gap sells, growth limiting, broadcast optimization
-- Created headless AI test endpoint
 - **Wave 20, 500 HP, zero leaks waves 1-19**
 
 ### 2026-03-15 Evening -- Compact Box Maze ★★★
@@ -81,4 +88,4 @@ AI reliably reaches **wave 20+**. Ground defense is perfect — only FLYING enem
 ## Personal Files (local only)
 - `session-log.md` -- Full session history archive
 - `current-session.md` -- Live log of current/most recent session
-- `maze-strategy-history.md` -- **MUST READ before any maze changes.** Complete history (11 iterations) with failed approaches and lessons learned.
+- `maze-strategy-history.md` -- **MUST READ before any maze changes.** Complete history with failed approaches and lessons learned.

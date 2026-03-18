@@ -80,6 +80,7 @@ export interface Enemy {
   maxHealth: number;
   speed: number;
   creditValue: number;
+  leakDamage: number;
   path: GridCell[];
   pathIndex: number;
   spawnDelay: number;

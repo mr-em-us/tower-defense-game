@@ -71,7 +71,7 @@ export function planEconomy(
   const afterRestock = afterRepair - restockBudget;
 
   // Upgrade ratio: low until maze is established, then scale up
-  // Late game: grid saturates around 150+ towers, upgrades become primary DPS growth
+  // Late game: grid saturates, upgrades become primary DPS growth
   const towerCount = Object.values(state.towers).filter(t => t.ownerId === playerId).length;
   let upgradeRatio: number;
   if (wave <= 4) {
@@ -80,10 +80,10 @@ export function planEconomy(
     upgradeRatio = 0.20; // 20% mid-game — upgrade key towers for DPS
   } else if (wave <= 12) {
     upgradeRatio = 0.35; // 35% — upgrades more important as enemies scale
-  } else if (towerCount >= 150) {
-    upgradeRatio = 0.45; // grid filling — still prioritize towers for coverage
+  } else if (wave <= 20) {
+    upgradeRatio = 0.55; // 55% — heavy upgrades, maze is established
   } else {
-    upgradeRatio = 0.35 + depth * 0.05; // late game — keep building
+    upgradeRatio = 0.70; // 70% — late game, max upgrades, maze saturated
   }
 
   const upgradeBudget = Math.round(afterRestock * upgradeRatio);

@@ -50,6 +50,17 @@ TypeScript monorepo | Node.js + ws (server) | Canvas 2D + DOM (client) | esbuild
 - Server validates all client-sent values with bounds checks
 - Dynamic pricing applies to SNIPER/SPLASH/SLOW only (PRICE_ESCALATION = 0.12)
 
+## Task Notification Protocol — MANDATORY
+
+**NEVER claim, summarize, or dismiss a task result without first calling `Read` on the output file.**
+
+When a `<task-notification>` arrives:
+1. Call `Read` on the output file path in the notification — no exceptions, no skipping
+2. Only THEN describe what the result actually shows
+3. If the file is too large, use `offset`/`limit` to read the relevant portion (e.g., last 20 lines for test results)
+
+Fabricating or inferring results without reading the file is a critical trust violation. "It was probably superseded" is not an excuse — read it anyway.
+
 ## Invariants
 - Pathfinding must never be blocked (validateTowerPlacement checks this before and after placement)
 - Economy operations validated server-side (client checks are cosmetic)

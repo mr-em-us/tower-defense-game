@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"Notification\", \"additionalContext\": \"MANDATORY PROTOCOL (CLAUDE.md): A task-notification has arrived. You MUST call the Read tool on the output file path specified in the notification BEFORE making any statement about what the task produced. Do NOT summarize, dismiss, characterize, or claim the result is superseded without reading the file. No exceptions.\"}}' ",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": \"REMINDER: If any task-notification arrived during this session, verify you called Read on every output file before describing results. If you have not done so for any notification, do it now before finishing.\"}}'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

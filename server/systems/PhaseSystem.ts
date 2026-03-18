@@ -1,5 +1,7 @@
 import { GameState, GamePhase, GameMode, TowerType, CellType, Tower, WaveEconomy } from '../../shared/types/game.types.js';
 import { GAME, TOWER_STATS, PRICE_ESCALATION, PRICE_DECAY_RATE, MIN_DYNAMIC_PRICE } from '../../shared/types/constants.js';
+import { wouldBlockPath } from '../../shared/logic/pathfinding.js';
+import { v4 as uuid } from 'uuid';
 import { log } from '../utils/logger.js';
 
 export class PhaseSystem {
@@ -116,38 +118,47 @@ export class PhaseSystem {
         // Check cell is still empty
         if (state.grid.cells[trace.position.y][trace.position.x] !== CellType.EMPTY) continue;
 
+        // Check rebuilding won't block paths
+        if (wouldBlockPath(state.grid, trace.position.x, trace.position.y)) continue;
+
         const stats = TOWER_STATS[trace.type];
-        // Compute dynamic price
-        let cost = stats.cost;
+        const overrides = state.settings.towerOverrides?.[trace.type];
+        // Compute dynamic price with cost override
+        const costMult = overrides?.cost ?? 1;
+        let cost = Math.round(stats.cost * costMult);
         if (trace.type !== TowerType.BASIC && trace.type !== TowerType.WALL) {
           const count = state.globalPurchaseCounts[trace.type] ?? 0;
-          cost = Math.max(MIN_DYNAMIC_PRICE, Math.round(stats.cost * (1 + count * PRICE_ESCALATION)));
+          cost = Math.max(MIN_DYNAMIC_PRICE, Math.round(cost * (1 + count * PRICE_ESCALATION)));
         }
 
         if (player.credits < cost) continue;
 
         player.credits -= cost;
 
-        // Place tower
+        // Place tower with stat overrides applied
         const tower: Tower = {
-          id: trace.type + '-' + trace.position.x + '-' + trace.position.y + '-' + Date.now(),
+          id: uuid(),
           type: trace.type,
           position: { x: trace.position.x, y: trace.position.y },
           ownerId: player.id,
           level: 1,
-          damage: stats.damage,
-          range: stats.range,
-          fireRate: stats.fireRate,
+          damage: Math.round(stats.damage * (overrides?.damage ?? 1)),
+          range: +(stats.range * (overrides?.range ?? 1)).toFixed(1),
+          fireRate: +(stats.fireRate * (overrides?.fireRate ?? 1)).toFixed(2),
           lastFireTime: 0,
           targetId: null,
-          health: stats.maxHealth,
-          maxHealth: stats.maxHealth,
-          ammo: stats.maxAmmo,
-          maxAmmo: stats.maxAmmo,
+          health: Math.round(stats.maxHealth * (overrides?.maxHealth ?? 1)),
+          maxHealth: Math.round(stats.maxHealth * (overrides?.maxHealth ?? 1)),
+          ammo: Math.round(stats.maxAmmo * (overrides?.maxAmmo ?? 1)),
+          maxAmmo: Math.round(stats.maxAmmo * (overrides?.maxAmmo ?? 1)),
           placedWave: state.waveNumber,
         };
         state.towers[tower.id] = tower;
         state.grid.cells[trace.position.y][trace.position.x] = CellType.TOWER;
+
+        // Track economy
+        const econ = state.waveEconomy[player.id];
+        if (econ) econ.towerPurchases += cost;
 
         // Increment dynamic pricing
         if (trace.type !== TowerType.BASIC && trace.type !== TowerType.WALL) {

@@ -153,6 +153,14 @@ const httpServer = http.createServer((req, res) => {
   // --- Static file serving ---
   let filePath = path.join(DIST_CLIENT, url.pathname === '/' ? 'index.html' : url.pathname);
 
+  // Prevent path traversal — resolved path must be within DIST_CLIENT
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(path.resolve(DIST_CLIENT))) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+
   const ext = path.extname(filePath);
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 

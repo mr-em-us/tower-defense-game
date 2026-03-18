@@ -235,12 +235,14 @@ export function generateMazeLayout(
   // === 2b. CHAINED SECTIONS — additional switchback columns ===
   // Each section alternates direction: up, down, up, down...
   // Connected by seal walls, enclosed by outer funnel on last section.
-  if (box.numWalls >= 6) {
+  // Trigger at 4+ walls (not 6) so the chain builds before boss wave 10.
+  // Lower budget threshold to 300c to ensure chain gets funded.
+  if (box.numWalls >= 4) {
     let prevExitX = goalSideX; // box 1's exit column
     let goingUp = true; // first extra section goes upward
     let sectionIdx = 0;
 
-    while (mazeBudget - spent >= 500) {
+    while (mazeBudget - spent >= 300) {
       const section = generateChainedSection(state, side, box, playerId, prevExitX, goingUp);
       if (!section) break;
 

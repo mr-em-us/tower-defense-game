@@ -18,11 +18,27 @@ export class EnemySystem {
     for (const enemy of Object.values(state.enemies)) {
       if (!enemy.spawned) continue;
 
+      // Slow duration tick-down: restore speed when slow wears off
+      const slowTimer = (enemy as any)._slowTimer;
+      if (typeof slowTimer === 'number' && slowTimer > 0) {
+        (enemy as any)._slowTimer = slowTimer - dt;
+        if ((enemy as any)._slowTimer <= 0) {
+          const baseSpeed = (enemy as any)._baseSpeed;
+          if (typeof baseSpeed === 'number') {
+            enemy.speed = baseSpeed;
+          }
+          delete (enemy as any)._slowTimer;
+          delete (enemy as any)._baseSpeed;
+        }
+      }
+
       // Flying enemies fly over towers, no contact damage
       if (enemy.type !== EnemyType.FLYING) {
         const ex = Math.round(enemy.position.x);
         const ey = Math.round(enemy.position.y);
-        const contactDmg = ENEMY_STATS[enemy.type].contactDamage;
+        const baseContactDmg = ENEMY_STATS[enemy.type].contactDamage;
+        const contactOverride = state.settings?.enemyOverrides?.[enemy.type]?.contactDamage ?? 1;
+        const contactDmg = baseContactDmg * contactOverride;
 
         for (const dir of ADJ_DIRS) {
           const ax = ex + dir.x;

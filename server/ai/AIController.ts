@@ -129,26 +129,24 @@ export class AIController {
     if (this.actionQueue.length > 0) {
       if (this.tickCounter >= AI.ACTION_DELAY_TICKS) {
         this.tickCounter = 0;
-        const action = this.actionQueue.shift()!;
 
-        // Re-validate PLACE_TOWER actions (grid may have changed)
-        if (action.type === 'PLACE_TOWER') {
-          const pos = (action as { position: { x: number; y: number } }).position;
-          const v = validateTowerPlacement(state.grid, pos.x, pos.y, this.side);
-          if (!v.valid) {
-            // Skip invalid placement, try next action
-            return this.tickBuild(state);
+        // Find the next valid action (skip invalid placements without recursion)
+        while (this.actionQueue.length > 0) {
+          const action = this.actionQueue.shift()!;
+
+          if (action.type === 'PLACE_TOWER') {
+            const pos = (action as { position: { x: number; y: number } }).position;
+            const v = validateTowerPlacement(state.grid, pos.x, pos.y, this.side);
+            if (!v.valid) continue; // skip invalid, try next
+
+            const player = state.players[this.playerId];
+            const towerType = (action as { towerType: TowerType }).towerType;
+            const cost = getDynamicPrice(state, towerType);
+            if (!player || player.credits < cost) continue; // skip unaffordable
           }
-          // Also check if we can still afford it
-          const player = state.players[this.playerId];
-          const towerType = (action as { towerType: TowerType }).towerType;
-          const cost = getDynamicPrice(state, towerType);
-          if (!player || player.credits < cost) {
-            return this.tickBuild(state);
-          }
+
+          return action;
         }
-
-        return action;
       }
       return null;
     }

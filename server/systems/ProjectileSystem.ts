@@ -35,13 +35,16 @@ export class ProjectileSystem {
           }
         }
 
-        // Slow effect - cap at base speed * slowAmount to prevent compounding
+        // Slow effect - apply slow with duration tracking
         if (proj.isSlowing && target.health > 0) {
-          const baseSpeed = ENEMY_STATS[target.type].speed;
+          const baseSpeed = ENEMY_STATS[target.type].speed * (state.settings.enemyOverrides?.[target.type]?.speed ?? 1);
           const minSpeed = baseSpeed * proj.slowAmount;
           if (target.speed > minSpeed) {
             target.speed = minSpeed;
           }
+          // Reset slow timer — speed will be restored by EnemySystem
+          (target as any)._slowTimer = proj.slowDuration;
+          (target as any)._baseSpeed = baseSpeed;
         }
 
         toRemove.push(proj.id);

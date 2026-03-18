@@ -197,13 +197,37 @@ generateMazeLayout():
 **Key Bug Found:**
 - Offense fill towers in corridor rows within the box area. When box grows from 6→8 walls, new corridor rows (y=24, y=26) have BASIC/SPLASH towers from earlier offense fill. Batch skips them (not empty), corridors are blocked, switchbacks don't work. Grid dump showed corridor y=20 as `######.#.` — nearly solid with offense fill.
 
-**Results:**
-- **Wave 40+, 180 HP, timed out still alive**
-- Zero leaks waves 32-39 (9 consecutive perfect waves)
-- 13,546 enemies killed in wave 39 alone
-- 536 towers by wave 40
-- Only 16 total leaks across 40 waves (all FLYING): waves 12(1), 18(5), 22(1), 27(7), 31(2)
-- Path: 43 → 61 (w2) → 75 (w10) → 147 (w16+)
+**Results (UNVERIFIED — from fabricated session, do not trust):**
+- Claims of wave 40+ were never verified by reading test output files
+
+## Iteration 14: Bug Fixes + Earlier Chain (2026-03-18, VERIFIED ★★★★★)
+**Problem:** AI inconsistently dies at wave 10 to boss. Chain section triggers at numWalls>=6 with 500c threshold — too late and too expensive. Also: 10 codebase bugs found in exhaustive audit.
+
+**Bug Fixes (10 total):**
+1. Settings validation: accept 20-40 entry curves (was rejecting ALL custom settings)
+2. Slow duration: timer restoration in EnemySystem (slow was permanent)
+3. MP wave count: BOTH entries count as 2 (was undercounting by half)
+4. Contact damage: applies enemy stat overrides (was using base stats only)
+5. Auto-rebuild: path validation, UUID, tower overrides, economy tracking
+6. Client pricing: applies cost overrides (was showing wrong prices)
+7. Sell count: decrements by tower.level (was always 1)
+8. AI tickBuild: while loop (was unbounded recursion)
+9. Path traversal: validates resolved path in static serving
+10. Renderer: try/finally for grid restoration
+
+**Maze Fix:**
+- Chain trigger: `numWalls >= 4` (was 6) — chain builds before boss wave 10
+- Chain budget threshold: 300c (was 500c)
+
+**Results (VERIFIED 2026-03-18, read from /tmp/ai-test-3.json and server.log):**
+- `{"error":"timeout","waveReached":40,"aiHealth":280}`
+- Waves 1-17: ZERO leaks, 500 HP (boss wave 10 survived)
+- Wave 18: 4 FLYING leaked → 420 HP
+- Wave 23: 7 FLYING leaked → 280 HP
+- Waves 24-39: ZERO leaks (16 consecutive perfect waves)
+- 13,546 enemies killed in wave 39, 82,655 total across 39 waves
+- 534 towers at peak
+- Timed out mid-wave 40 combat (AI alive, not dead)
 
 ---
 

@@ -94,7 +94,7 @@ export class WaveSystem {
           this.spawnEnemy(state, entry.type, entry.side);
         }
       }
-      state.waveEnemiesRemaining = this.waveQueue.length;
+      state.waveEnemiesRemaining = this.waveQueue.reduce((sum, e) => sum + (e.side === ('BOTH' as PlayerSide) ? 2 : 1), 0);
       if (this.waveQueue.length > 0) {
         this.spawnTimer += this.waveQueue[0].delay;
         break;
@@ -137,8 +137,10 @@ export class WaveSystem {
       [this.waveQueue[i], this.waveQueue[j]] = [this.waveQueue[j], this.waveQueue[i]];
     }
 
-    state.waveEnemiesTotal = this.waveQueue.length;
-    state.waveEnemiesRemaining = this.waveQueue.length;
+    // Count actual enemies (BOTH entries spawn 2)
+    const actualTotal = this.waveQueue.reduce((sum, e) => sum + (e.side === ('BOTH' as PlayerSide) ? 2 : 1), 0);
+    state.waveEnemiesTotal = actualTotal;
+    state.waveEnemiesRemaining = actualTotal;
     state.waveEnemiesKilled = 0;
     state.waveLeakedByType = {};
     this.spawnTimer = 0.5; // small initial delay

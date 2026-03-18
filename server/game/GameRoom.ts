@@ -118,8 +118,8 @@ export class GameRoom {
     if (settings.startingHealth < 50 || settings.startingHealth > 5000) return;
     if (settings.startingCredits < 50 || settings.startingCredits > 50000) return;
     if (settings.firstWaveEnemies < 5 || settings.firstWaveEnemies > 500) return;
-    if (!Array.isArray(settings.difficultyCurve) || settings.difficultyCurve.length !== 20) return;
-    if (settings.difficultyCurve.some((v: number) => typeof v !== 'number' || v < 0.1 || v > 20)) return;
+    if (!Array.isArray(settings.difficultyCurve) || settings.difficultyCurve.length < 20 || settings.difficultyCurve.length > 40) return;
+    if (settings.difficultyCurve.some((v: number) => typeof v !== 'number' || v < 0.1 || v > 200)) return;
 
     this.state.settings = { ...settings, difficultyCurve: [...settings.difficultyCurve] };
   }
@@ -715,10 +715,12 @@ export class GameRoom {
     player.credits += refund;
     this.getPlayerEconomy(playerId).sellRefunds += refund;
 
-    // Decrement dynamic pricing counter (undo purchase increment)
+    // Decrement dynamic pricing counter (undo purchase + upgrade increments)
     if (tower.type !== TowerType.BASIC && tower.type !== TowerType.WALL) {
       const current = this.state.globalPurchaseCounts[tower.type] ?? 0;
-      this.state.globalPurchaseCounts[tower.type] = Math.max(0, current - 1);
+      // Each tower adds 1 for purchase + 1 per upgrade level above 1
+      const increments = tower.level; // level 1 = 1 purchase, level 2 = 1 purchase + 1 upgrade, etc.
+      this.state.globalPurchaseCounts[tower.type] = Math.max(0, current - increments);
     }
 
     this.state.grid.cells[tower.position.y][tower.position.x] = CellType.EMPTY;

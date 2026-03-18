@@ -125,12 +125,16 @@ export class Renderer {
       simulated = true;
     }
 
-    const leftPath = findPath(state.grid, PlayerSide.LEFT);
-    const rightPath = findPath(state.grid, PlayerSide.RIGHT);
-
-    // Restore grid
-    if (simulated && hover) {
-      state.grid.cells[hover.y][hover.x] = CellType.EMPTY;
+    let leftPath: ReturnType<typeof findPath> = null;
+    let rightPath: ReturnType<typeof findPath> = null;
+    try {
+      leftPath = findPath(state.grid, PlayerSide.LEFT);
+      rightPath = findPath(state.grid, PlayerSide.RIGHT);
+    } finally {
+      // Always restore grid even if findPath throws
+      if (simulated && hover) {
+        state.grid.cells[hover.y][hover.x] = CellType.EMPTY;
+      }
     }
 
     // Draw paths as translucent red lines through cell centers

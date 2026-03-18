@@ -1,5 +1,5 @@
 # Project Memory -- Tower Defense Game
-Last Save: 2026-03-17 - 10:23 PM PST
+Last Save: 2026-03-17 - 10:34 PM PST
 
 ## Current State
 AI reaches **wave 40+** (timed out still alive at 180 HP). Chained maze sections (down→up→down) with path length **147**. Flying enemies rebalanced — slower, flat leak damage. Difficulty curve extends to wave 40 with exponential extrapolation beyond. AA upgrade priority + unspent build→upgrade flow keeps DPS scaling with enemy HP.
@@ -33,9 +33,10 @@ AI reaches **wave 40+** (timed out still alive at 180 HP). Chained maze sections
 ### Dev Tools
 - **Headless AI test:** `GET /api/ai-test?speed=10&timeout=1800000` — configurable timeout, returns JSON
 - **Broadcast optimization:** skips JSON.stringify when no open connections
+- **Railway deployment:** https://zonal-light-production-d71c.up.railway.app (deploy via `railway up`)
 
 ## Next Steps
-- [ ] **Render deployment** — connect GitHub repo to Render for persistent mobile play
+- [x] **Railway deployment** — live at https://zonal-light-production-d71c.up.railway.app
 - [ ] **LEFT side mirror testing** — verify chained sections work mirrored
 - [ ] **Ground enemy variety** — ground never leaks, could buff ground or add new enemy types
 - [ ] **Wave 50+ target** — AI is still gaining HP headroom at wave 40

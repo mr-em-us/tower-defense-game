@@ -20,4 +20,6 @@
 - 07:30 PM — Test: wave 10, died to boss again (marginal DPS at wave 10).
 - 07:32 PM — Increased wall growth rate to +3/wave (was +2). Path 61 at wave 2 now.
 - 07:35 PM — Test: wave 40+, 180 HP, timed out still alive! Zero leaks waves 32-39.
-- 10:23 PM — Save requested. Committing all changes.
+- 10:23 PM — First save. Committed and pushed to GitHub.
+- 10:30 PM — Railway deployment: installed CLI, created project, deployed, generated domain.
+- 10:34 PM — Second save. Railway live at https://zonal-light-production-d71c.up.railway.app

@@ -179,6 +179,32 @@ generateMazeLayout():
 - Path 139 cells (was 81)
 - 508 towers by wave 30
 
+## Iteration 13: Wave 40 — Corridor Clearing + Upgrade Flow (2026-03-17 Late Night, CURRENT ★★★★★)
+**Problem:** AI stuck at wave 30. Three issues: (1) maze growth stalls at wave 10 because offense fill towers block new corridor rows, (2) AA upgrade priority too low — BASIC upgrades outrank AA in raw ROI, (3) late-game build budget wasted when maze is saturated.
+
+**Maze Fixes:**
+1. **Corridor clearing (step 1.6):** Before batch, sell ALL towers in corridor rows within the expanded box bounds. Offense fill from earlier waves fills corridors that become part of new switchback rows.
+2. **Smart conflict sell (step 1.7):** Only sell towers that are truly wrong type. WALL↔BASIC on wall rows is fine structurally — don't waste budget converting.
+3. **Growth rate +3/wave (was +2):** Faster maze growth gets path to 61 by wave 2, 75 by wave 10. Survives boss wave 10 reliably.
+4. **Excess AA cap (10/wave):** New level-1 AAs barely help vs late-game flying. Upgrades to existing AA are far more effective.
+5. **AA reserve uncapped after wave 20:** Maze is complete, let AA budget scale naturally.
+
+**Economy Fixes:**
+1. **AA upgrade ROI boost (3x):** AA effective DPS is 3x raw DPS vs flying. Without boost, BASIC upgrades outrank AA.
+2. **Upgrade ratio escalation:** 80% wave 26-30, 85% wave 31+ (was 70% flat for 21+).
+3. **Unspent build → upgrades:** When maze is saturated, unused build budget flows to upgrade pool. Massive late-game DPS boost — at wave 30, 50k+ extra credits go to AA upgrades.
+
+**Key Bug Found:**
+- Offense fill towers in corridor rows within the box area. When box grows from 6→8 walls, new corridor rows (y=24, y=26) have BASIC/SPLASH towers from earlier offense fill. Batch skips them (not empty), corridors are blocked, switchbacks don't work. Grid dump showed corridor y=20 as `######.#.` — nearly solid with offense fill.
+
+**Results:**
+- **Wave 40+, 180 HP, timed out still alive**
+- Zero leaks waves 32-39 (9 consecutive perfect waves)
+- 13,546 enemies killed in wave 39 alone
+- 536 towers by wave 40
+- Only 16 total leaks across 40 waves (all FLYING): waves 12(1), 18(5), 22(1), 27(7), 31(2)
+- Path: 43 → 61 (w2) → 75 (w10) → 147 (w16+)
+
 ---
 
 ## Failed Approaches Summary (DO NOT RETRY)
@@ -198,14 +224,20 @@ generateMazeLayout():
 4. **Batch placement with single validation** — avoids cell interdependency issue
 5. **Additive growth (more rows, not wider)** — avoids widening issues entirely
 6. **Targeted gap sells** — only sell the specific cell blocking a switchback gap
-7. **Growth limit +2 walls/wave** — prevents batch failure from too many new walls
+7. **Growth limit +3 walls/wave** — fast enough to build before boss wave 10, corridor clearing prevents batch failures
 8. **Cell priority: funnel → seals → side walls → internal walls** — structural first
-
 9. **Chained sections with connector seals** — each section enclosed by seal wall + funnel, alternating direction
 10. **Sell cells beyond outer funnel exit** — offense fill can block the enclosure exit
 11. **Cap numWalls by grid height** — `maxWallsFromHeight = floor((GRID.HEIGHT - 2 - mazeTop) / 2) + 1`
 12. **Flat leak damage (separate from creditValue)** — prevents late-game instant death from a single leak
+13. **Corridor clearing before batch** — sell ALL towers in new corridor rows within box bounds (offense fill from earlier waves blocks new switchback corridors)
+14. **Smart conflict sell** — only sell towers that are truly wrong type for position (don't sell WALL↔BASIC on wall rows — wastes budget for no structural benefit)
+15. **AA upgrade priority (3x ROI boost)** — AA effective DPS is 3x raw DPS vs flying; without boost, BASIC upgrades outrank AA in ROI
+16. **Unspent build → upgrades** — when maze is saturated, unused build budget flows to upgrade pool (massive late-game DPS boost)
+17. **Cap excess AA placement (10/wave)** — new level-1 AAs are near-useless vs late-game flying; upgrades to existing AA are far more effective
+18. **Uncap AA reserve after wave 20** — maze is complete, AA needs scale naturally without budget cap
 
 ## Dev Tools
-- **AI test endpoint:** `GET /api/ai-test?speed=10` — headless game, 10min timeout, returns JSON with waveReached, aiHealth
+- **AI test endpoint:** `GET /api/ai-test?speed=10&timeout=1800000` — configurable timeout (default 10min, max 30min), returns JSON with waveReached, aiHealth
+- **Speed=10 is accurate** — speed=50+ causes enemies to skip past tower ranges (2+ cells/tick). Speed=10 = 0.5 game seconds/tick, enemies move 1 cell/tick.
 - **Auto-test requires no browser** — instant iteration on maze changes

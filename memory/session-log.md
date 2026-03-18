@@ -1,5 +1,18 @@
 # Session Log Archive
 
+## Session — 2026-03-17 Late Night (Wave 40 AI — corridor clearing + upgrade flow)
+- Fixed corridor clearing bug (offense fill towers blocking new corridors)
+- Fixed conflict sell (don't sell WALL→BASIC — wastes budget)
+- AA upgrade priority: 3x ROI boost in upgrade scoring
+- Upgrade ratio: 80% w26-30, 85% w31+. Unspent build → upgrades.
+- Wall growth +3/wave. AA reserve uncapped after w20. Excess AA capped 10/wave.
+- **Wave 40+, 180 HP, zero leaks waves 32-39. 13,546 enemies killed in wave 39.**
+
+## Session — 2026-03-17 Full Day (Wave 20 → 30 — chained maze + rebalance)
+- Morning: targeted gap sells, growth limiting, broadcast optimization → wave 20
+- Afternoon: AA buff, countdown-driven AA reserve → wave 22+
+- Evening: chained switchback sections (down→up→down), flying rebalance → wave 30+
+
 ## Session — 2026-03-15 Evening (Compact Box Maze — wave 4 to wave 13)
 - Full rewrite of maze.ts: compact box with horizontal switchback lanes
 - Solved: bypass prevention (funnel), gap positioning (1 inward from edge), side walls

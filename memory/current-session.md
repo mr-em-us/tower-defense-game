@@ -1,33 +1,23 @@
-# 2026-03-17 Full Day Session
+# 2026-03-17 Late Night Session
 
-## Morning (saved at 01:42 PM)
-- 08:23 AM — Session started. No changes since last save (03/15 9:56 PM).
-- 08:30 AM — Booted server, Jason played AI game. AI reached wave 7-10 but had issues.
-- 08:45 AM — Jason identified: no return corridor after maze exit, enemies go straight right.
-- 09:00-09:20 AM — Tried return corridor, widening, cell ordering — all failed.
-- 09:30 AM — Jason: "build like a human, additively, never destructively."
-- 10:00 AM — Created headless AI test endpoint.
-- 10:20 AM — KEY FIX: targeted sells of specific gap cells.
-- 11:10 AM — **Wave 20, 500 HP, zero leaks waves 1-19!**
-- 01:42 PM — First save.
-
-## Afternoon (saved at 03:12 PM)
-- 01:45 PM — Diagnosed air enemy balance problem.
-- 02:10 PM — AA buff: damage 5→8, ground-vs-flying 0.25→0.40.
-- 02:20-02:50 PM — Chained boxes attempt — abandoned (enemies bypass).
-- 03:05 PM — **Wave 22+, timed out, 41 HP. Only 6 leaks in 21 waves.**
-- 03:12 PM — Second save.
-
-## Late Afternoon
-- 03:15 PM — Jason: AI still losing HP to air at wave 5-6.
-- 03:20 PM — Added countdown-driven AA reserve (ramps with airWaveCountdown).
-- 03:25 PM — Over-aggressive AA (wave 8 death) → added 35% budget cap.
-- 03:30 PM — Test: wave 23+, first leak wave 12. Better.
-- 03:35 PM — Jason: "don't hold back credits, just spend everything."
-- 03:38 PM — No-reserve test: wave 14, died (no AA budget at all). Reverted.
-- 03:40 PM — Expanded AA search rows 5-25, higher baseline target (2+wave/3).
-- 03:42 PM — Jason: still leaks at wave 6. Widened AA search area.
-- 03:45 PM — Upgrade ratio capped at 45%, uncapped late-game AA spending.
-- 03:48 PM — Jason: 75k credits unspent at wave 22. Offense fill at radius 4 creates useless walls.
-- 03:50 PM — Reverted offense fill to radius 2. Uncapped AA with leftover budget.
-- 03:52 PM — Jason: "hacky, maze can't turn upward, only air does damage." Save requested.
+- 06:27 PM — Session started. Resuming from 06:09 PM save. Goal: push AI to wave 40.
+- 06:30 PM — Read maze.ts, economy.ts, maze-strategy-history.md. Analyzed bottlenecks.
+- 06:35 PM — Added AA upgrade ROI boost (3x) in getUpgradeActions.
+- 06:36 PM — Increased upgrade ratio: 80% wave 26-30, 85% wave 31+.
+- 06:37 PM — Uncapped AA reserve after wave 20.
+- 06:38 PM — Boosted AA targets ~30% across all countdown states.
+- 06:45 PM — Baseline test at speed=50: wave 11 (speed too high, enemies skip past towers).
+- 06:55 PM — Test at speed=10: wave 11, died to boss. Batch blocked path at wave 10.
+- 07:00 PM — Added conflict sell (sell non-matching tower types in box wall positions).
+- 07:05 PM — Test: still batch blocked. Added grid dump debug logging.
+- 07:10 PM — Grid dump revealed: corridor y=20 is `######.#.` — offense fill towers blocking!
+- 07:15 PM — Added corridor clearing: sell all towers in new corridor rows within box.
+- 07:17 PM — Removed over-aggressive WALL→BASIC conflict sell (wastes early budget).
+- 07:20 PM — Test: wave 30, 220 HP. Corridor clearing fixed batch failures!
+- 07:25 PM — Added unspent build→upgrade flow in AIController.
+- 07:26 PM — Capped excess AA placement at 10/wave (new level-1s are useless late).
+- 07:28 PM — Added configurable timeout param to ai-test endpoint.
+- 07:30 PM — Test: wave 10, died to boss again (marginal DPS at wave 10).
+- 07:32 PM — Increased wall growth rate to +3/wave (was +2). Path 61 at wave 2 now.
+- 07:35 PM — Test: wave 40+, 180 HP, timed out still alive! Zero leaks waves 32-39.
+- 10:23 PM — Save requested. Committing all changes.

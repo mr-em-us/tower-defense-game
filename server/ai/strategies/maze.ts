@@ -85,7 +85,11 @@ export function generateMazeLayout(
     else if (airCountdown === 1) aaReserve = 600 + wave * 60;
     else if (airCountdown === 0) aaReserve = 800 + wave * 80;
   }
-  aaReserve = Math.min(aaReserve, Math.floor(budget * 0.45));
+  // Early game: cap AA reserve to leave budget for maze. Late game: uncap (maze is done).
+  if (wave <= 20) {
+    aaReserve = Math.min(aaReserve, Math.floor(budget * 0.45));
+  }
+  // Late game: let AA reserve scale naturally (no cap)
   const mazeBudget = budget - aaReserve;
 
   const xMin = side === PlayerSide.RIGHT ? GRID.RIGHT_ZONE_START : 0;
@@ -128,6 +132,51 @@ export function generateMazeLayout(
     }
   }
 
+
+  // === 1.6. CLEAR NEW CORRIDORS — sell towers blocking corridor rows in expanded box ===
+  // When the box grows, new corridor rows may have offense fill towers from earlier waves.
+  const spawnSideX = side === PlayerSide.RIGHT ? box.mazeLeft : box.mazeRight;
+  for (let y = box.mazeTop; y <= box.mazeBottom; y++) {
+    if ((y - box.mazeTop) % 2 === 0) continue; // skip wall rows
+    for (let x = box.mazeLeft; x <= box.mazeRight; x++) {
+      // Keep designed side walls
+      if (x === spawnSideX && y !== firstCorridorY) continue;
+      if (x === goalSideX && y !== lastCorridorY) continue;
+      if (state.grid.cells[y]?.[x] === CellType.TOWER) {
+        const tower = Object.values(state.towers).find(
+          t => t.position.x === x && t.position.y === y && t.ownerId === playerId
+        );
+        if (tower) {
+          sellTowerIds.push(tower.id);
+          state.grid.cells[y][x] = CellType.EMPTY;
+          log(`[MAZE] Sell corridor: (${x},${y}) ${tower.type}`);
+        }
+      }
+    }
+  }
+
+  // === 1.7. SELL CONFLICTING TOWERS — non-structural towers blocking new wall/seal positions ===
+  // Only sell towers that are truly wrong for their position (e.g., offense fill SPLASH in a wall row).
+  // Don't sell WALL→BASIC conversions — WALLs in internal wall rows are fine structurally.
+  for (const cell of box.cells) {
+    if (cell.x < xMin || cell.x > xMax) continue;
+    if (isInSpawnZone(cell.x, cell.y)) continue;
+    if (state.grid.cells[cell.y]?.[cell.x] === CellType.TOWER) {
+      const existing = Object.values(state.towers).find(
+        t => t.position.x === cell.x && t.position.y === cell.y && t.ownerId === playerId
+      );
+      if (!existing) continue;
+      // Skip if tower type matches or is WALL/BASIC in a wall row (both OK structurally)
+      const isWallRow = cell.type === TowerType.WALL || cell.type === TowerType.BASIC;
+      const existingIsStructural = existing.type === TowerType.WALL || existing.type === TowerType.BASIC;
+      if (existing.type === cell.type) continue;
+      if (isWallRow && existingIsStructural) continue; // WALL↔BASIC is fine
+      sellTowerIds.push(existing.id);
+      state.grid.cells[cell.y][cell.x] = CellType.EMPTY;
+      log(`[MAZE] Sell conflict: (${cell.x},${cell.y}) ${existing.type} -> ${cell.type}`);
+    }
+  }
+
   // === 2. BATCH PLACE BOX ===
   const batchCells: MazeCell[] = [];
   for (const cell of box.cells) {
@@ -142,6 +191,9 @@ export function generateMazeLayout(
   }
 
   const batchPath = findPath(state.grid, side);
+  if (!batchPath) {
+    log(`[MAZE] Batch blocked path — reverting`);
+  }
   if (batchPath) {
     for (const cell of batchCells) {
       const cost = getDynamicPrice(state, cell.type);
@@ -435,7 +487,8 @@ function generateBoxMaze(
   const mazeCreditBudget = mazeTowerBudget * basicCost;
   const effectiveCreditBudget = mazeCreditBudget + existingMazeCost;
 
-  // Count existing wall rows to limit growth rate (+2 walls/wave max)
+  // Count existing wall rows to limit growth rate (+3 walls/wave max)
+  // Corridor clearing ensures new rows work even with offense fill
   let existingWallRows = 0;
   for (let y = 0; y < GRID.HEIGHT; y++) {
     let solidCount = 0;
@@ -444,7 +497,7 @@ function generateBoxMaze(
     }
     if (solidCount >= mazeWidth - 2) existingWallRows++;
   }
-  const maxWallsThisWave = Math.max(4, existingWallRows + 2);
+  const maxWallsThisWave = Math.max(4, existingWallRows + 3);
 
   const sliceCreditCost = (mazeWidth - 1) * basicCost + 2 * wallPrice;
   let numWalls = 2 + Math.floor((effectiveCreditBudget - 2 * mazeWidth * wallPrice) / sliceCreditCost);
@@ -729,20 +782,21 @@ function placeAADefense(
   let aaTarget: number;
   if (airCountdown === 0) {
     // Air THIS wave — maximum AA
-    aaTarget = 8 + Math.floor(wave * 0.9);
+    aaTarget = 8 + Math.floor(wave * 1.2);
   } else if (airCountdown === 1) {
-    aaTarget = 6 + Math.floor(wave * 0.7);
+    aaTarget = 6 + Math.floor(wave * 0.9);
   } else if (airCountdown === 2 || airCountdown === 3) {
-    aaTarget = 5 + Math.floor(wave * 0.5);
+    aaTarget = 5 + Math.floor(wave * 0.7);
   } else {
     // No air warning — keep enough AA for surprise air waves
-    aaTarget = 4 + Math.floor(wave * 0.5);
+    aaTarget = 4 + Math.floor(wave * 0.6);
   }
 
   let aaNeeded = Math.max(0, aaTarget - totalAA);
-  // Late game: spend up to 50% of excess budget on extra AA
+  // Mid game: place some extra AA with excess budget. Cap at 10 per wave —
+  // beyond that, upgrades to existing AA are far more effective than new level-1s.
   if (wave >= 8 && totalBudget > 500) {
-    const excessAA = Math.floor(totalBudget * 0.5 / getDynamicPrice(state, TowerType.AA));
+    const excessAA = Math.min(10, Math.floor(totalBudget * 0.3 / getDynamicPrice(state, TowerType.AA)));
     aaNeeded = Math.max(aaNeeded, excessAA);
   }
   if (aaNeeded === 0) return 0;

@@ -51,14 +51,16 @@ const httpServer = http.createServer((req, res) => {
         humanHealth: humanResult?.playerHealth ?? 0,
       }));
     };
-    // Timeout after 10 minutes
+    // Timeout (configurable via ?timeout=ms, default 10 minutes)
+    const timeoutMs = Math.min(parseInt(url.searchParams.get('timeout') || '600000', 10), 1800000);
     setTimeout(() => {
       if (!res.writableEnded) {
+        const aiPlayer = Object.values((testRoom as any).state.players).find((p: any) => p.isAI) as any;
         res.writeHead(408, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'timeout', waveReached: (testRoom as any).state.waveNumber }));
+        res.end(JSON.stringify({ error: 'timeout', waveReached: (testRoom as any).state.waveNumber, aiHealth: aiPlayer?.health ?? 0 }));
         (testRoom as any).stopLoop();
       }
-    }, 600000);
+    }, timeoutMs);
     return;
   }
 

@@ -1,17 +1,27 @@
 # Project Memory -- Tower Defense Game
-Last Save: 2026-03-17 - 06:09 PM PST
+Last Save: 2026-03-17 - 10:23 PM PST
 
 ## Current State
-AI reaches **wave 30+** (timed out still alive at 60 HP). Chained maze sections (down→up→down) with path length **139**. Flying enemies rebalanced — slower, flat leak damage. Difficulty curve extends to wave 40 with exponential extrapolation beyond.
+AI reaches **wave 40+** (timed out still alive at 180 HP). Chained maze sections (down→up→down) with path length **147**. Flying enemies rebalanced — slower, flat leak damage. Difficulty curve extends to wave 40 with exponential extrapolation beyond. AA upgrade priority + unspent build→upgrade flow keeps DPS scaling with enemy HP.
 
 ### Architecture (current working code)
 - `server/ai/strategies/maze.ts` — chained switchback maze generator
-- Box 1: width 7, grows downward (+2 walls/wave max)
+- Box 1: width 7, grows downward (+3 walls/wave max)
 - Chained sections: `generateChainedSection()` adds up/down columns automatically
 - 3 sections fit on RIGHT side (cols 31-37, 39-45, 47-53)
 - Enclosure: connector seals between sections, outer funnel on last section
+- Corridor clearing: sells offense fill towers in new corridor rows when box grows
+- Conflict sell: only sells truly wrong tower types (not WALL↔BASIC)
 - Offense fill: radius 2→3→4 scaling with wave
-- AA defense: aggressive targets, 50% excess budget to AA after wave 8
+- AA defense: aggressive targets, capped at 10 new/wave (upgrades > new level-1s)
+- AA reserve uncapped after wave 20 (maze is done)
+
+### Economy (current working code)
+- `server/ai/strategies/economy.ts` — budget allocation + upgrade scoring
+- Upgrade ratio: 0% w1-4, 20% w5-7, 35% w8-12, 55% w13-20, 70% w21-25, 80% w26-30, 85% w31+
+- AA upgrade ROI boost: 3x (accounts for 3x flying damage multiplier)
+- `server/ai/AIController.ts` — unspent build budget flows to upgrades
+- Late-game credits mostly go to AA tower upgrades (exponential DPS scaling)
 
 ### Balance State
 - Flying: speed 2 (was 3), 80 HP, non-AA damage 0.5x (was 0.4x), AA 3x
@@ -19,17 +29,16 @@ AI reaches **wave 30+** (timed out still alive at 60 HP). Chained maze sections 
 - Kill rewards: sqrt(difficulty) scaling — income grows slower than enemy HP
 - Difficulty curve: 40 entries, aggressive late game (120x at wave 40)
 - Post-wave-40: 15% exponential growth per wave
-- Upgrade ratio: 55% wave 13-20, 70% wave 21+
 
 ### Dev Tools
-- **Headless AI test:** `GET /api/ai-test?speed=10` — 10min timeout, returns JSON
+- **Headless AI test:** `GET /api/ai-test?speed=10&timeout=1800000` — configurable timeout, returns JSON
 - **Broadcast optimization:** skips JSON.stringify when no open connections
 
 ## Next Steps
-- [ ] **Wave 40 target** — needs more AA scaling or 4th maze section to survive deeper
+- [ ] **Render deployment** — connect GitHub repo to Render for persistent mobile play
 - [ ] **LEFT side mirror testing** — verify chained sections work mirrored
 - [ ] **Ground enemy variety** — ground never leaks, could buff ground or add new enemy types
-- [ ] Render deployment for mobile play
+- [ ] **Wave 50+ target** — AI is still gaining HP headroom at wave 40
 - [ ] Clean up debug logging in maze.ts
 
 ## Uncommitted Work
@@ -37,22 +46,24 @@ None — committing now.
 
 ## Recent Sessions
 
+### 2026-03-17 Late Night -- Wave 40 AI ★★★★★
+- Fixed corridor clearing bug (offense fill towers blocking new corridors when box grows)
+- Fixed conflict sell (don't sell WALL→BASIC on wall rows — wastes early budget)
+- AA upgrade priority: 3x ROI boost in upgrade scoring
+- Upgrade ratio: 80% wave 26-30, 85% wave 31+ (was 70% flat for 21+)
+- Unspent build budget flows to upgrades (huge late-game DPS boost)
+- AA reserve uncapped after wave 20, excess AA capped at 10/wave
+- Wall growth rate +3/wave (was +2) — maze reaches full size faster
+- Configurable test timeout parameter
+- **Wave 40+, 180 HP, zero leaks waves 32-39. 13,546 enemies killed in wave 39.**
+
 ### 2026-03-17 Evening -- Chained Maze + Rebalance ★★★★
-- Implemented return section (U-turn): enemy goes down→up through 2 switchback columns
-- Fixed numWalls cap bug (was 12, should be 8 based on grid height)
-- Fixed exit path blocking (offense fill at funnel exit)
-- Generalized to chained sections: down→up→down, 3 columns automatic
-- Path: 43 → 139 (3.2x increase!)
-- Rebalanced flying: speed 3→2, non-AA dmg 0.4→0.5x
-- Flat leak damage (leakDamage field, no difficulty scaling)
-- Extended difficulty curve to 40 waves (aggressive: 120x at wave 40)
-- Post-40 extrapolation: 15% exponential per wave
-- Kill rewards: sqrt scaling (caps income growth)
-- **Wave 30+, 60 HP, timed out still alive. 3,063 enemies killed in wave 30.**
+- Chained sections: down→up→down, 3 columns automatic, path 139
+- Flying rebalance, flat leak damage, difficulty curve to 40
+- **Wave 30+, 60 HP, timed out still alive**
 
 ### 2026-03-17 Afternoon -- AA Balance + Wave 22 ★★★
-- AA damage buff (5→8), ground-vs-flying (0.25→0.40)
-- Countdown-driven AA reserve/target scaling
+- AA damage buff (5→8), countdown-driven AA reserve/target scaling
 - **Reliably wave 20+, ground defense perfect, only air leaks**
 
 ### 2026-03-17 Morning -- AI Maze to Wave 20 ★★★
@@ -62,8 +73,6 @@ None — committing now.
 ### 2026-03-15 Evening -- Compact Box Maze ★★★
 - Full rewrite: compact box with horizontal switchbacks
 - Wave 4 → wave 13, path 30 → 173
-
-### 2026-03-15 PM -- Column-Based (11 iterations, abandoned)
 
 ## Known Issues / Tech Debt
 - [ ] Leaderboard data only persists locally

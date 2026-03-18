@@ -109,8 +109,11 @@ export class AIController {
       });
     }
 
-    // 4. Upgrades with remaining budget
-    const upgradeActions = getUpgradeActions(state, this.playerId, plan.upgradeBudget, this.depth);
+    // 4. Upgrades — include unspent build budget (maze may be complete)
+    const buildSpent = mazePlan.placements.reduce((sum, p) => sum + p.cost, 0);
+    const unspentBuild = Math.max(0, plan.buildBudget - buildSpent);
+    const totalUpgradeBudget = plan.upgradeBudget + unspentBuild;
+    const upgradeActions = getUpgradeActions(state, this.playerId, totalUpgradeBudget, this.depth);
     for (const action of upgradeActions) {
       this.actionQueue.push(action);
     }

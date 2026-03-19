@@ -131,3 +131,15 @@
 **Decision**: Two fixes: (1) TowerSystem switched from wall-clock `Date.now()/1000` to a game-time accumulator (`this.gameTime += dt`) for fire interval tracking. Fire interval is now `1/fireRate` in game-time, not `1/(fireRate*gameSpeed)` in wall-clock. (2) WaveSystem changed from `while(spawnTimer<=0)` (multiple batches per tick) to `if(spawnTimer<=0)` (one batch per tick) with full timer reset instead of deficit carry.
 **Alternatives**: Keep speed-dependent behavior and only test at speed=1 (would mask bugs), adjust AI based on speed (fragile)
 **Consequences**: Game produces identical outcomes regardless of gameSpeed. Previous speed=10 results were inflated by spawn clustering that amplified splash damage (18 enemies per tick vs 6). Headless tests now use speed=4 to match browser behavior. DPS is exactly `fireRate` shots/game-second at all speeds.
+
+### 2026-03-19 -- Restore 541149c as AI Baseline (Revert Strategy Overhaul)
+**Context**: After speed fix (8403ec5), the AI was overhauled (43b5130) to improve performance at speed=4. The overhaul changed maze geometry, budget splits, and growth parameters — but was optimized against broken test conditions. Jason confirmed that the 541149c code (chained maze sections) was the version that looked smart in the browser. The overhaul made it worse (wave 9-10 vs 541149c's visual wave 20+).
+**Decision**: Restore AI files (maze.ts, economy.ts, AIController.ts) from commit 541149c. Keep speed fixes in TowerSystem/WaveSystem. Only make targeted improvements on top of the proven baseline: aggressive AA line defense, zero savings reserve.
+**Alternatives**: Continue iterating on the overhaul (rejected — too many changes tangled together), start from scratch (rejected — LLM lacks spatial reasoning for maze design), use genetic algorithm (rejected — too complex for current scope)
+**Consequences**: AI behavior matches what Jason verified visually. Maze geometry is proven and untouched. Future improvements are constrained to economy/spending decisions, not spatial layout.
+
+### 2026-03-19 -- Self-Maintaining Knowledge Architecture
+**Context**: Claude Code sessions accumulate intelligence during work (bug patterns discovered, dead ends hit, decisions made) but this knowledge was lost between sessions. Skills were static playbooks, memory was manually maintained, docs drifted from reality.
+**Decision**: Implement three-layer knowledge system: (1) routing taxonomy mapping each learning type to one canonical file, (2) skills with post-action learning steps that update themselves, (3) /learn meta-skill for end-of-session sweeps. Dead ends file is append-only and highest-ROI knowledge.
+**Alternatives**: Manual doc updates (status quo — knowledge decays), external knowledge base (overkill), session summaries only (too lossy)
+**Consequences**: Skills improve with each use. Dead ends prevent repeating mistakes. Save protocol includes /learn sweep. Session 20 should be dramatically more productive than session 1.

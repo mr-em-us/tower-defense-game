@@ -68,6 +68,14 @@ Revenue categories: killRewards (ProjectileSystem.applyDamage), waveBonus (CREDI
 
 Expense categories: towerPurchases (handlePlaceTower), towerUpgrades (handleUpgradeTower), repairCosts (handleRepairTower, handleBrushRepair, processAutoRepair), restockCosts (handleRestockTower, handleRestockAll, handleBrushRepair, processAutoRepair), maintenanceCosts (sum of maintenancePerTurn at wave start)
 
+## AI Economy — AA Targeting (server/ai/strategies/maze.ts placeAADefense)
+- AA target count: `4 + wave * 1.5` (proactive, not reactive to air warnings)
+- Placement: horizontal line at rows 12-16, spread horizontally across zone
+- Budget reserve: gap-based (`aaGap * aaCost`), capped at 50% of build budget
+- Wave 1: no AA (all budget to maze). Wave 2+: proactive AA placement.
+- Upgrade ratios: 0% w1-4, 20% w5-7, 35% w8-12, 55% w13-20, 70% w21+
+- Savings reserve: 0% (spend everything)
+
 ## Wave Scaling Formula (server/systems/WaveSystem.ts)
 
 ```

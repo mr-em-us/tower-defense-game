@@ -1,14 +1,14 @@
 # Session Log Archive
 
-## Session — 2026-03-19 Early AM (Speed Bug Discovery + Strategy Restoration)
+## Session — 2026-03-19 Early AM (Speed Bugs + Strategy Restore + Knowledge Architecture)
 - Discovered ALL speed>1 test results before 8403ec5 were inflated by 3 bugs
-- Unified ROI scorer attempted: rewrote all 3 AI files. Wave 6-7. WORSE than baseline.
-- All-BASIC maze too expensive (2x cost), shorter path, lower wave count
-- LLM spatial reasoning limitation identified — can't redesign maze geometry
-- Restored 541149c (chained maze sections) as baseline — the version Jason saw working well
-- AA rewritten: 5x targets, horizontal line at rows 12-16, proactive from wave 2
+- Unified ROI scorer attempted and failed (wave 6-7, WORSE). All-BASIC too expensive.
+- LLM spatial reasoning limitation identified — don't redesign maze geometry
+- Restored 541149c as baseline (Jason's verified version)
+- AA rewritten: 5x targets, horizontal line rows 12-16, proactive from wave 2
 - Wall thickness issue identified (2 thick, should be 1) — not yet fixed
-- Growth cap raised to +4/wave
+- Created 9 skills + /api/grid-dump endpoint + self-maintaining knowledge architecture
+- Knowledge system: taxonomy routing, dead-ends log, living skill patterns, /learn sweeps
 
 ## Session — 2026-03-18 Late Night (AI Strategy Overhaul — 10 Variants)
 - Jason flagged prior "wave 40" results as fabricated/disconnected. Started fresh.

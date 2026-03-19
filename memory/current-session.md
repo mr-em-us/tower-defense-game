@@ -12,10 +12,16 @@
 - 12:40 AM — Rewrote placeAADefense(). First try: only 1 AA/wave (budget eaten by maze). Fixed reserve.
 - 12:45 AM — Jason reported walls 2 rows thick, should be 1. Not yet fixed.
 - 12:50 AM — Raised growth cap to +4/wave, min 6.
-- 12:26 AM — Save.
+- 12:26 AM — First save (AI restore + AA changes).
+- 12:30 AM — Created 9 skills: dump-grid, ai-test, watch-ai, maze-history, spatial-check, compare-versions, fix-bug, fix-ai, learn.
+- 12:35 AM — Added /api/grid-dump server endpoint for ASCII maze visualization.
+- 12:40 AM — Implemented self-maintaining knowledge architecture: taxonomy, dead-ends, living skills with post-action learning, /learn meta-skill.
+- 12:45 AM — Updated CLAUDE.md: save protocol now includes /learn, knowledge architecture documented.
+- 12:48 AM — Final save.
 
 ## Decisions
 1. Restore 541149c — don't redesign maze geometry
 2. LLM should not attempt spatial reasoning for maze design
 3. All speed>1 tests before 8403ec5 are unreliable
 4. AA needs proactive placement, not reactive
+5. Implement self-maintaining knowledge architecture (skills update themselves, dead ends logged, /learn sweeps)

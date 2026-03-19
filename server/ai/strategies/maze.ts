@@ -194,10 +194,13 @@ export function generateMazeLayout(
   if (!batchPath) {
     log(`[MAZE] Batch blocked path — reverting`);
   }
+  // Cap box spending when chain is possible — reserve budget for chain section
+  const boxBudgetCap = box.numWalls >= 6 ? Math.floor(mazeBudget * 0.7) : mazeBudget;
+
   if (batchPath) {
     for (const cell of batchCells) {
       const cost = getDynamicPrice(state, cell.type);
-      if (spent + cost > mazeBudget) {
+      if (spent + cost > boxBudgetCap) {
         state.grid.cells[cell.y][cell.x] = CellType.EMPTY;
         continue;
       }
@@ -235,14 +238,14 @@ export function generateMazeLayout(
   // === 2b. CHAINED SECTIONS — additional switchback columns ===
   // Each section alternates direction: up, down, up, down...
   // Connected by seal walls, enclosed by outer funnel on last section.
-  // Trigger at 4+ walls (not 6) so the chain builds before boss wave 10.
-  // Lower budget threshold to 300c to ensure chain gets funded.
-  if (box.numWalls >= 4) {
+  // Trigger at 6+ walls — box needs enough switchbacks for a long internal path.
+  // With +4/wave growth cap, box reaches 6 walls by wave 2 (4 → 8 cap → 6 affordable).
+  if (box.numWalls >= 6) {
     let prevExitX = goalSideX; // box 1's exit column
     let goingUp = true; // first extra section goes upward
     let sectionIdx = 0;
 
-    while (mazeBudget - spent >= 300) {
+    while (mazeBudget - spent >= 200) {
       const section = generateChainedSection(state, side, box, playerId, prevExitX, goingUp);
       if (!section) break;
 
@@ -499,7 +502,8 @@ function generateBoxMaze(
     }
     if (solidCount >= mazeWidth - 2) existingWallRows++;
   }
-  const maxWallsThisWave = Math.max(4, existingWallRows + 3);
+  // Wave 1 needs 6+ walls to trigger chain. Allow +4/wave for faster initial growth.
+  const maxWallsThisWave = Math.max(6, existingWallRows + 4);
 
   const sliceCreditCost = (mazeWidth - 1) * basicCost + 2 * wallPrice;
   let numWalls = 2 + Math.floor((effectiveCreditBudget - 2 * mazeWidth * wallPrice) / sliceCreditCost);
@@ -577,7 +581,7 @@ function generateBoxMaze(
     if (y !== lastCorridorY) cells.push({ x: goalSideX, y, type: TowerType.WALL });
   }
 
-  // 4. INTERNAL WALLS — switchback walls with gaps (expensive BASIC for DPS)
+  // 4. INTERNAL WALLS — switchback walls with gaps (BASIC for DPS)
   for (let w = 0; w < numWalls; w++) {
     const isSeal = w === 0 || w === numWalls - 1;
     if (isSeal) continue;

@@ -4,14 +4,21 @@ import { distance } from '../../shared/utils/math.js';
 import { v4 as uuid } from 'uuid';
 
 export class TowerSystem {
+  private gameTime = 0;
+
   update(state: GameState, dt: number, now: number): void {
     if (state.phase !== GamePhase.COMBAT) return;
 
+    // Use game-time (adjusted by gameSpeed) for fire timing,
+    // not wall-clock. Wall-clock + speed-adjusted intervals cause
+    // tick quantization errors at certain speeds (17% DPS loss at 4x).
+    this.gameTime += dt; // dt is already adjustedDt from GameRoom
+
     for (const tower of Object.values(state.towers)) {
       const stats = TOWER_STATS[tower.type];
-      const fireInterval = 1 / (tower.fireRate * state.gameSpeed);
+      const fireInterval = 1 / tower.fireRate;
 
-      if (now - tower.lastFireTime < fireInterval) continue;
+      if (this.gameTime - tower.lastFireTime < fireInterval) continue;
 
       // No ammo - can't fire
       if (tower.ammo <= 0) continue;
@@ -28,7 +35,7 @@ export class TowerSystem {
       }
 
       tower.targetId = target.id;
-      tower.lastFireTime = now;
+      tower.lastFireTime = this.gameTime;
       tower.ammo--;
 
       // Create projectile

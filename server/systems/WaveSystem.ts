@@ -81,9 +81,12 @@ export class WaveSystem {
       this.waveStarted = true;
     }
 
-    // Spawn from queue in batches (batch size scales with wave)
+    // Spawn from queue one batch at a time per tick.
+    // At high game speeds, dt can exceed spawn interval — but we only spawn
+    // one batch per tick to keep enemy spacing consistent regardless of speed.
+    // This prevents splash/AoE from being artificially stronger at high speed.
     this.spawnTimer -= dt;
-    while (this.spawnTimer <= 0 && this.waveQueue.length > 0) {
+    if (this.spawnTimer <= 0 && this.waveQueue.length > 0) {
       const batchSize = Math.min(5, 1 + Math.floor((state.waveNumber - 1) / 2));
       for (let b = 0; b < batchSize && this.waveQueue.length > 0; b++) {
         const entry = this.waveQueue.shift()!;
@@ -96,8 +99,7 @@ export class WaveSystem {
       }
       state.waveEnemiesRemaining = this.waveQueue.reduce((sum, e) => sum + (e.side === ('BOTH' as PlayerSide) ? 2 : 1), 0);
       if (this.waveQueue.length > 0) {
-        this.spawnTimer += this.waveQueue[0].delay;
-        break;
+        this.spawnTimer = this.waveQueue[0].delay; // reset to full interval, don't carry deficit
       }
     }
   }

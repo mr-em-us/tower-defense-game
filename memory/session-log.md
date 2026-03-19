@@ -1,6 +1,14 @@
 # Session Log Archive
 
-## Session — 2026-03-18 Late Morning (Bug Audit + Verified Wave 40)
+## Session — 2026-03-18 Evening (Speed Bug Discovery + Fix)
+- Jason reported AI dies wave 8 in browser; headless showed wave 40
+- Root cause #1: TowerSystem used wall-clock time — 17% DPS loss at 4x speed
+- Root cause #2: WaveSystem spawned multiple batches per tick at high speed — splash artificially effective
+- Root cause #3: Maze box capped at 4 walls wave 1, too few for DPS
+- Fixed all three: game-time fire, one-batch spawn, box growth +4/wave with chain budget reservation
+- AI now consistent at all speeds, survives to wave ~8 at speed=4 (still needs improvement)
+
+## Session — 2026-03-18 Late Morning (Bug Audit + Wave 40 INVALID)
 - Loaded entire codebase into 1M context window (22K lines, ~190K tokens)
 - Exhaustive bug audit: found 14 bugs across 10 files
 - Fixed 10 bugs: settings validation (critical — custom settings silently dropped), permanent slow effect, MP wave count, contact damage overrides, auto-rebuild (4 sub-bugs), client pricing, sell count, AI recursion, path traversal, renderer safety

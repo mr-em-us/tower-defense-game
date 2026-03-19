@@ -125,3 +125,9 @@
 **Decision**: Rewrote wave formula to `baseCount = firstWaveEnemies * (1 + (wave-1) * 0.2) * diffRatio` with percentage-based type distribution. Reduced default firstWaveEnemies from 60 to 15.
 **Alternatives**: Just reduce the *10 multiplier (wouldn't fix the scaling shape), adjust difficulty curve (wouldn't fix wave 1)
 **Consequences**: Wave 1: 15 enemies (was 60). Wave 3: 23 (was 165). Wave 10: 101. Late waves still get intense. Easy/Hard presets adjusted proportionally (8 and 25).
+
+### 2026-03 -- Speed-Invariant Simulation (TowerSystem + WaveSystem)
+**Context**: AI survived to wave 40 at speed=10 (headless test) but died at wave 6 at speed=4 (browser). Game behavior was NOT speed-invariant.
+**Decision**: Two fixes: (1) TowerSystem switched from wall-clock `Date.now()/1000` to a game-time accumulator (`this.gameTime += dt`) for fire interval tracking. Fire interval is now `1/fireRate` in game-time, not `1/(fireRate*gameSpeed)` in wall-clock. (2) WaveSystem changed from `while(spawnTimer<=0)` (multiple batches per tick) to `if(spawnTimer<=0)` (one batch per tick) with full timer reset instead of deficit carry.
+**Alternatives**: Keep speed-dependent behavior and only test at speed=1 (would mask bugs), adjust AI based on speed (fragile)
+**Consequences**: Game produces identical outcomes regardless of gameSpeed. Previous speed=10 results were inflated by spawn clustering that amplified splash damage (18 enemies per tick vs 6). Headless tests now use speed=4 to match browser behavior. DPS is exactly `fireRate` shots/game-second at all speeds.

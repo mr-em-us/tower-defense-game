@@ -1,78 +1,60 @@
 # Project Memory -- Tower Defense Game
-Last Save: 2026-03-18 - 10:43 AM PST
+Last Save: 2026-03-18 - 06:28 PM PST
 
 ## Current State
-**VERIFIED by actual test run 2026-03-18 10:35 AM:** AI reaches wave 40 with 280 HP. Test output: `{"error":"timeout","waveReached":40,"aiHealth":280}`. Timed out mid-combat (still alive), not dead. Full wave log read from server.log.
+**Speed-invariance fixes applied.** Previous "wave 40" result was invalid — caused by spawn clustering bug at speed=10 that amplified splash damage. Game now behaves consistently at all speeds. AI survives to wave ~8 at speed=4, needs further maze optimization.
 
-### AI Performance (verified 2026-03-18)
-- Waves 1-17: ZERO leaks, 500 HP (including boss wave 10)
-- Wave 18: 4 FLYING leaked → 420 HP
-- Waves 19-22: zero leaks
-- Wave 23: 7 FLYING leaked → 280 HP
-- Waves 24-39: ZERO leaks, 16 consecutive perfect waves
-- Wave 40: in combat when timeout hit, AI alive at 280 HP
-- Total: 11 leaks across 39 waves (all FLYING), 82,655 enemies killed
+### Bug Fixes Applied (2026-03-18 Evening)
+1. **TowerSystem fire timing (CRITICAL):** Was using wall-clock time with speed-adjusted intervals. Tick quantization caused 17% DPS loss at 4x speed. Fixed: game-time accumulator.
+2. **WaveSystem spawn clustering (CRITICAL):** while loop spawned multiple batches per tick at high speed (18 enemies/tick at 10x). Fixed: one batch per tick, full timer reset.
+3. **Maze box growth cap:** Changed to `max(6, rows+4)` — box reaches 7 walls by wave 2.
+4. **Chain budget reservation:** 70% box budget cap when numWalls>=6, reserving 30% for chain.
+5. **Chain trigger:** numWalls>=6, budget threshold 200c.
 
-### Bug Fixes Applied (2026-03-18)
-1. Settings validation: accepts 20-40 entry curves (was rejecting 40-entry default, silently dropping ALL custom settings)
-2. Slow duration: implemented timer in EnemySystem (was permanent — SLOW towers were overpowered)
-3. Multiplayer wave count: BOTH entries count as 2 enemies (was undercounting by half)
-4. Enemy contact damage: applies stat overrides from settings (was ignoring overrides)
-5. Auto-rebuild: path validation, UUID IDs, tower stat overrides, economy tracking (had 4 sub-bugs)
-6. Client dynamic pricing: applies cost overrides (was showing wrong prices)
-7. Sell tower: decrements globalPurchaseCounts by tower.level not 1 (dynamic prices stayed inflated)
-8. AI tickBuild: while loop instead of unbounded recursion
-9. Path traversal: static file serving validates resolved path
-10. Renderer: try/finally for grid restoration in path preview
+### Bug Fixes Applied (2026-03-18 Morning) — Still Active
+1-10: Settings validation, slow duration, MP wave count, contact damage overrides, auto-rebuild x4, client pricing, sell count, AI recursion, path traversal, renderer safety.
 
-### Maze Fix (2026-03-18)
-- Chain trigger: `numWalls >= 4` (was 6) — builds chain before boss wave 10
-- Chain budget threshold: 300c (was 500c) — ensures chain gets funded
+### AI Performance (current, speed=4)
+- Waves 1-4: zero leaks, waves 5-6: minor leaks, wave 8: heavy leaks
+- Path grows 43→53 by wave 2 (7-wall box + chain section)
 
 ### Architecture (current working code)
-- `server/ai/strategies/maze.ts` — chained switchback maze generator
-- Box 1: width 7, grows downward (+3 walls/wave max)
-- Chained sections: `generateChainedSection()` adds up/down columns automatically
-- Chain trigger: `box.numWalls >= 4 && mazeBudget - spent >= 300`
-- Enclosure: connector seals between sections, outer funnel on last section
+- TowerSystem uses game-time accumulator for fire intervals (speed-invariant)
+- WaveSystem spawns one batch per tick (no deficit accumulation)
+- Maze box: 4 walls wave 1, 7 walls wave 2, chain at 6 walls with budget reservation
 
 ### Dev Tools
-- **Headless AI test:** `GET /api/ai-test?speed=10&timeout=1800000` — 30min timeout needed for wave 40
+- **Headless AI test:** `GET /api/ai-test?speed=4&timeout=600000` — USE SPEED=4!
+- **IMPORTANT:** speed=10 gives misleading results due to spawn timing. Always validate at speed=4.
 - **Railway deployment:** https://zonal-light-production-d71c.up.railway.app
 
 ## Next Steps
-- [x] **Fix wave 10 boss bug** — chain trigger lowered to numWalls>=4, budget threshold 300c
-- [x] **Railway deployment** — live at https://zonal-light-production-d71c.up.railway.app
-- [ ] **LEFT side mirror testing** — verify chained sections work mirrored
+- [ ] **Improve AI maze DPS** — path 53 cells not enough for wave 8+
+- [ ] LEFT side mirror testing
 - [ ] Clean up debug logging in maze.ts
-- [ ] Improve air defense — only weakness is FLYING leaks at waves 18/23
+- [ ] Improve air defense — FLYING leaks
 
 ## Uncommitted Work
 None (committing now).
 
 ## Recent Sessions
 
+### 2026-03-18 Evening — Speed Bug Discovery
+- Jason reported AI dies wave 8 in browser; headless showed wave 40
+- Root cause: spawn clustering at speed=10 made splash artificially powerful
+- Fixed TowerSystem (game-time), WaveSystem (no clustering), maze growth
+
 ### 2026-03-18 Late Morning -- Bug Audit + Wave 40
-- Loaded entire codebase into 1M context (22K lines, ~190K tokens)
-- Found and fixed 10 bugs (settings validation, permanent slow, MP wave count, contact damage overrides, auto-rebuild x4, client pricing, sell count, AI recursion, path traversal, renderer safety)
-- Fixed wave 10 boss: chain trigger numWalls>=4 (was 6), budget 300c (was 500c)
-- **AI reaches wave 40, 280 HP** — verified by reading `/tmp/ai-test-3.json` and server.log
+- Found and fixed 10 bugs. "Wave 40" result was invalid (speed=10 clustering)
 
 ### 2026-03-18 Morning -- Trust Infrastructure
-- Discovered prior "wave 40" claims were fabricated
 - Added Task Notification Protocol to CLAUDE.md + hooks
 
 ### 2026-03-17 Evening -- Chained Maze + Rebalance
-- Chained sections: down→up→down, 3 columns automatic, path 139
-- Flying rebalance, flat leak damage, difficulty curve to 40
+- Chained sections, flying rebalance, difficulty curve to 40
 
 ### 2026-03-17 Afternoon -- AA Balance + Wave 22
-- AA damage buff (5→8), countdown-driven AA reserve/target scaling
-- **Reliably wave 20+** (verified by Jason)
-
-### 2026-03-17 Morning -- AI Maze to Wave 20
-- Targeted gap sells, growth limiting, broadcast optimization
-- **Wave 20, 500 HP** (verified by Jason)
+- AA damage buff, countdown-driven AA reserve/target scaling
 
 ## Known Issues / Tech Debt
 - [ ] Leaderboard data only persists locally

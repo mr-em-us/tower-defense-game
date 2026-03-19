@@ -1,25 +1,11 @@
-# 2026-03-18 Late Morning Session
+# 2026-03-18 Evening Session — Speed Bug Discovery + Fix
 
-- 09:04 AM — Session resumed. Loaded entire codebase into 1M context window (~22K lines, ~190K tokens).
-- 09:15 AM — Exhaustive bug audit across all files. Found 14 bugs (5 critical, 3 high, 3 medium, 3 low).
-- 09:30 AM — Fixed all bugs:
-  1. Settings validation: accept 20-40 entry curves (was rejecting 40-entry default)
-  2. Slow duration: implemented timer restoration in EnemySystem (was permanent)
-  3. Multiplayer wave count: BOTH entries now count as 2 enemies
-  4. Enemy contact damage: now applies stat overrides from settings
-  5. Auto-rebuild: added path validation, UUID IDs, tower overrides, economy tracking
-  6. Client dynamic pricing: now applies cost overrides from settings
-  7. Sell tower: decrements globalPurchaseCounts by tower.level (not just 1)
-  8. AI tickBuild: replaced recursion with while loop
-  9. Path traversal: static file serving now validates resolved path
-  10. Renderer: path preview uses try/finally for grid restoration
-- 09:45 AM — AI test #1 (bug fixes only): survived wave 36, 380 HP, timed out. Previously died wave 10.
-- 09:55 AM — AI test #2 (same code, new run): died wave 10 to boss. Inconsistent — maze varies per run.
-- 10:00 AM — Fixed wave 10 boss bug: lowered chain trigger from numWalls>=6 to >=4, budget threshold 500→300c.
-- 10:05 AM — AI test #3 (with chain fix): wave 40 reached, 280 HP, timed out mid-combat still alive.
-  - Zero ground leaks entire game
-  - Only 11 flying leaked across 39 completed waves (waves 18 and 23)
-  - 13,546 kills in wave 39 alone
-  - 534 towers at peak
-- 10:35 AM — Verified via preview server: game loads, AI builds maze with chain at wave 1, combat works, zero errors.
-- 10:43 AM — Save.
+- 04:25 PM — Jason reports AI only makes it to wave 8 in browser (Watch AI Play). Previous "wave 40" was headless at speed=10.
+- 04:30 PM — Ran headless test at speed=4 (browser speed). AI dies wave 6 with 23 leaks. Speed=10 same code: zero leaks.
+- 04:40 PM — Root cause #1: TowerSystem used wall-clock time for fire intervals. At 4x speed, tick quantization caused 17% DPS loss. Fixed: switched to game-time tracking with `this.gameTime += dt`.
+- 04:50 PM — Root cause #2 (partial): WaveSystem spawned multiple batches per tick at high speed via `while(spawnTimer <= 0)`. At speed=10, 18 enemies spawned per tick (clustered together); at speed=4 only 6. Splash/AoE was artificially effective at high speed. Fixed: one batch per tick with full timer reset.
+- 05:00 PM — After both fixes, speed=10 also dies wave 10 (previously "wave 40"). The old result was ONLY achievable due to spawn clustering amplifying splash damage. Both speeds now consistent.
+- 05:10 PM — Root cause #3: Maze box starts with only 4 walls (budget capped by `maxWallsThisWave = max(4, existingRows+3)` = 4). Path only 46 cells — too short for wave 5+ DPS.
+- 05:15 PM — Fixed box growth: `max(6, existingRows+4)` allows 7 walls by wave 2. Chain trigger at 6 walls. Reserved 30% of maze budget for chain when numWalls>=6.
+- 05:20 PM — Speed=4 test with all fixes: survives through wave 5 (1 flying leak), some leaking wave 7-8 (tank leaks). Path 43→53. Chain section builds at wave 2. Still dying ~wave 8-9 but MUCH better than wave 6.
+- 06:28 PM — Save.

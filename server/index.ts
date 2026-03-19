@@ -64,6 +64,49 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  // --- Grid Dump endpoint (ASCII visualization of current game state) ---
+  if (url.pathname === '/api/grid-dump' && req.method === 'GET') {
+    // Find any active room with an AI player
+    const activeRoom = activeRooms.values().next().value as GameRoom | undefined;
+    if (!activeRoom) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('No active game room');
+      return;
+    }
+    const state = (activeRoom as any).state;
+    const grid = state.grid;
+    const towers = state.towers || {};
+    const lines: string[] = [];
+    // Header
+    lines.push('   0123456789012345678901234567890123456789012345678901234567890');
+    lines.push('   0         1         2         3         4         5');
+    for (let y = 0; y < 30; y++) {
+      let row = (y < 10 ? ' ' : '') + y + ' ';
+      for (let x = 0; x < 60; x++) {
+        const tower = Object.values(towers).find((t: any) => t.position.x === x && t.position.y === y) as any;
+        if (tower) {
+          const symbols: Record<string, string> = { BASIC: '#', WALL: 'W', SNIPER: 'S', SPLASH: 'X', SLOW: '~', AA: 'A' };
+          row += symbols[tower.type] || '?';
+        } else if (x === 29 || x === 30) {
+          row += y === 14 ? '@' : '|';
+        } else {
+          row += '.';
+        }
+      }
+      lines.push(row);
+    }
+    lines.push('');
+    lines.push(`Legend: # BASIC  W WALL  A AA  S SNIPER  X SPLASH  ~ SLOW  @ spawn  | center`);
+    const towerCounts: Record<string, number> = {};
+    for (const t of Object.values(towers) as any[]) {
+      towerCounts[t.type] = (towerCounts[t.type] || 0) + 1;
+    }
+    lines.push(`Wave: ${state.waveNumber} | Phase: ${state.phase} | Towers: ${JSON.stringify(towerCounts)}`);
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end(lines.join('\n'));
+    return;
+  }
+
   // --- Leaderboard API routes ---
   if (url.pathname === '/api/leaderboard' && req.method === 'GET') {
     const mode = (url.searchParams.get('mode') || 'SINGLE') as GameMode;
@@ -178,7 +221,8 @@ const httpServer = http.createServer((req, res) => {
 // --- WebSocket server ---
 const wss = new WebSocketServer({ server: httpServer });
 
-// Room management
+// Room management — track active rooms for grid dump API
+const activeRooms = new Set<GameRoom>();
 let currentMultiRoom: GameRoom | null = null;
 
 function getOrCreateRoom(gameMode: GameMode): GameRoom {
@@ -234,11 +278,13 @@ wss.on('connection', (ws: WebSocket) => {
     if (msg.type === 'JOIN_GAME') {
       const gameMode = msg.gameMode || GameMode.MULTI;
       room = getOrCreateRoom(gameMode);
+      activeRooms.add(room);
       if (msg.settings) {
         room.applySettings(msg.settings);
       }
       room.onGameOver = (results) => {
         for (const r of results) leaderboardStore.addResult(r);
+        activeRooms.delete(room!);
       };
       const result = room.addPlayer(playerId, ws, msg.playerName || 'Player');
 

@@ -71,17 +71,21 @@ export function generateMazeLayout(
   const placements: PlannedPlacement[] = [];
 
   // AA reserve: proactively reserve budget for AA line along flight corridor.
-  // Target: 4 + wave*1.5 total AA towers. Reserve enough to close the gap each wave.
+  // Ramp slowly early (maze growth is priority), accelerate mid-game.
   const existingAA = Object.values(state.towers)
     .filter(t => t.ownerId === playerId && t.type === TowerType.AA).length;
-  const aaTarget = Math.round(4 + wave * 1.5);
+  // AA target: conservative early (let maze grow), aggressive later
+  const aaTarget = wave <= 3 ? 2 : wave <= 6 ? Math.round(2 + (wave - 3) * 1.5) : Math.round(7 + (wave - 6) * 2);
   const aaGap = Math.max(0, aaTarget - existingAA);
   const aaCostEst = getDynamicPrice(state, TowerType.AA);
   let aaReserve: number;
   if (wave <= 1) {
     aaReserve = 0; // Wave 1: all to maze
+  } else if (wave <= 4) {
+    // Waves 2-4: minimal AA, prioritize maze growth
+    aaReserve = Math.min(aaGap * aaCostEst, Math.floor(budget * 0.25));
   } else {
-    // Reserve enough for the gap, but cap so maze still gets funded
+    // Wave 5+: ramp up AA spending
     aaReserve = aaGap * aaCostEst;
   }
   aaReserve = Math.min(aaReserve, Math.floor(budget * 0.5));
@@ -93,37 +97,78 @@ export function generateMazeLayout(
   // === 1. GENERATE BOX GEOMETRY ===
   const box = generateBoxMaze(state, side, wave, mazeBudget);
 
-  // === 1.5. TARGETED SELL — open gaps in old seal walls that became internal ===
+  // === 1.5. CHECK IF MAZE IS ACTUALLY GROWING ===
   const sellTowerIds: string[] = [];
   const firstCorridorY = box.mazeTop + 1;
   const lastCorridorY = box.mazeTop + (box.numWalls - 1) * 2 - 1;
+  const goalSideX = side === PlayerSide.RIGHT ? box.mazeRight : box.mazeLeft;
 
-  for (let w = 1; w < box.numWalls - 1; w++) {
-    const wallY = box.mazeTop + w * 2;
-    const gapAtRight = w % 2 === 1;
-    const gapX = gapAtRight ? (box.mazeRight - 1) : (box.mazeLeft + 1);
+  // Count actual structural wall rows in the existing maze to know if we're growing
+  let actualExistingWallRows = 0;
+  const spawnSideX = side === PlayerSide.RIGHT ? box.mazeLeft : box.mazeRight;
+  for (let y = box.mazeTop; y <= Math.min(box.mazeBottom, GRID.HEIGHT - 1); y++) {
+    if ((y - box.mazeTop) % 2 !== 0) continue; // only check wall rows
+    let wallCells = 0;
+    for (let x = box.mazeLeft; x <= box.mazeRight; x++) {
+      if (state.grid.cells[y]?.[x] === CellType.TOWER) wallCells++;
+    }
+    if (wallCells >= (box.mazeRight - box.mazeLeft + 1) - 1) actualExistingWallRows++;
+  }
+  const mazeIsGrowing = box.numWalls > actualExistingWallRows;
 
-    if (state.grid.cells[wallY]?.[gapX] === CellType.TOWER) {
+  // Only sell for growth if we have enough budget for at least the new bottom seal
+  const sealCost = (box.mazeRight - box.mazeLeft + 1) * getDynamicPrice(state, TowerType.WALL);
+  const canAffordGrowth = mazeIsGrowing && mazeBudget >= sealCost;
+
+  if (canAffordGrowth) {
+    // === 1.6. CORRIDOR CLEARING — sell offense fill in NEW corridor rows ===
+    for (let y = box.mazeTop; y <= box.mazeBottom; y++) {
+      if ((y - box.mazeTop) % 2 === 0) continue; // skip wall rows
+      // Only clear corridors that are part of the expansion (below existing maze)
+      const existingBottom = box.mazeTop + (actualExistingWallRows - 1) * 2;
+      if (y <= existingBottom) continue; // don't touch existing corridors
+      for (let x = box.mazeLeft; x <= box.mazeRight; x++) {
+        if (x === spawnSideX && y !== firstCorridorY) continue;
+        if (x === goalSideX && y !== lastCorridorY) continue;
+        if (state.grid.cells[y]?.[x] === CellType.TOWER) {
+          const tower = Object.values(state.towers).find(
+            t => t.position.x === x && t.position.y === y && t.ownerId === playerId
+          );
+          if (tower && tower.type !== TowerType.WALL) {
+            sellTowerIds.push(tower.id);
+            state.grid.cells[y][x] = CellType.EMPTY;
+          }
+        }
+      }
+    }
+
+    // === 1.7. GAP SELLS — open gaps in OLD seal walls becoming internal ===
+    for (let w = 1; w < box.numWalls - 1; w++) {
+      const wallY = box.mazeTop + w * 2;
+      const gapAtRight = w % 2 === 1;
+      const gapX = gapAtRight ? (box.mazeRight - 1) : (box.mazeLeft + 1);
+
+      if (state.grid.cells[wallY]?.[gapX] === CellType.TOWER) {
+        const tower = Object.values(state.towers).find(
+          t => t.position.x === gapX && t.position.y === wallY && t.ownerId === playerId
+        );
+        if (tower) {
+          sellTowerIds.push(tower.id);
+          state.grid.cells[wallY][gapX] = CellType.EMPTY;
+          log(`[MAZE] Sell gap: (${gapX},${wallY}) for switchback w=${w}`);
+        }
+      }
+    }
+    // Open exit corridor
+    if (state.grid.cells[lastCorridorY]?.[goalSideX] === CellType.TOWER) {
       const tower = Object.values(state.towers).find(
-        t => t.position.x === gapX && t.position.y === wallY && t.ownerId === playerId
+        t => t.position.x === goalSideX && t.position.y === lastCorridorY && t.ownerId === playerId
       );
       if (tower) {
         sellTowerIds.push(tower.id);
-        state.grid.cells[wallY][gapX] = CellType.EMPTY;
-        log(`[MAZE] Sell gap: (${gapX},${wallY}) for switchback w=${w}`);
+        state.grid.cells[lastCorridorY][goalSideX] = CellType.EMPTY;
+        log(`[MAZE] Sell exit: (${goalSideX},${lastCorridorY})`);
       }
-    }
-  }
-  // Also open the exit corridor — lastCorridorY on goal side needs no wall
-  const goalSideX = side === PlayerSide.RIGHT ? box.mazeRight : box.mazeLeft;
-  if (state.grid.cells[lastCorridorY]?.[goalSideX] === CellType.TOWER) {
-    const tower = Object.values(state.towers).find(
-      t => t.position.x === goalSideX && t.position.y === lastCorridorY && t.ownerId === playerId
-    );
-    if (tower) {
-      sellTowerIds.push(tower.id);
-      state.grid.cells[lastCorridorY][goalSideX] = CellType.EMPTY;
-      log(`[MAZE] Sell exit: (${goalSideX},${lastCorridorY})`);
     }
   }
 
@@ -404,14 +449,16 @@ function generateBoxMaze(
 
   const empty: BoxGeometry = { cells: [], mazeLeft: 0, mazeRight: 0, mazeTop: SPAWN_ROW - 1, mazeBottom: SPAWN_ROW + 1, numWalls: 0 };
   const maxTowers = Math.floor(budget / basicCost);
-  if (maxTowers < 10) return empty;
+  // Only apply minimum budget guard on wave 1 (no maze yet).
+  // After wave 1, even small budgets should generate geometry so the maze can grow incrementally.
+  if (wave <= 1 && maxTowers < 10) return empty;
 
   const xMin = side === PlayerSide.RIGHT ? GRID.RIGHT_ZONE_START : 0;
   const xMax = side === PlayerSide.RIGHT ? GRID.WIDTH - 1 : GRID.LEFT_ZONE_END;
 
   const mazeWidth = 7;
 
-  // Budget accounting
+  // Budget accounting — use actual costs (WALL=25c, not all-at-basicCost)
   const funnelXEst = side === PlayerSide.RIGHT ? GRID.RIGHT_ZONE_START : GRID.LEFT_ZONE_END;
   let existingFunnelCells = 0;
   for (let dy = -4; dy <= 4; dy++) {
@@ -422,16 +469,19 @@ function generateBoxMaze(
     }
   }
   const funnelNewCost = Math.max(0, 8 - existingFunnelCells);
-  const mazeTowerBudget = maxTowers - funnelNewCost;
+  // Funnel uses WALL towers (25c each), not BASIC — use actual cost
+  const mazeCreditBudget = Math.max(0, budget - funnelNewCost * wallPrice);
 
+  // Estimate existing maze value for effective budget (what it would cost to rebuild)
+  // Use weighted average since maze has ~60% WALL, ~40% BASIC
+  const avgTowerCost = Math.round(wallPrice * 0.6 + basicCost * 0.4);
   let existingMazeCost = 0;
   for (let y = 0; y < GRID.HEIGHT; y++) {
     for (let x = xMin; x <= xMax; x++) {
       if (x === funnelXEst) continue;
-      if (state.grid.cells[y][x] === CellType.TOWER) existingMazeCost += basicCost;
+      if (state.grid.cells[y][x] === CellType.TOWER) existingMazeCost += avgTowerCost;
     }
   }
-  const mazeCreditBudget = mazeTowerBudget * basicCost;
   const effectiveCreditBudget = mazeCreditBudget + existingMazeCost;
 
   // Count existing wall rows — allow aggressive growth (up to +4 per wave)
@@ -455,12 +505,25 @@ function generateBoxMaze(
     const sideCost = Math.max(0, 2 * (w - 1) - 2) * wallPrice;
     return solidCost + internalCost + sideCost;
   };
-  const estFunnelCost = funnelNewCost * wallPrice;
-
-  let est = estCost(numWalls) + estFunnelCost;
+  // Funnel cost already subtracted from mazeCreditBudget — don't add it to est
+  let est = estCost(numWalls);
   while (est > effectiveCreditBudget && numWalls > 2) {
     numWalls--;
-    est = estCost(numWalls) + estFunnelCost;
+    est = estCost(numWalls);
+  }
+
+  // AFFORDABILITY CHECK: ensure we can afford the NEW cells (not just the effective total).
+  // Each wall beyond existing costs ~1 new internal row + 1 corridor row + seal extension.
+  // Without this check, the maze plans expansions it can't complete, leaving holes.
+  if (existingWallRows > 0 && numWalls > existingWallRows) {
+    const costPerExpansion = (mazeWidth - 1) * basicCost + 2 * wallPrice + mazeWidth * wallPrice;
+    // ~525c per wall row: 6 BASIC (300) + 2 side WALL (50) + seal row 7 WALL (175)
+    const affordableExpansions = Math.max(0, Math.floor(mazeCreditBudget / costPerExpansion));
+    const expandedWalls = existingWallRows + affordableExpansions;
+    if (numWalls > expandedWalls) {
+      log(`[MAZE] Affordability cap: ${numWalls} walls → ${expandedWalls} (budget ${mazeCreditBudget}c, ${costPerExpansion}c/expansion)`);
+      numWalls = Math.max(2, expandedWalls);
+    }
   }
 
   const mazeTop = Math.max(1, SPAWN_ROW - 1);
@@ -724,9 +787,8 @@ function placeAADefense(
   const plannedAA = placements.filter(p => p.type === TowerType.AA).length;
   const totalAA = existingAA + plannedAA;
 
-  // Aggressive AA targeting: 5x previous values.
-  // Build proactively every wave, not just when air is warned.
-  const aaTarget = Math.round(4 + wave * 1.5);
+  // AA targeting: conservative early (maze growth priority), aggressive later
+  const aaTarget = wave <= 3 ? 2 : wave <= 6 ? Math.round(2 + (wave - 3) * 1.5) : Math.round(7 + (wave - 6) * 2);
 
   let aaNeeded = Math.max(0, aaTarget - totalAA);
   if (aaNeeded === 0) return 0;

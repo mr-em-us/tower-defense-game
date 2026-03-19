@@ -101,16 +101,23 @@ export class AIController {
     for (const towerId of mazePlan.sellTowerIds) {
       this.actionQueue.push({ type: 'SELL_TOWER', towerId });
     }
+    let buildSpent = 0;
     for (const placement of mazePlan.placements) {
       this.actionQueue.push({
         type: 'PLACE_TOWER',
         position: { x: placement.x, y: placement.y },
         towerType: placement.type,
       });
+      buildSpent += placement.cost;
     }
 
-    // 4. Upgrades with remaining budget
-    const upgradeActions = getUpgradeActions(state, this.playerId, plan.upgradeBudget, this.depth);
+    // 4. Upgrades — include unspent build budget (maze saturated, can't place more)
+    const unspentBuild = Math.max(0, plan.buildBudget - buildSpent);
+    const totalUpgradeBudget = plan.upgradeBudget + unspentBuild;
+    if (unspentBuild > 100) {
+      log(`[ECON] Unspent build ${Math.round(unspentBuild)}c → upgrades (total: ${Math.round(totalUpgradeBudget)}c)`);
+    }
+    const upgradeActions = getUpgradeActions(state, this.playerId, totalUpgradeBudget, this.depth);
     for (const action of upgradeActions) {
       this.actionQueue.push(action);
     }

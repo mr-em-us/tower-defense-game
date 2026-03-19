@@ -1,5 +1,14 @@
 # Session Log Archive
 
+## Session — 2026-03-19 Morning (Budget Bug Hunting + Economy Fixes)
+- Found 3 budget accounting bugs preventing maze growth after wave 1
+- Fixed: wave 1 builds 6 walls (was 5), grows to 7 by wave 7
+- Economy: AA ROI boost 3x, unspent build→upgrades, safe sells, no savings reserve
+- 5 test iterations (baseline→v5): wave 10→9 (mixed — more walls but less DPS)
+- Jason's key insight: focus on maze quality, economy can be tuned later
+- Jason suggests "copy-paste" chain approach for larger mazes
+- Wall thickness issue still unfixed
+
 ## Session — 2026-03-19 Early AM (Speed Bugs + Strategy Restore + Knowledge Architecture)
 - Discovered ALL speed>1 test results before 8403ec5 were inflated by 3 bugs
 - Unified ROI scorer attempted and failed (wave 6-7, WORSE). All-BASIC too expensive.

@@ -281,16 +281,40 @@ Three bugs made higher speeds secretly easier:
 3. LLM lacks spatial reasoning — couldn't understand maze geometry consequences
 **Lesson:** Don't redesign maze geometry. The spatial code in 541149c works. Only change economy/spending.
 
-## Iteration 16: Restore 541149c + AA Improvements (2026-03-19, CURRENT ★★★)
+## Iteration 16: Restore 541149c + AA Improvements (2026-03-19)
 **Problem:** Need a working baseline with speed bugs fixed.
-**Approach:** Restored maze.ts, economy.ts, AIController.ts from commit 541149c (the version Jason saw playing well in the browser). Applied only targeted changes:
-1. Speed fixes stay in TowerSystem.ts + WaveSystem.ts (not in AI files)
-2. AA rewritten: target `4 + wave*1.5` (5x previous), horizontal line at rows 12-16, proactive from wave 2
-3. AA reserve: based on gap to target, capped 50% budget
-4. Savings reserve removed (spend everything)
-5. Growth cap: +4 walls/wave, min 6
-**Result:** Testing in progress. Visually confirmed by Jason as the correct maze behavior.
-**Status:** AA needs testing. Wall thickness issue reported (walls appear 2 thick, should be 1).
+**Approach:** Restored from 541149c + speed fixes + AA rewrite.
+**Result:** Wave 10 baseline at speed=4.
+
+## Iteration 17: Budget Bug Fixes + Economy Improvements (2026-03-19, CURRENT ★★★)
+**Problem:** Maze never grows past wave 1 (5 walls, path 47). Three budget accounting bugs found.
+
+**Bug Fixes:**
+1. `maxTowers < 10` in generateBoxMaze returns empty when budget < 500c — kills ALL post-wave-1 maze growth. Fixed: only applies on wave 1.
+2. effectiveCreditBudget over-plans numWalls → gap sells create holes in maze without completing expansion. Fixed: affordability check caps numWalls to what actual budget can complete.
+3. WALL towers (25c) counted at basicCost (50c) in budget calculations → funnel cost double-counted. Fixed: mazeCreditBudget = budget - funnelNewCost * wallPrice.
+
+**Economy Improvements:**
+1. AA upgrade ROI boost (3x) — reflects actual effective DPS vs flying
+2. Unspent build budget → upgrade pool (when maze saturated)
+3. Savings reserve removed (0%)
+4. Late-game upgrade ratios: 80% w21-30, 85% w31+
+5. AA target rebalanced: conservative early (2 at waves 2-3), aggressive later
+
+**Safe Sells:** Only sell gap/corridor towers when maze is actually growing AND can afford new seal. Prevents structural holes.
+
+**Results:**
+- Wave 1: 6 walls (was 5), path 59 (was 47). +1 wall row from budget fix.
+- Maze grows to 7 walls by wave 7, path reaches 63.
+- Zero leaks through wave 6.
+- Dies wave 9 (0 HP). Baseline was wave 10.
+- **Mixed results:** More walls but less DPS (budget spent on structure not offense). Net negative so far.
+
+**Open Problems:**
+1. Path still too short (59-63 cells). Need 80+ for late-game.
+2. Chain sections never trigger (budget threshold 500c, post-wave-1 income ~200-500c/wave).
+3. Wall thickness issue still unfixed.
+**Status:** Budget bugs fixed, but maze needs to be much larger. Jason suggests "copy-paste" chain approach.
 
 ## Dev Tools
 - **AI test endpoint:** `GET /api/ai-test?speed=4&timeout=600000` — USE SPEED=4 (speed bugs fixed)

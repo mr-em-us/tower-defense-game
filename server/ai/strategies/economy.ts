@@ -31,15 +31,8 @@ export function planEconomy(
   const credits = player.credits;
   const wave = state.waveNumber;
 
-  // Reserve ratio: minimal — maximize spending on towers
-  let reserveRatio: number;
-  if (wave <= 5) {
-    reserveRatio = 0.02; // 2% reserve early — build aggressively
-  } else {
-    reserveRatio = 0.05; // 5% late game — still prioritize building
-  }
-
-  const savingsTarget = Math.round(credits * reserveRatio);
+  // No reserve — spend everything. Unspent build flows to upgrades automatically.
+  const savingsTarget = 0;
   const available = credits - savingsTarget;
 
   if (available <= 0) {
@@ -82,8 +75,10 @@ export function planEconomy(
     upgradeRatio = 0.35; // 35% — upgrades more important as enemies scale
   } else if (wave <= 20) {
     upgradeRatio = 0.55; // 55% — heavy upgrades, maze is established
+  } else if (wave <= 30) {
+    upgradeRatio = 0.80; // 80% — late game, maze fully saturated
   } else {
-    upgradeRatio = 0.70; // 70% — late game, max upgrades, maze saturated
+    upgradeRatio = 0.85; // 85% — very late game, almost all upgrades
   }
 
   const upgradeBudget = Math.round(afterRestock * upgradeRatio);
@@ -146,7 +141,9 @@ export function getUpgradeActions(
       // DPS increase per credit spent
       const currentDPS = t.damage * t.fireRate;
       const newDPS = Math.round(t.damage * stats.upgradeStatMultiplier) * (t.fireRate * 1.1);
-      const dpsGain = newDPS - currentDPS;
+      let dpsGain = newDPS - currentDPS;
+      // AA towers deal 3x damage to flying — their effective DPS gain is 3x raw
+      if (t.type === TowerType.AA) dpsGain *= 3;
       const valuePerCredit = cost > 0 ? dpsGain / cost : 0;
       return { tower: t, cost, value: valuePerCredit };
     })

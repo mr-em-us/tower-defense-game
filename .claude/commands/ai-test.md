@@ -37,6 +37,23 @@ preview_logs with search="[MAZE] Wave" to see maze growth progression
 preview_logs with search="AA:" to see AA placement
 ```
 
+## Step 6: Post-action learning
+After the test completes:
+1. **Log result** in `memory/current-session.md` with timestamp, wave reached, and what code was running.
+2. **Update baseline** in `memory/MEMORY.md` if this is a new high or low watermark.
+3. **If wave count dropped:** Check what changed since last test. Log in `.claude/docs/dead-ends.md` if an approach failed.
+4. **If wave count improved:** Note what change caused it in `memory/maze-strategy-history.md`.
+
+### Known Baselines
+*(This section is a living document — update when new verified baselines are established)*
+
+| Code Version | Speed | Wave | Date | Notes |
+|---|---|---|---|---|
+| b24e146 (pre-speed-fix) | speed=10 | 40 | 2026-03-18 | INFLATED by speed bugs |
+| b24e146 + speed fixes | speed=4 | 6-7 | 2026-03-19 | Honest baseline |
+| 541149c + speed fixes | speed=4 | TBD | 2026-03-19 | Jason's preferred version |
+| 541149c + AA improvements | speed=4 | TBD | 2026-03-19 | Current code |
+
 ## CRITICAL RULES
 - NEVER claim a wave count without reading the actual output
 - NEVER round up or embellish results

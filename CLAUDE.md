@@ -126,12 +126,36 @@ After each significant action (file edit, bug fix, feature addition, design deci
 ```
 Get actual system time via `date '+%I:%M %p'` (system clock is already PST). Do NOT use TZ= override on Windows — it gives wrong results.
 
+### Knowledge Architecture (self-maintaining learning system)
+
+This project uses a self-maintaining knowledge architecture. Skills update themselves, dead ends are logged, and learnings accumulate across sessions.
+
+**Key files:**
+- `.claude/docs/knowledge-taxonomy.md` — routing table for where each type of learning goes
+- `.claude/docs/dead-ends.md` — append-only log of failed approaches (highest-ROI knowledge)
+- `.claude/docs/decisions.md` — append-only design decision records
+- `.claude/commands/fix-bug.md` — bug-fixing skill with living pattern library
+- `.claude/commands/fix-ai.md` — AI improvement skill with optimization patterns
+- `.claude/commands/learn.md` — end-of-session knowledge sweep
+
+**Protocol:**
+1. **During work:** Skills have post-action learning steps. After fixing a bug, append the pattern. After testing AI, log the result. After a failed approach, log the dead end.
+2. **Before saving:** Run `/learn` to do a comprehensive sweep — catch cross-cutting learnings, update stale docs, fill gaps.
+3. **Before maze changes:** Run `/maze-history` — MANDATORY. Read the full history to avoid repeating failed approaches.
+4. **Before spatial changes:** Run `/spatial-check` — draw out the proposed layout cell-by-cell with coordinates.
+
+**Skills with living document sections:**
+- `/fix-bug` → Known Bug Patterns (grows with every bug fixed)
+- `/fix-ai` → AI Optimization Patterns (grows with every experiment)
+- `/ai-test` → Known Baselines table (updated with every verified test)
+
 ### Save Protocol (triggered by user saying "save" in context of wanting to save progress)
 IMPORTANT: Use intelligent semantic context. "Save our progress" or "let's save" = trigger. "This will save us time" or "save for the button click handler" = NOT a trigger. When in doubt, ask.
 
 Steps:
-1. Run `npm run build` — verify clean build
-2. Update `memory/MEMORY.md` (project dir) AND copy to auto-memory:
+1. Run `/learn` (knowledge sweep) — route session learnings to correct files BEFORE committing
+2. Run `npm run build` — verify clean build
+4. Update `memory/MEMORY.md` (project dir) AND copy to auto-memory:
    - Update "Current State" to reflect what's true now
    - Update "Uncommitted Work" (clear if committing everything)
    - Add/update session entry in "Recent Sessions"
@@ -140,18 +164,14 @@ Steps:
    - If >5 session entries, move oldest to `session-log.md`
    - Verify file stays under 190 lines
    - **CRITICAL:** Copy the updated file to `~/.claude/projects/C--Users-jvsfe-Desktop-Claude-Tower-Defense-Game/memory/MEMORY.md` so new sessions load current state
-3. Update relevant shared docs (in `.claude/docs/`):
-   - Design decision made → append to `decisions.md`
-   - Feature completed/started → update `features.md`
-   - Balance numbers changed → update `economy.md`
-   - Architecture changed → update `architecture.md`
-4. Archive `current-session.md` content to `session-log.md` (prepend as newest entry)
-5. Git operations:
+5. Update relevant shared docs (in `.claude/docs/`) — most of this should already be done by `/learn` in step 1
+6. Archive `current-session.md` content to `session-log.md` (prepend as newest entry)
+7. Git operations:
    - `git add` specific changed files (never `git add -A`)
-   - Include any modified `.claude/docs/*.md` files in the commit
+   - Include any modified `.claude/docs/*.md` and `.claude/commands/*.md` files in the commit
    - `git commit` with descriptive message
    - `git pull --rebase origin main` to pick up any remote changes first
    - `git push origin main` to sync to GitHub
    - If push fails (e.g., conflict), alert the user and help resolve
-6. Get actual system time: `date '+%Y-%m-%d - %I:%M %p'` (system clock is PST)
-7. Output confirmation: `Saved - [timestamp in PST]`
+8. Get actual system time: `date '+%Y-%m-%d - %I:%M %p'` (system clock is PST)
+9. Output confirmation: `Saved - [timestamp in PST]`

@@ -261,7 +261,50 @@ generateMazeLayout():
 17. **Cap excess AA placement (10/wave)** — new level-1 AAs are near-useless vs late-game flying; upgrades to existing AA are far more effective
 18. **Uncap AA reserve after wave 20** — maze is complete, AA needs scale naturally without budget cap
 
+## CRITICAL: Speed Bug Discovery (2026-03-19)
+**All wave counts from tests at speed>1 before commit 8403ec5 were INFLATED.**
+Three bugs made higher speeds secretly easier:
+1. **Tower fire timing:** Used wall-clock time, not game-time. At speed=4, towers lost ~17% DPS.
+2. **Enemy clumping:** At speed=10, multiple enemies spawned same tick. Splash hit 3-5x more.
+3. **Net effect:** Wave 40 at speed=10 was not the same game as speed=1. After fixes, same code gets wave 6-7 at speed=4.
+
+**Speed=1 is ground truth.** At speed=1, dt=0.05, no bugs active. The AI Jason watched at speed=1 in browser was real.
+**Always test at speed=4+ with speed fixes in place** (commits 8403ec5+).
+
+## Iteration 15: Unified ROI Scorer (2026-03-19, FAILED)
+**Problem:** Budget splits (build/upgrade/save) are arbitrary. Should spend every credit on highest ROI action.
+**Approach:** Rewrote all 3 AI files. Single scorer evaluates placements + upgrades by DPS-per-credit. Used BASIC for all maze cells (no WALLs).
+**Result:** Wave 6-7. WORSE than baseline.
+**Root causes:**
+1. All-BASIC maze cost 2x more → fewer walls → path 30-36 (was 43-75)
+2. Box over-planned: effective budget included existing towers but actual budget was just new credits
+3. LLM lacks spatial reasoning — couldn't understand maze geometry consequences
+**Lesson:** Don't redesign maze geometry. The spatial code in 541149c works. Only change economy/spending.
+
+## Iteration 16: Restore 541149c + AA Improvements (2026-03-19, CURRENT ★★★)
+**Problem:** Need a working baseline with speed bugs fixed.
+**Approach:** Restored maze.ts, economy.ts, AIController.ts from commit 541149c (the version Jason saw playing well in the browser). Applied only targeted changes:
+1. Speed fixes stay in TowerSystem.ts + WaveSystem.ts (not in AI files)
+2. AA rewritten: target `4 + wave*1.5` (5x previous), horizontal line at rows 12-16, proactive from wave 2
+3. AA reserve: based on gap to target, capped 50% budget
+4. Savings reserve removed (spend everything)
+5. Growth cap: +4 walls/wave, min 6
+**Result:** Testing in progress. Visually confirmed by Jason as the correct maze behavior.
+**Status:** AA needs testing. Wall thickness issue reported (walls appear 2 thick, should be 1).
+
 ## Dev Tools
-- **AI test endpoint:** `GET /api/ai-test?speed=10&timeout=1800000` — configurable timeout (default 10min, max 30min), returns JSON with waveReached, aiHealth
-- **Speed=10 is accurate** — speed=50+ causes enemies to skip past tower ranges (2+ cells/tick). Speed=10 = 0.5 game seconds/tick, enemies move 1 cell/tick.
+- **AI test endpoint:** `GET /api/ai-test?speed=4&timeout=600000` — USE SPEED=4 (speed bugs fixed)
+- **Speed=1 is ground truth** — no speed bugs at 1x
 - **Auto-test requires no browser** — instant iteration on maze changes
+
+## Failed Approaches Summary (DO NOT RETRY)
+1. **Vertical columns** — wrong shape entirely
+2. **Straight parallel walls as corridors** — no maze value, just distance
+3. **Cell-by-cell path validation for interdependent maze cells** — rejects valid placements
+4. **WALL cap at 10%** — makes maze too expensive, breaks structure
+5. **Greedy single-cell path extension** — creates random diagonals
+6. **Destructive self-repair (sell entire rows)** — gutted the maze
+7. **Aggressive widening** — old side walls become obstacles
+8. **Chained boxes without solving old exit holes** — enemies bypass box 2
+9. **All-BASIC maze (no WALLs)** — 2x cost, fewer walls, shorter path, lower wave count
+10. **Unified ROI scorer replacing maze geometry** — spatial reasoning failure, wave 6-7

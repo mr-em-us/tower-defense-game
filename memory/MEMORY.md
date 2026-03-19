@@ -1,84 +1,84 @@
 # Project Memory -- Tower Defense Game
-Last Save: 2026-03-18 - 11:08 PM PST (uncommitted save)
+Last Save: 2026-03-19 - 12:26 AM PST
 
-## Current State (UNCOMMITTED — AI strategy overhaul in progress)
-**AI still at wave 9-10 at speed=4.** Extensive experimentation this session. No breakthrough yet.
+## Current State
+**AI code restored to commit 541149c (chained maze sections) + AA improvements + speed fixes.**
+This is the version Jason saw playing well in the browser — builds two mazes, expands, reached wave 20+ visually.
 
-### What Changed This Session (uncommitted, 3 files modified further)
-**maze.ts (major rework):**
-- numWalls now wave-number-based: `4 + 2*floor(wave/2)`, capped at 8 by grid height
-- AA reserve: ZERO for waves 1-6 (was 200c, starving maze growth), imminent-air-only
-- Chain trigger: numWalls >= 6, wave >= 5, remaining >= 350c (WALL internals)
-- Offense fill scoring: prioritizes under-defended areas (nearbyTowers * 2 + dist)
-- Offense fill radius: 3-5 (was 2-3), covers exit corridor better
-- Path-preserving: minPathLen = exact path length (ZERO shortening allowed)
-- Strategic SLOW at waves 1-3 (was 1-2)
-- Chain internal walls use WALL (cheaper: ~850c vs ~1400c per section)
-- Corridor clearing + smart conflict sell (from prior session, kept)
+### What's Changed From 541149c Baseline
+1. **Speed bug fixes** (from 8403ec5, kept in TowerSystem.ts + WaveSystem.ts):
+   - Tower fire timing uses game-time not wall-clock
+   - Enemy spawning: one batch per tick regardless of speed
+   - Game plays identically at all speeds now
+2. **AA improvements** (new this session):
+   - AA target: `4 + wave * 1.5` (5x previous, proactive not reactive)
+   - AA placement: horizontal line at rows 12-16 (flight corridor), spread horizontally
+   - AA budget reserve: based on gap to target, capped at 50% of budget
+3. **Economy tweaks** (from 541149c, minor changes):
+   - Savings reserve removed (spend everything)
+   - Upgrade ratios: 0% w1-4, 20% w5-7, 35% w8-12, 55% w13-20, 70% w21+
+4. **Growth cap raised**: max +4 walls/wave (was +2), initial min 6 (was 4)
 
-**economy.ts:**
-- Upgrade ratios: 0% w1, 15% w2-3, 35% w4-6, 50% w7-10, 65% w11-15, 75% w16-20, 90% w21+
-- Higher upgrade ratios in waves 4-10 (was 20-30%, now 35-50%) — DPS must scale with enemy HP
+### Known Issue: Wall Thickness
+Jason reports maze walls appear 2 rows thick. Should be 1 row thick to maximize switchbacks per vertical space. Not yet fixed — needs visual debugging.
 
-**AIController.ts:**
-- Growth fund: 95% of unspent build budget, through wave 15 (was 70%, waves 3-8)
-- AI validation bypass (from prior session, kept)
+## Speed Bug Discovery (CRITICAL KNOWLEDGE)
+**All wave counts from speed>1 tests before commit 8403ec5 were inflated.**
+- At speed=10: enemies clumped → splash hit 3-5x more per shot
+- At speed=4: towers lost ~17% DPS from wall-clock timing bug
+- The "wave 40" result (b24e146) was at speed=10 with these bugs active
+- After speed fixes, same code only reaches wave 6-7 at speed=4
+- At speed=1, bugs don't matter (dt=0.05, no scaling)
+- Jason watched AI in browser at speed=1 (then sped up) — the visual behavior was real, but wave count when sped up was inflated
 
-### Key Experiments & Results (this session, 10 variants tested)
-| Version | Change | Result | Notes |
-|---------|--------|--------|-------|
-| baseline | before changes | wave 9-10 | path 43, never grows |
-| v2 | incremental cost numWalls | wave 10 | path grew 43→61! |
-| v3 | offense fill scoring | wave 8 | path SHORTENED by scoring |
-| v4 | strict no-shortening | wave 8 | growth broken by budget |
-| v5 | wave-number numWalls | wave 7 | partial growth useless |
-| v6 | reduced AA reserve | wave 9 | path 75 by wave 7 — BEST |
-| v7 | all-WALL box + chain w1 | wave 3 | 0 DPS! all 78 towers WALL |
-| v8 | reverted box, aggressive chain | wave 7 | chain too early |
-| v9 | more upgrades 35-50% | wave 10 | path 75, close to viable |
-| v10 | exit corridor defense | wave 8 | exit budget always 0 |
+**Lesson:** Always test at speed=4 with speed fixes in place. Speed=1 is ground truth.
 
-### Critical Findings
-1. **Box growth works** with wave-based numWalls + zero AA reserve early → path 75 by wave 7
-2. **Chain sections can NOT be afforded early** — box + offense fill consume ALL budget (2000c)
-3. **Exit corridor is the DPS gap** — 22 cells after box exit with zero tower coverage
-4. **Partial box growth is useless** — need complete wall rows or path doesn't extend
-5. **All-WALL = zero DPS** — BASIC internal walls essential for corridor DPS
-6. **AA reserve starves maze growth** — must be zero in waves 1-6
-7. **Offense fill scoring helps exit coverage but can shorten path** — needs strict minPathLen
-8. **Headless test IS the real game** — same GameRoom, systems, AI controller
+## Session Experiments (2026-03-19)
+### Failed: Unified ROI Scorer
+Attempted to replace budget splits with a single scorer that evaluated all actions (placements + upgrades) by DPS-per-credit. Three files rewritten:
+- economy.ts: removed planEconomy, added scoreAllActions
+- maze.ts: BASIC everywhere, return candidates not placements
+- AIController.ts: unified action loop
 
-### The Fundamental Problem
-With 2000c starting budget and ~300-500c/wave income:
-- 4-wall box costs ~1250c, offense fill ~700c = 1950c (entire wave 1 budget)
-- Box growth to 8 walls needs ~700c MORE (affordable over waves 3-5)
-- Chain section costs ~850c (with WALL internals) — needs 2-3 waves of saving
-- Meanwhile enemies scale faster than DPS from new level-1 towers
-- Upgrades are the REAL DPS scaler but compete with build budget
+**Result: Wave 6-7.** Worse than baseline. Problems:
+1. All-BASIC maze cost 2x more → fewer walls → shorter path (30-36 vs 43-75)
+2. Spatial reasoning failure: couldn't understand maze geometry implications
+3. Box growth over-planned (effective budget included existing towers, but actual budget was just new credits)
 
-### Dev Tools
-Headless: `GET /api/ai-test?speed=4&timeout=600000` — USE SPEED=4!
+**Lesson:** LLM lacks spatial reasoning for maze design. The old maze geometry code works — don't redesign it. Only change the economy/spending layer.
 
-## Next Steps (Priority Order)
-1. [ ] Fix offense fill to reliably cover exit corridor without shortening path
-2. [ ] Get chain sections triggering at wave 6-8 (save build budget waves 5-7)
-3. [ ] Verify in REAL browser game (start dev server, observe visually)
-4. [ ] If chain works: iterate DPS scaling toward wave 20+
-5. [ ] If chain doesn't work: consider game balance tuning (enemy HP, tower stats)
+### Successful: Restored 541149c
+Checked out AI files from commit 541149c (the version Jason saw playing well). This is the "chained maze sections" code with proper box geometry.
+
+### In Progress: AA Line
+Rewrote placeAADefense() to aggressively place AA in horizontal line along flight corridor (rows 12-16). Proactive placement from wave 2, target 4+wave*1.5.
+
+## Next Steps
+1. [ ] Fix wall thickness issue (Jason sees 2-thick walls)
+2. [ ] Test AA improvements — verify AI survives air waves better
+3. [ ] Run honest speed=4 test and record wave reached
+4. [ ] Visual verification in browser
 
 ## Recent Sessions
-### 2026-03-18 Late Night — AI Strategy Overhaul
-- 10 variants tested. Path growth 43→75 achieved. Wave 9-10 consistent.
-- Fundamental budget conflict between box growth, chains, offense fill, upgrades.
+### 2026-03-19 Early AM — Speed Bug Analysis + Strategy Restoration
+- Discovered ALL previous wave counts at speed>1 were inflated by 3 bugs
+- Unified ROI scorer attempted and failed (spatial reasoning limitation)
+- Restored 541149c as baseline (the version Jason saw playing well)
+- AA defense rewritten: 5x more AA, horizontal line placement, proactive
 
-### 2026-03-18 Night — Autonomous AI Improvement
-- Wave 6 → 9-10. Key wins: offense fill w1, strategic SLOW, validation bypass.
+### 2026-03-18 Late Night — AI Strategy Overhaul (REVERTED)
+- 10 variants tested at speed=4. All got wave 7-10.
+- Fundamental budget conflict identified but not solved.
+- Changes reverted in favor of restoring known-good 541149c code.
 
 ### Previous sessions: see session-log.md
 
 ## User Preferences
 Jason, PST, fair difficulty, no cheats, spend everything
-**Critical user feedback:** Previous "wave 40" claims were FABRICATED or disconnected from real game. Must verify ALL results honestly. User will check.
+**Critical feedback:**
+- Previous "wave 40" claims were inflated by speed bugs. Must verify honestly.
+- LLM has poor spatial reasoning — don't redesign maze geometry, only tune economy/spending.
+- User will verify results visually; don't claim success without user confirmation.
 
 ## Docs & Files
 .claude/docs/: architecture, decisions, economy, features

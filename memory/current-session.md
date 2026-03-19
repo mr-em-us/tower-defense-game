@@ -1,36 +1,21 @@
-# 2026-03-19 Session — AI Strategy Overhaul (Wave 40 Target)
+# Session: 2026-03-19 Early AM
 
-## Status: Active — working on getting past wave 10
+## Key Events
+- 12:00 AM — Session start. Reviewed full AI history with Jason.
+- 12:05 AM — Discovered speed bug impact: ALL wave counts at speed>1 before 8403ec5 were inflated.
+- 12:10 AM — Explained speed bugs to Jason. Strategy changes tangled with speed fixes = no clean baseline.
+- 12:15 AM — Jason confirmed AI he saw in browser was real (speed=1 bugs don't matter).
+- 12:20 AM — Attempted unified ROI scorer. Result: wave 6-7. WORSE. All-BASIC too expensive.
+- 12:25 AM — Jason identified LLM spatial reasoning limitation. Agreed.
+- 12:30 AM — Restored 541149c as baseline. This is the code Jason saw working well.
+- 12:35 AM — Jason requested 5x AA, horizontal line along flight path.
+- 12:40 AM — Rewrote placeAADefense(). First try: only 1 AA/wave (budget eaten by maze). Fixed reserve.
+- 12:45 AM — Jason reported walls 2 rows thick, should be 1. Not yet fixed.
+- 12:50 AM — Raised growth cap to +4/wave, min 6.
+- 12:26 AM — Save.
 
-## Key Findings So Far
-1. **Baseline: wave 9-10** (path 43, box never grows)
-2. **Box growth NOW works** with wave-based numWalls + reduced AA reserve → path 75 by wave 7
-3. **Chain sections still can't trigger** — budget always consumed by box growth + offense fill
-4. **Exit corridor is the DPS gap** — 22 cells after box with zero tower coverage
-5. **Partial box growth is useless** — need complete wall rows
-6. **All-WALL construction = zero DPS** — BASIC internals essential
-7. **The headless test uses SAME code as real game** — GameRoom, systems, AIController all identical
-
-## Current Code State (uncommitted changes to maze.ts, economy.ts, AIController.ts)
-- Wave-number numWalls: 4+2*floor(wave/2), maxed at 8 by grid height
-- AA reserve: 0 waves 1-6, moderate 7-12, scaled 13+
-- Upgrade ratio: 0% w1, 15% w2-3, 35% w4-6, 50% w7-10
-- Chain: numWalls >= 6, wave >= 5, remaining >= 350 (WALL internals)
-- Offense fill radius 3-5, no path shortening allowed
-- Growth fund: 95% of unspent, through wave 15
-- Exit corridor defense step added (but never has budget to trigger)
-
-## Test Results This Session
-- v6 (best): wave 9, path 75 by wave 7, zero leaks waves 1-5
-- v9: wave 10, path 75, better upgrade scaling
-- Baseline (before changes): wave 9-10, path 43 never grows
-
-## The Wave 10 Problem
-Boss wave 10: 4300 HP boss, 100+ enemies. Path 75 gives boss 50s in maze.
-With ~80 towers and shared DPS, boss gets ~76 DPS = 56s to kill. Close but not enough.
-Need either: longer path (100+), more DPS (upgrades), or both.
-
-## Next Steps
-- Fix offense fill to cover exit corridor (the DPS gap)
-- Get chain sections working (need to save budget across waves)
-- Verify in browser game after improving
+## Decisions
+1. Restore 541149c — don't redesign maze geometry
+2. LLM should not attempt spatial reasoning for maze design
+3. All speed>1 tests before 8403ec5 are unreliable
+4. AA needs proactive placement, not reactive

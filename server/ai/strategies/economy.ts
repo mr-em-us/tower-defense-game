@@ -31,12 +31,12 @@ export function planEconomy(
   const credits = player.credits;
   const wave = state.waveNumber;
 
-  // Reserve ratio: minimal — maximize spending
+  // Reserve ratio: minimal — maximize spending on towers
   let reserveRatio: number;
   if (wave <= 5) {
     reserveRatio = 0.02; // 2% reserve early — build aggressively
   } else {
-    reserveRatio = 0.05; // 5% late game
+    reserveRatio = 0.05; // 5% late game — still prioritize building
   }
 
   const savingsTarget = Math.round(credits * reserveRatio);
@@ -74,20 +74,16 @@ export function planEconomy(
   // Late game: grid saturates, upgrades become primary DPS growth
   const towerCount = Object.values(state.towers).filter(t => t.ownerId === playerId).length;
   let upgradeRatio: number;
-  if (wave <= 1) {
-    upgradeRatio = 0; // wave 1: build everything
-  } else if (wave <= 3) {
-    upgradeRatio = 0.15; // 15% — prioritize maze growth, but start upgrades
-  } else if (wave <= 6) {
-    upgradeRatio = 0.35; // 35% — balance build + upgrades, DPS must scale
-  } else if (wave <= 10) {
-    upgradeRatio = 0.50; // 50% — upgrades are primary DPS source now
-  } else if (wave <= 15) {
-    upgradeRatio = 0.65;
+  if (wave <= 4) {
+    upgradeRatio = 0; // all building early — establish maze
+  } else if (wave <= 7) {
+    upgradeRatio = 0.20; // 20% mid-game — upgrade key towers for DPS
+  } else if (wave <= 12) {
+    upgradeRatio = 0.35; // 35% — upgrades more important as enemies scale
   } else if (wave <= 20) {
-    upgradeRatio = 0.75;
+    upgradeRatio = 0.55; // 55% — heavy upgrades, maze is established
   } else {
-    upgradeRatio = 0.90; // Late game: almost all budget to upgrades
+    upgradeRatio = 0.70; // 70% — late game, max upgrades, maze saturated
   }
 
   const upgradeBudget = Math.round(afterRestock * upgradeRatio);
@@ -142,8 +138,6 @@ export function getUpgradeActions(
   const ownedTowers = Object.values(state.towers).filter(t => t.ownerId === playerId);
 
   // Score towers for upgrade value
-  // AA towers get a 3x ROI boost because they deal 3x damage to flying enemies,
-  // which are the primary late-game threat. Raw DPS undervalues AA effectiveness.
   const upgradeCandidates = ownedTowers
     .filter(t => t.type !== TowerType.WALL) // don't upgrade walls
     .map(t => {
@@ -153,9 +147,7 @@ export function getUpgradeActions(
       const currentDPS = t.damage * t.fireRate;
       const newDPS = Math.round(t.damage * stats.upgradeStatMultiplier) * (t.fireRate * 1.1);
       const dpsGain = newDPS - currentDPS;
-      // AA effective DPS is 3x vs flying (the only real threat late game)
-      const effectiveDpsGain = t.type === TowerType.AA ? dpsGain * 3 : dpsGain;
-      const valuePerCredit = cost > 0 ? effectiveDpsGain / cost : 0;
+      const valuePerCredit = cost > 0 ? dpsGain / cost : 0;
       return { tower: t, cost, value: valuePerCredit };
     })
     .filter(c => c.cost <= budget && c.cost > 0)

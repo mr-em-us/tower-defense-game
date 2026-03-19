@@ -1,11 +1,36 @@
-# 2026-03-18 Evening Session — Speed Bug Discovery + Fix
+# 2026-03-19 Session — AI Strategy Overhaul (Wave 40 Target)
 
-- 04:25 PM — Jason reports AI only makes it to wave 8 in browser (Watch AI Play). Previous "wave 40" was headless at speed=10.
-- 04:30 PM — Ran headless test at speed=4 (browser speed). AI dies wave 6 with 23 leaks. Speed=10 same code: zero leaks.
-- 04:40 PM — Root cause #1: TowerSystem used wall-clock time for fire intervals. At 4x speed, tick quantization caused 17% DPS loss. Fixed: switched to game-time tracking with `this.gameTime += dt`.
-- 04:50 PM — Root cause #2 (partial): WaveSystem spawned multiple batches per tick at high speed via `while(spawnTimer <= 0)`. At speed=10, 18 enemies spawned per tick (clustered together); at speed=4 only 6. Splash/AoE was artificially effective at high speed. Fixed: one batch per tick with full timer reset.
-- 05:00 PM — After both fixes, speed=10 also dies wave 10 (previously "wave 40"). The old result was ONLY achievable due to spawn clustering amplifying splash damage. Both speeds now consistent.
-- 05:10 PM — Root cause #3: Maze box starts with only 4 walls (budget capped by `maxWallsThisWave = max(4, existingRows+3)` = 4). Path only 46 cells — too short for wave 5+ DPS.
-- 05:15 PM — Fixed box growth: `max(6, existingRows+4)` allows 7 walls by wave 2. Chain trigger at 6 walls. Reserved 30% of maze budget for chain when numWalls>=6.
-- 05:20 PM — Speed=4 test with all fixes: survives through wave 5 (1 flying leak), some leaking wave 7-8 (tank leaks). Path 43→53. Chain section builds at wave 2. Still dying ~wave 8-9 but MUCH better than wave 6.
-- 06:28 PM — Save.
+## Status: Active — working on getting past wave 10
+
+## Key Findings So Far
+1. **Baseline: wave 9-10** (path 43, box never grows)
+2. **Box growth NOW works** with wave-based numWalls + reduced AA reserve → path 75 by wave 7
+3. **Chain sections still can't trigger** — budget always consumed by box growth + offense fill
+4. **Exit corridor is the DPS gap** — 22 cells after box with zero tower coverage
+5. **Partial box growth is useless** — need complete wall rows
+6. **All-WALL construction = zero DPS** — BASIC internals essential
+7. **The headless test uses SAME code as real game** — GameRoom, systems, AIController all identical
+
+## Current Code State (uncommitted changes to maze.ts, economy.ts, AIController.ts)
+- Wave-number numWalls: 4+2*floor(wave/2), maxed at 8 by grid height
+- AA reserve: 0 waves 1-6, moderate 7-12, scaled 13+
+- Upgrade ratio: 0% w1, 15% w2-3, 35% w4-6, 50% w7-10
+- Chain: numWalls >= 6, wave >= 5, remaining >= 350 (WALL internals)
+- Offense fill radius 3-5, no path shortening allowed
+- Growth fund: 95% of unspent, through wave 15
+- Exit corridor defense step added (but never has budget to trigger)
+
+## Test Results This Session
+- v6 (best): wave 9, path 75 by wave 7, zero leaks waves 1-5
+- v9: wave 10, path 75, better upgrade scaling
+- Baseline (before changes): wave 9-10, path 43 never grows
+
+## The Wave 10 Problem
+Boss wave 10: 4300 HP boss, 100+ enemies. Path 75 gives boss 50s in maze.
+With ~80 towers and shared DPS, boss gets ~76 DPS = 56s to kill. Close but not enough.
+Need either: longer path (100+), more DPS (upgrades), or both.
+
+## Next Steps
+- Fix offense fill to cover exit corridor (the DPS gap)
+- Get chain sections working (need to save budget across waves)
+- Verify in browser game after improving

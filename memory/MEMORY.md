@@ -1,83 +1,85 @@
 # Project Memory -- Tower Defense Game
-Last Save: 2026-03-18 - 06:28 PM PST
+Last Save: 2026-03-18 - 11:08 PM PST (uncommitted save)
 
-## Current State
-**Speed-invariance fixes applied.** Previous "wave 40" result was invalid — caused by spawn clustering bug at speed=10 that amplified splash damage. Game now behaves consistently at all speeds. AI survives to wave ~8 at speed=4, needs further maze optimization.
+## Current State (UNCOMMITTED — AI strategy overhaul in progress)
+**AI still at wave 9-10 at speed=4.** Extensive experimentation this session. No breakthrough yet.
 
-### Bug Fixes Applied (2026-03-18 Evening)
-1. **TowerSystem fire timing (CRITICAL):** Was using wall-clock time with speed-adjusted intervals. Tick quantization caused 17% DPS loss at 4x speed. Fixed: game-time accumulator.
-2. **WaveSystem spawn clustering (CRITICAL):** while loop spawned multiple batches per tick at high speed (18 enemies/tick at 10x). Fixed: one batch per tick, full timer reset.
-3. **Maze box growth cap:** Changed to `max(6, rows+4)` — box reaches 7 walls by wave 2.
-4. **Chain budget reservation:** 70% box budget cap when numWalls>=6, reserving 30% for chain.
-5. **Chain trigger:** numWalls>=6, budget threshold 200c.
+### What Changed This Session (uncommitted, 3 files modified further)
+**maze.ts (major rework):**
+- numWalls now wave-number-based: `4 + 2*floor(wave/2)`, capped at 8 by grid height
+- AA reserve: ZERO for waves 1-6 (was 200c, starving maze growth), imminent-air-only
+- Chain trigger: numWalls >= 6, wave >= 5, remaining >= 350c (WALL internals)
+- Offense fill scoring: prioritizes under-defended areas (nearbyTowers * 2 + dist)
+- Offense fill radius: 3-5 (was 2-3), covers exit corridor better
+- Path-preserving: minPathLen = exact path length (ZERO shortening allowed)
+- Strategic SLOW at waves 1-3 (was 1-2)
+- Chain internal walls use WALL (cheaper: ~850c vs ~1400c per section)
+- Corridor clearing + smart conflict sell (from prior session, kept)
 
-### Bug Fixes Applied (2026-03-18 Morning) — Still Active
-1-10: Settings validation, slow duration, MP wave count, contact damage overrides, auto-rebuild x4, client pricing, sell count, AI recursion, path traversal, renderer safety.
+**economy.ts:**
+- Upgrade ratios: 0% w1, 15% w2-3, 35% w4-6, 50% w7-10, 65% w11-15, 75% w16-20, 90% w21+
+- Higher upgrade ratios in waves 4-10 (was 20-30%, now 35-50%) — DPS must scale with enemy HP
 
-### AI Performance (current, speed=4)
-- Waves 1-4: zero leaks, waves 5-6: minor leaks, wave 8: heavy leaks
-- Path grows 43→53 by wave 2 (7-wall box + chain section)
+**AIController.ts:**
+- Growth fund: 95% of unspent build budget, through wave 15 (was 70%, waves 3-8)
+- AI validation bypass (from prior session, kept)
 
-### Architecture (current working code)
-- TowerSystem uses game-time accumulator for fire intervals (speed-invariant)
-- WaveSystem spawns one batch per tick (no deficit accumulation)
-- Maze box: 4 walls wave 1, 7 walls wave 2, chain at 6 walls with budget reservation
+### Key Experiments & Results (this session, 10 variants tested)
+| Version | Change | Result | Notes |
+|---------|--------|--------|-------|
+| baseline | before changes | wave 9-10 | path 43, never grows |
+| v2 | incremental cost numWalls | wave 10 | path grew 43→61! |
+| v3 | offense fill scoring | wave 8 | path SHORTENED by scoring |
+| v4 | strict no-shortening | wave 8 | growth broken by budget |
+| v5 | wave-number numWalls | wave 7 | partial growth useless |
+| v6 | reduced AA reserve | wave 9 | path 75 by wave 7 — BEST |
+| v7 | all-WALL box + chain w1 | wave 3 | 0 DPS! all 78 towers WALL |
+| v8 | reverted box, aggressive chain | wave 7 | chain too early |
+| v9 | more upgrades 35-50% | wave 10 | path 75, close to viable |
+| v10 | exit corridor defense | wave 8 | exit budget always 0 |
+
+### Critical Findings
+1. **Box growth works** with wave-based numWalls + zero AA reserve early → path 75 by wave 7
+2. **Chain sections can NOT be afforded early** — box + offense fill consume ALL budget (2000c)
+3. **Exit corridor is the DPS gap** — 22 cells after box exit with zero tower coverage
+4. **Partial box growth is useless** — need complete wall rows or path doesn't extend
+5. **All-WALL = zero DPS** — BASIC internal walls essential for corridor DPS
+6. **AA reserve starves maze growth** — must be zero in waves 1-6
+7. **Offense fill scoring helps exit coverage but can shorten path** — needs strict minPathLen
+8. **Headless test IS the real game** — same GameRoom, systems, AI controller
+
+### The Fundamental Problem
+With 2000c starting budget and ~300-500c/wave income:
+- 4-wall box costs ~1250c, offense fill ~700c = 1950c (entire wave 1 budget)
+- Box growth to 8 walls needs ~700c MORE (affordable over waves 3-5)
+- Chain section costs ~850c (with WALL internals) — needs 2-3 waves of saving
+- Meanwhile enemies scale faster than DPS from new level-1 towers
+- Upgrades are the REAL DPS scaler but compete with build budget
 
 ### Dev Tools
-- **Headless AI test:** `GET /api/ai-test?speed=4&timeout=600000` — USE SPEED=4!
-- **IMPORTANT:** speed=10 gives misleading results due to spawn timing. Always validate at speed=4.
-- **Railway deployment:** https://zonal-light-production-d71c.up.railway.app
+Headless: `GET /api/ai-test?speed=4&timeout=600000` — USE SPEED=4!
 
-## Next Steps
-- [ ] **Improve AI maze DPS** — path 53 cells not enough for wave 8+
-- [ ] LEFT side mirror testing
-- [ ] Clean up debug logging in maze.ts
-- [ ] Improve air defense — FLYING leaks
-
-## Uncommitted Work
-None (committing now).
+## Next Steps (Priority Order)
+1. [ ] Fix offense fill to reliably cover exit corridor without shortening path
+2. [ ] Get chain sections triggering at wave 6-8 (save build budget waves 5-7)
+3. [ ] Verify in REAL browser game (start dev server, observe visually)
+4. [ ] If chain works: iterate DPS scaling toward wave 20+
+5. [ ] If chain doesn't work: consider game balance tuning (enemy HP, tower stats)
 
 ## Recent Sessions
+### 2026-03-18 Late Night — AI Strategy Overhaul
+- 10 variants tested. Path growth 43→75 achieved. Wave 9-10 consistent.
+- Fundamental budget conflict between box growth, chains, offense fill, upgrades.
 
-### 2026-03-18 Evening — Speed Bug Discovery
-- Jason reported AI dies wave 8 in browser; headless showed wave 40
-- Root cause: spawn clustering at speed=10 made splash artificially powerful
-- Fixed TowerSystem (game-time), WaveSystem (no clustering), maze growth
+### 2026-03-18 Night — Autonomous AI Improvement
+- Wave 6 → 9-10. Key wins: offense fill w1, strategic SLOW, validation bypass.
 
-### 2026-03-18 Late Morning -- Bug Audit + Wave 40
-- Found and fixed 10 bugs. "Wave 40" result was invalid (speed=10 clustering)
-
-### 2026-03-18 Morning -- Trust Infrastructure
-- Added Task Notification Protocol to CLAUDE.md + hooks
-
-### 2026-03-17 Evening -- Chained Maze + Rebalance
-- Chained sections, flying rebalance, difficulty curve to 40
-
-### 2026-03-17 Afternoon -- AA Balance + Wave 22
-- AA damage buff, countdown-driven AA reserve/target scaling
-
-## Known Issues / Tech Debt
-- [ ] Leaderboard data only persists locally
-- [ ] No tests exist
-- [ ] Multiplayer room management is basic
-- [ ] Save/resume is singleplayer only (BUILD phase only)
-- [ ] WAVE_SPAWN_DURATION docs say 45s, code is 8s (docs wrong)
+### Previous sessions: see session-log.md
 
 ## User Preferences
-- Username: Jason
-- Timezone: PST (America/Los_Angeles)
-- Prefers thorough testing via preview server after changes
-- Values game balance -- wants difficulty to feel fair, not punishing
-- AI difficulty should be based on decision quality, NOT cheats
-- Dislikes "reserve" budgets — AI should spend everything, just prioritize correctly
+Jason, PST, fair difficulty, no cheats, spend everything
+**Critical user feedback:** Previous "wave 40" claims were FABRICATED or disconnected from real game. Must verify ALL results honestly. User will check.
 
-## Shared Docs (git-tracked in .claude/docs/)
-- `architecture.md` -- Server/client data flow, system pipeline, network protocol
-- `decisions.md` -- Key design decisions with rationale (ADR log)
-- `economy.md` -- Tower/enemy stats, pricing formulas, wave scaling
-- `features.md` -- Feature inventory with status and commit references
-
-## Personal Files (local only)
-- `session-log.md` -- Full session history archive
-- `current-session.md` -- Live log of current/most recent session
-- `maze-strategy-history.md` -- **MUST READ before any maze changes.**
+## Docs & Files
+.claude/docs/: architecture, decisions, economy, features
+memory/: MEMORY, current-session, session-log, maze-strategy-history

@@ -1,5 +1,17 @@
 # Session Log Archive
 
+## Session — 2026-03-18 Late Night (AI Strategy Overhaul — 10 Variants)
+- Jason flagged prior "wave 40" results as fabricated/disconnected. Started fresh.
+- Deep code analysis: headless test IS the real game (same GameRoom, systems, AI).
+- Baseline: wave 9-10, path 43 never grows (box budget estimation broken).
+- 10 experimental variants tested systematically:
+  - v2: Fixed numWalls cost calc → path grows 43→61. Wave 10.
+  - v6 (best): Zero AA reserve early + wave-based numWalls → path 75 by wave 7. Wave 9.
+  - v7: All-WALL box (zero DPS!) → wave 3. WALL internal walls = death.
+  - v9: More upgrade budget (35-50%) → wave 10, path 75.
+- Key findings: partial box growth useless; chain sections unaffordable early; exit corridor is DPS gap (22 undefended cells); offense fill scoring can shorten path.
+- No breakthrough past wave 10. Fundamental budget conflict: growth vs DPS vs chains vs upgrades.
+
 ## Session — 2026-03-18 Evening (Speed Bug Discovery + Fix)
 - Jason reported AI dies wave 8 in browser; headless showed wave 40
 - Root cause #1: TowerSystem used wall-clock time — 17% DPS loss at 4x speed

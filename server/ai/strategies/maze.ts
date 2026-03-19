@@ -71,25 +71,26 @@ export function generateMazeLayout(
   const placements: PlannedPlacement[] = [];
 
   const airCountdown = state.airWaveCountdown; // -1 = none, 0 = this wave, 1-3 = N waves away
-  // AA reserve: minimal early (maze needs the money), scale up after wave 5.
+  // AA reserve: ZERO early (maze growth is critical). Only reserve when air is imminent.
   let aaReserve: number;
-  if (wave <= 3) {
-    aaReserve = 0; // All budget to maze early
-  } else if (wave <= 6) {
-    aaReserve = 200;
+  if (wave <= 6) {
+    // Early game: only reserve AA if air wave is imminent
+    if (airCountdown === 0) aaReserve = Math.min(300, Math.floor(budget * 0.3));
+    else if (airCountdown === 1) aaReserve = Math.min(200, Math.floor(budget * 0.2));
+    else aaReserve = 0; // All budget to maze growth
+  } else if (wave <= 12) {
+    // Mid game: moderate reserve
+    aaReserve = 200 + wave * 20;
+    if (airCountdown === 0) aaReserve = 500 + wave * 40;
+    else if (airCountdown === 1) aaReserve = 400 + wave * 30;
+    aaReserve = Math.min(aaReserve, Math.floor(budget * 0.35));
   } else {
-    // Scale with wave and air countdown urgency
+    // Late game: scale with wave
     aaReserve = 300 + wave * 30;
-    if (airCountdown === 3) aaReserve = 400 + wave * 40;
-    else if (airCountdown === 2) aaReserve = 500 + wave * 50;
+    if (airCountdown === 0) aaReserve = 800 + wave * 80;
     else if (airCountdown === 1) aaReserve = 600 + wave * 60;
-    else if (airCountdown === 0) aaReserve = 800 + wave * 80;
+    if (wave <= 20) aaReserve = Math.min(aaReserve, Math.floor(budget * 0.45));
   }
-  // Early game: cap AA reserve to leave budget for maze. Late game: uncap (maze is done).
-  if (wave <= 20) {
-    aaReserve = Math.min(aaReserve, Math.floor(budget * 0.45));
-  }
-  // Late game: let AA reserve scale naturally (no cap)
   const mazeBudget = budget - aaReserve;
 
   const xMin = side === PlayerSide.RIGHT ? GRID.RIGHT_ZONE_START : 0;
@@ -194,8 +195,9 @@ export function generateMazeLayout(
   if (!batchPath) {
     log(`[MAZE] Batch blocked path — reverting`);
   }
-  // Cap box spending when chain is possible — reserve budget for chain section
-  const boxBudgetCap = box.numWalls >= 6 ? Math.floor(mazeBudget * 0.7) : mazeBudget;
+  // No box budget cap — let the box spend what it needs.
+  // Chain section has its own budget check (mazeBudget - spent >= 200).
+  const boxBudgetCap = mazeBudget;
 
   if (batchPath) {
     for (const cell of batchCells) {
@@ -238,14 +240,14 @@ export function generateMazeLayout(
   // === 2b. CHAINED SECTIONS — additional switchback columns ===
   // Each section alternates direction: up, down, up, down...
   // Connected by seal walls, enclosed by outer funnel on last section.
-  // Trigger at 6+ walls — box needs enough switchbacks for a long internal path.
-  // With +4/wave growth cap, box reaches 6 walls by wave 2 (4 → 8 cap → 6 affordable).
-  if (box.numWalls >= 6) {
+  // Trigger at 6+ walls — need enough switchbacks for meaningful chain.
+  if (box.numWalls >= 6 && wave >= 5) {
     let prevExitX = goalSideX; // box 1's exit column
     let goingUp = true; // first extra section goes upward
     let sectionIdx = 0;
 
-    while (mazeBudget - spent >= 200) {
+    // Chain needs ~350c minimum (WALL internals make them cheaper).
+    while (mazeBudget - spent >= 350) {
       const section = generateChainedSection(state, side, box, playerId, prevExitX, goingUp);
       if (!section) break;
 
@@ -344,11 +346,41 @@ export function generateMazeLayout(
     if (!anyFilled) break;
   }
 
-  // === 4. OFFENSE FILL ===
-  // Place DPS towers near the path. Radius scales with wave for late-game spending.
+  // === 4a. STRATEGIC SLOW — place SLOW towers at switchback turns ===
+  // Turns are where enemies change direction. SLOW here maximizes DPS overlap.
+  // Place at wave 1-3 for initial DPS boost.
+  if (mazeBudget - spent >= 80 && wave <= 3) {
+    const slowCost = getDynamicPrice(state, TowerType.SLOW);
+    for (let w = 1; w < box.numWalls - 1; w++) {
+      if (mazeBudget - spent < slowCost) break;
+      const wallY = box.mazeTop + w * 2;
+      const gapAtRight = w % 2 === 1;
+      const gapX = gapAtRight ? (box.mazeRight - 1) : (box.mazeLeft + 1);
+      // Place SLOW adjacent to the gap (one cell toward the corridor)
+      const slowY = wallY + 1; // corridor below the wall
+      const slowX = gapX;
+      if (slowY >= GRID.HEIGHT || slowX < xMin || slowX > xMax) continue;
+      if (state.grid.cells[slowY]?.[slowX] !== CellType.EMPTY) continue;
+      if (isInSpawnZone(slowX, slowY)) continue;
+      state.grid.cells[slowY][slowX] = CellType.TOWER;
+      const checkPath = findPath(state.grid, side);
+      if (!checkPath) {
+        state.grid.cells[slowY][slowX] = CellType.EMPTY;
+        continue;
+      }
+      simulated.push({ x: slowX, y: slowY });
+      placements.push({ x: slowX, y: slowY, type: TowerType.SLOW, cost: slowCost });
+      spent += slowCost;
+      towerTypeCounts[TowerType.SLOW] = (towerTypeCounts[TowerType.SLOW] ?? 0) + 1;
+      log(`[MAZE] Strategic SLOW at (${slowX},${slowY}) near gap w=${w}`);
+    }
+  }
+
+  // === 4b. OFFENSE FILL ===
+  // Place DPS towers near the path (not on it). Large radius to cover exit corridor.
   const fillBudget = mazeBudget - spent;
-  const fillRadius = wave >= 15 ? 4 : wave >= 8 ? 3 : 2;
-  if (fillBudget >= 50 && wave >= 2) {
+  const fillRadius = wave >= 10 ? 5 : wave >= 5 ? 4 : 3;
+  if (fillBudget >= 50) {
     const fillPath = findPath(state.grid, side);
     if (fillPath) {
       const pathSet = new Set(fillPath.map(c => `${c.x},${c.y}`));
@@ -372,8 +404,26 @@ export function generateMazeLayout(
           }
         }
       }
-      candidates.sort((a, b) => a.dist - b.dist);
+      // Sort by priority: cells near the exit corridor (few nearby towers) get higher priority.
+      // This ensures DPS coverage extends beyond the box to the board edge.
+      for (const c of candidates) {
+        let nearbyTowers = 0;
+        for (let dx2 = -3; dx2 <= 3; dx2++) {
+          for (let dy2 = -3; dy2 <= 3; dy2++) {
+            const nx2 = c.x + dx2, ny2 = c.y + dy2;
+            if (nx2 >= 0 && nx2 < GRID.WIDTH && ny2 >= 0 && ny2 < GRID.HEIGHT) {
+              if (state.grid.cells[ny2][nx2] === CellType.TOWER) nearbyTowers++;
+            }
+          }
+        }
+        // Score: lower = higher priority. Prefer under-defended areas (low nearbyTowers)
+        // with slight preference for closer to path (lower dist)
+        (c as any).priority = nearbyTowers * 2 + c.dist;
+      }
+      candidates.sort((a, b) => (a as any).priority - (b as any).priority);
 
+      // Track minimum acceptable path length — NEVER allow shortening
+      let minPathLen = fillPath?.length ?? 0;
       let fillSpent = 0;
       for (const c of candidates) {
         if (fillSpent >= fillBudget) break;
@@ -385,7 +435,8 @@ export function generateMazeLayout(
           if (fillSpent + fc > fillBudget) break;
         }
         state.grid.cells[c.y][c.x] = CellType.TOWER;
-        if (!findPath(state.grid, side)) {
+        const postPath = findPath(state.grid, side);
+        if (!postPath || postPath.length < minPathLen) {
           state.grid.cells[c.y][c.x] = CellType.EMPTY;
           continue;
         }
@@ -461,74 +512,24 @@ function generateBoxMaze(
   const wallPrice = getDynamicPrice(state, TowerType.WALL);
 
   const empty: BoxGeometry = { cells: [], mazeLeft: 0, mazeRight: 0, mazeTop: SPAWN_ROW - 1, mazeBottom: SPAWN_ROW + 1, numWalls: 0 };
-  const maxTowers = Math.floor(budget / basicCost);
-  if (maxTowers < 10) return empty;
+  if (budget < 250) return empty;
 
   const xMin = side === PlayerSide.RIGHT ? GRID.RIGHT_ZONE_START : 0;
   const xMax = side === PlayerSide.RIGHT ? GRID.WIDTH - 1 : GRID.LEFT_ZONE_END;
 
   const mazeWidth = 7;
 
-  // Budget accounting
-  const funnelXEst = side === PlayerSide.RIGHT ? GRID.RIGHT_ZONE_START : GRID.LEFT_ZONE_END;
-  let existingFunnelCells = 0;
-  for (let dy = -4; dy <= 4; dy++) {
-    if (dy === 0) continue;
-    const y = SPAWN_ROW + dy;
-    if (y >= 0 && y < GRID.HEIGHT && state.grid.cells[y][funnelXEst] === CellType.TOWER) {
-      existingFunnelCells++;
-    }
-  }
-  const funnelNewCost = Math.max(0, 8 - existingFunnelCells);
-  const mazeTowerBudget = maxTowers - funnelNewCost;
-
-  let existingMazeCost = 0;
-  for (let y = 0; y < GRID.HEIGHT; y++) {
-    for (let x = xMin; x <= xMax; x++) {
-      if (x === funnelXEst) continue;
-      if (state.grid.cells[y][x] === CellType.TOWER) existingMazeCost += basicCost;
-    }
-  }
-  const mazeCreditBudget = mazeTowerBudget * basicCost;
-  const effectiveCreditBudget = mazeCreditBudget + existingMazeCost;
-
-  // Count existing wall rows to limit growth rate (+3 walls/wave max)
-  // Corridor clearing ensures new rows work even with offense fill
-  let existingWallRows = 0;
-  for (let y = 0; y < GRID.HEIGHT; y++) {
-    let solidCount = 0;
-    for (let x = xMin + 1; x <= xMax - 1; x++) {
-      if (state.grid.cells[y][x] === CellType.TOWER) solidCount++;
-    }
-    if (solidCount >= mazeWidth - 2) existingWallRows++;
-  }
-  // Wave 1 needs 6+ walls to trigger chain. Allow +4/wave for faster initial growth.
-  const maxWallsThisWave = Math.max(6, existingWallRows + 4);
-
-  const sliceCreditCost = (mazeWidth - 1) * basicCost + 2 * wallPrice;
-  let numWalls = 2 + Math.floor((effectiveCreditBudget - 2 * mazeWidth * wallPrice) / sliceCreditCost);
-  numWalls = Math.max(2, Math.min(numWalls, maxWallsThisWave, 12));
-
-  const estCost = (w: number) => {
-    const solidCost = 2 * mazeWidth * wallPrice;
-    const internalCost = Math.max(0, w - 2) * (mazeWidth - 1) * basicCost;
-    const sideCost = Math.max(0, 2 * (w - 1) - 2) * wallPrice;
-    return solidCost + internalCost + sideCost;
-  };
-  const estFunnelCost = funnelNewCost * wallPrice;
-
-  let est = estCost(numWalls) + estFunnelCost;
-  while (est > effectiveCreditBudget && numWalls > 2) {
-    numWalls--;
-    est = estCost(numWalls) + estFunnelCost;
-  }
-
   const mazeTop = Math.max(1, SPAWN_ROW - 1);
-  // Cap numWalls based on actual grid space available
   const maxWallsFromHeight = Math.floor((GRID.HEIGHT - 2 - mazeTop) / 2) + 1;
-  numWalls = Math.min(numWalls, maxWallsFromHeight);
-  const mazeHeight = 2 * numWalls - 1;
-  const mazeBottom = mazeTop + mazeHeight - 1;
+
+  // NumWalls determined purely by wave number, not budget.
+  // Wave 1: 4, Wave 2: 4, Wave 3: 6, Wave 4: 6, Wave 5: 8, Wave 6: 8, ...
+  // The batch placement step handles budget — if we can't afford all cells,
+  // cell-by-cell fallback places what it can in priority order.
+  let numWalls = Math.min(4 + 2 * Math.floor(wave / 2), maxWallsFromHeight);
+  // Force even
+  if (numWalls > 2 && numWalls % 2 !== 0) numWalls--;
+  numWalls = Math.max(4, numWalls);
 
   let mazeLeft: number, mazeRight: number;
   if (side === PlayerSide.RIGHT) {
@@ -538,14 +539,16 @@ function generateBoxMaze(
     mazeRight = GRID.LEFT_ZONE_END - 1;
     mazeLeft = mazeRight - mazeWidth + 1;
   }
-
   if (mazeRight > xMax - 1) mazeRight = xMax - 1;
   if (mazeLeft < xMin + 1) mazeLeft = xMin + 1;
+
+  const mazeHeight = 2 * numWalls - 1;
+  const mazeBottom = mazeTop + mazeHeight - 1;
 
   const actualWidth = mazeRight - mazeLeft + 1;
   if (actualWidth < 5) return empty;
 
-  log(`[MAZE] Box: cols ${mazeLeft}-${mazeRight} (W=${actualWidth}), rows ${mazeTop}-${mazeBottom} (H=${mazeHeight}), ${numWalls} walls, ~${est}c`);
+  log(`[MAZE] Box: cols ${mazeLeft}-${mazeRight} (W=${actualWidth}), rows ${mazeTop}-${mazeBottom} (H=${mazeHeight}), ${numWalls} walls`);
 
   const cells: MazeCell[] = [];
   const firstCorridorY = mazeTop + 1;
@@ -553,7 +556,7 @@ function generateBoxMaze(
   const spawnSideX = side === PlayerSide.RIGHT ? mazeLeft : mazeRight;
   const goalSideX = side === PlayerSide.RIGHT ? mazeRight : mazeLeft;
 
-  // 1. FUNNEL — zone edge column
+  // 1. FUNNEL — zone edge column (must be first — prevents bypass)
   const funnelX = side === PlayerSide.RIGHT ? GRID.RIGHT_ZONE_START : GRID.LEFT_ZONE_END;
   const funnelTop = Math.max(0, mazeTop - 1);
   const funnelBottom = Math.min(GRID.HEIGHT - 1, mazeBottom + 1);
@@ -563,35 +566,51 @@ function generateBoxMaze(
     cells.push({ x: funnelX, y, type: TowerType.WALL });
   }
 
-  // 2. SEAL WALLS — solid top and bottom (cheap WALLs)
-  for (let w = 0; w < numWalls; w++) {
-    const isSeal = w === 0 || w === numWalls - 1;
-    if (!isSeal) continue;
+  // 2. TOP SEAL — solid top wall (always needed)
+  const topY = mazeTop;
+  for (let x = mazeLeft; x <= mazeRight; x++) {
+    cells.push({ x, y: topY, type: TowerType.WALL });
+  }
+
+  // 3. BUILD EACH ROW as a unit: internal wall + its corridor side walls
+  // This ensures limited budget creates complete switchbacks instead of just structural shells.
+  // Process ROW-BY-ROW from top to bottom (existing rows first, then new growth).
+  for (let w = 1; w < numWalls - 1; w++) {
     const wallY = mazeTop + w * 2;
+    const corridorY = wallY - 1; // corridor above this wall
     if (wallY > mazeBottom || wallY >= GRID.HEIGHT) continue;
-    for (let x = mazeLeft; x <= mazeRight; x++) {
-      cells.push({ x, y: wallY, type: TowerType.WALL });
+
+    // Side walls for the corridor above this internal wall
+    if (corridorY !== firstCorridorY) {
+      cells.push({ x: spawnSideX, y: corridorY, type: TowerType.WALL });
     }
-  }
+    if (corridorY !== lastCorridorY) {
+      cells.push({ x: goalSideX, y: corridorY, type: TowerType.WALL });
+    }
 
-  // 3. SIDE WALLS — seal corridor rows on left/right edges (cheap WALLs)
-  for (let y = mazeTop; y <= mazeBottom; y++) {
-    if ((y - mazeTop) % 2 === 0) continue;
-    if (y !== firstCorridorY) cells.push({ x: spawnSideX, y, type: TowerType.WALL });
-    if (y !== lastCorridorY) cells.push({ x: goalSideX, y, type: TowerType.WALL });
-  }
-
-  // 4. INTERNAL WALLS — switchback walls with gaps (BASIC for DPS)
-  for (let w = 0; w < numWalls; w++) {
-    const isSeal = w === 0 || w === numWalls - 1;
-    if (isSeal) continue;
-    const wallY = mazeTop + w * 2;
-    if (wallY > mazeBottom || wallY >= GRID.HEIGHT) continue;
+    // Internal wall with gap
     const gapAtRight = w % 2 === 1;
     const gapX = gapAtRight ? (mazeRight - 1) : (mazeLeft + 1);
     for (let x = mazeLeft; x <= mazeRight; x++) {
       if (x === gapX) continue;
-      cells.push({ x, y: wallY, type: TowerType.BASIC });
+      cells.push({ x, y: wallY, type: TowerType.BASIC }); // BASIC for DPS on internal walls
+    }
+  }
+
+  // 4. LAST CORRIDOR side walls (between last internal wall and bottom seal)
+  if (numWalls >= 3) {
+    const lastCorrY = lastCorridorY;
+    if (lastCorrY !== firstCorridorY) {
+      cells.push({ x: spawnSideX, y: lastCorrY, type: TowerType.WALL });
+    }
+    // goalSideX at lastCorridorY is the EXIT — don't wall it
+  }
+
+  // 5. BOTTOM SEAL — solid bottom wall (placed last since switchbacks matter more)
+  const bottomY = mazeTop + (numWalls - 1) * 2;
+  if (bottomY !== topY && bottomY >= 0 && bottomY < GRID.HEIGHT) {
+    for (let x = mazeLeft; x <= mazeRight; x++) {
+      cells.push({ x, y: bottomY, type: TowerType.WALL });
     }
   }
 
@@ -734,7 +753,7 @@ function generateChainedSection(
     const gapX = getGapX(w, box.numWalls, secLeft, secRight, side, goingUp);
     for (let x = secLeft; x <= secRight; x++) {
       if (x === gapX) continue;
-      cells.push({ x, y: wallY, type: TowerType.BASIC });
+      cells.push({ x, y: wallY, type: TowerType.WALL }); // WALL for cheaper chain sections
     }
   }
 

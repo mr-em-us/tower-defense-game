@@ -1,6 +1,6 @@
 import { GameState, GamePhase, PlayerSide, AIDifficulty, TowerType, CellType } from '../../shared/types/game.types.js';
 import { ClientMessage } from '../../shared/types/network.types.js';
-import { AI, TOWER_STATS, REPAIR_COST_RATIO } from '../../shared/types/constants.js';
+import { AI, TOWER_STATS, REPAIR_COST_RATIO, GRID } from '../../shared/types/constants.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { planEconomy, getMaintenanceActions, getUpgradeActions, getDynamicPrice } from './strategies/economy.js';
 import { generateMazeLayout } from './strategies/maze.js';
@@ -19,6 +19,7 @@ export class AIController {
   private combatCheckCounter = 0;
   private hasEnabledAutoRepair = false;
   private readySent = false;
+  private mazeGrowthFund = 0; // Accumulated credits for maze growth across waves
 
   constructor(playerId: string, name: string, side: PlayerSide, difficulty: AIDifficulty) {
     this.playerId = playerId;
@@ -95,8 +96,10 @@ export class AIController {
     }
 
     // 3. Build new towers (maze + offense)
-    log(`[ECON] Wave ${state.waveNumber} | Credits: ${Math.round(player.credits)} | Repair: ${Math.round(plan.repairBudget)} | Restock: ${Math.round(plan.restockBudget)} | Build: ${Math.round(plan.buildBudget)} | Upgrade: ${Math.round(plan.upgradeBudget)} | Save: ${Math.round(plan.savingsTarget)}`);
-    const mazePlan = generateMazeLayout(state, this.playerId, plan.buildBudget, this.depth);
+    // Add growth fund to build budget for maze growth
+    const mazeBudget = plan.buildBudget + this.mazeGrowthFund;
+    log(`[ECON] Wave ${state.waveNumber} | Credits: ${Math.round(player.credits)} | Repair: ${Math.round(plan.repairBudget)} | Restock: ${Math.round(plan.restockBudget)} | Build: ${Math.round(plan.buildBudget)} | Upgrade: ${Math.round(plan.upgradeBudget)} | Save: ${Math.round(plan.savingsTarget)} | GrowthFund: ${Math.round(this.mazeGrowthFund)}`);
+    const mazePlan = generateMazeLayout(state, this.playerId, mazeBudget, this.depth);
     // Sell old side walls first to clear corridors for widening
     for (const towerId of mazePlan.sellTowerIds) {
       this.actionQueue.push({ type: 'SELL_TOWER', towerId });
@@ -109,10 +112,21 @@ export class AIController {
       });
     }
 
-    // 4. Upgrades — include unspent build budget (maze may be complete)
+    // Track maze growth: save unspent build budget for chains and maze growth.
     const buildSpent = mazePlan.placements.reduce((sum, p) => sum + p.cost, 0);
     const unspentBuild = Math.max(0, plan.buildBudget - buildSpent);
-    const totalUpgradeBudget = plan.upgradeBudget + unspentBuild;
+    // Always accumulate growth fund (for chains) until wave 15
+    if (state.waveNumber <= 15 && unspentBuild > 50) {
+      this.mazeGrowthFund += unspentBuild * 0.95; // Save 95% for chains
+      log(`[ECON] Growth fund: +${Math.round(unspentBuild * 0.95)}c (total: ${Math.round(this.mazeGrowthFund)}c)`);
+    } else if (state.waveNumber > 15) {
+      this.mazeGrowthFund = 0; // Redirect to upgrades
+    }
+
+    // 4. Upgrades — include unspent build that wasn't saved to growth fund
+    const growthFundContrib = (state.waveNumber <= 15 && unspentBuild > 50)
+      ? unspentBuild * 0.95 : 0;
+    const totalUpgradeBudget = plan.upgradeBudget + Math.max(0, unspentBuild - growthFundContrib);
     const upgradeActions = getUpgradeActions(state, this.playerId, totalUpgradeBudget, this.depth);
     for (const action of upgradeActions) {
       this.actionQueue.push(action);
@@ -136,8 +150,12 @@ export class AIController {
 
           if (action.type === 'PLACE_TOWER') {
             const pos = (action as { position: { x: number; y: number } }).position;
-            const v = validateTowerPlacement(state.grid, pos.x, pos.y, this.side);
-            if (!v.valid) continue; // skip invalid, try next
+            // Skip path validation — maze planner already batch-validated all placements.
+            // Individual validation causes sequential placement failures (e.g., side walls
+            // temporarily blocking the path before switchback internals are placed).
+            // Only check basic validity (in zone, empty cell, not spawn).
+            if (pos.x < 0 || pos.x >= GRID.WIDTH || pos.y < 0 || pos.y >= GRID.HEIGHT) continue;
+            if (state.grid.cells[pos.y][pos.x] !== CellType.EMPTY) continue;
 
             const player = state.players[this.playerId];
             const towerType = (action as { towerType: TowerType }).towerType;

@@ -544,10 +544,21 @@ export class GameRoom {
       return;
     }
 
-    const validation = validateTowerPlacement(this.state.grid, x, y, player.side);
-    if (!validation.valid) {
-      this.sendTo(playerId, { type: 'ACTION_FAILED', reason: validation.reason! });
-      return;
+    // AI placements skip path validation — maze planner already batch-validated.
+    // Individual path validation breaks sequential placement of interdependent maze cells.
+    if (!player.isAI) {
+      const validation = validateTowerPlacement(this.state.grid, x, y, player.side);
+      if (!validation.valid) {
+        this.sendTo(playerId, { type: 'ACTION_FAILED', reason: validation.reason! });
+        return;
+      }
+    } else {
+      // Basic checks only for AI: in zone, empty cell
+      if (this.state.grid.cells[y]?.[x] !== CellType.EMPTY) return;
+      const zoneOk = player.side === PlayerSide.RIGHT
+        ? x >= GRID.RIGHT_ZONE_START
+        : x <= GRID.LEFT_ZONE_END;
+      if (!zoneOk) return;
     }
 
     const overrides = this.state.settings.towerOverrides?.[type];

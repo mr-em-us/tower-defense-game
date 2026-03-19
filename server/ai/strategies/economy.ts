@@ -31,12 +31,12 @@ export function planEconomy(
   const credits = player.credits;
   const wave = state.waveNumber;
 
-  // Reserve ratio: minimal — maximize spending on towers
+  // Reserve ratio: minimal — maximize spending
   let reserveRatio: number;
   if (wave <= 5) {
     reserveRatio = 0.02; // 2% reserve early — build aggressively
   } else {
-    reserveRatio = 0.05; // 5% late game — still prioritize building
+    reserveRatio = 0.05; // 5% late game
   }
 
   const savingsTarget = Math.round(credits * reserveRatio);
@@ -74,20 +74,20 @@ export function planEconomy(
   // Late game: grid saturates, upgrades become primary DPS growth
   const towerCount = Object.values(state.towers).filter(t => t.ownerId === playerId).length;
   let upgradeRatio: number;
-  if (wave <= 4) {
-    upgradeRatio = 0; // all building early — establish maze
-  } else if (wave <= 7) {
-    upgradeRatio = 0.20; // 20% mid-game — upgrade key towers for DPS
-  } else if (wave <= 12) {
-    upgradeRatio = 0.35; // 35% — upgrades more important as enemies scale
+  if (wave <= 1) {
+    upgradeRatio = 0; // wave 1: build everything
+  } else if (wave <= 3) {
+    upgradeRatio = 0.15; // 15% — prioritize maze growth, but start upgrades
+  } else if (wave <= 6) {
+    upgradeRatio = 0.35; // 35% — balance build + upgrades, DPS must scale
+  } else if (wave <= 10) {
+    upgradeRatio = 0.50; // 50% — upgrades are primary DPS source now
+  } else if (wave <= 15) {
+    upgradeRatio = 0.65;
   } else if (wave <= 20) {
-    upgradeRatio = 0.55; // 55% — heavy upgrades, maze is established
-  } else if (wave <= 25) {
-    upgradeRatio = 0.70; // 70% — late game, maze saturated
-  } else if (wave <= 30) {
-    upgradeRatio = 0.80; // 80% — deep late game, upgrades are primary DPS growth
+    upgradeRatio = 0.75;
   } else {
-    upgradeRatio = 0.85; // 85% — ultra late game, almost all upgrades
+    upgradeRatio = 0.90; // Late game: almost all budget to upgrades
   }
 
   const upgradeBudget = Math.round(afterRestock * upgradeRatio);

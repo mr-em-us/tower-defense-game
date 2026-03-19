@@ -191,12 +191,13 @@ export function chooseTowerType(
   }
 
   // Mid/late game: deterministic balanced composition
-  // Priority order: fill whichever type is furthest below its target ratio
+  // BASIC is most cost-efficient (0.4 DPS/credit). SPLASH/SNIPER are expensive
+  // due to dynamic pricing escalation. Keep ratios low for premium towers.
   const slowRatio = (typeCounts[TowerType.SLOW] ?? 0) / total;
   const splashRatio = (typeCounts[TowerType.SPLASH] ?? 0) / total;
   const sniperRatio = (typeCounts[TowerType.SNIPER] ?? 0) / total;
 
-  // Target ratios: 15% SLOW, 20% SPLASH, 12% SNIPER, rest BASIC
+  // Target ratios: 15% SLOW, 20% SPLASH, 12% SNIPER, rest BASIC (53%)
   const gaps: { type: TowerType; gap: number }[] = [
     { type: TowerType.SLOW, gap: 0.15 - slowRatio },
     { type: TowerType.SPLASH, gap: 0.20 - splashRatio },

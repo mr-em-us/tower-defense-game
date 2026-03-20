@@ -68,12 +68,20 @@ Revenue categories: killRewards (ProjectileSystem.applyDamage), waveBonus (CREDI
 
 Expense categories: towerPurchases (handlePlaceTower), towerUpgrades (handleUpgradeTower), repairCosts (handleRepairTower, handleBrushRepair, processAutoRepair), restockCosts (handleRestockTower, handleRestockAll, handleBrushRepair, processAutoRepair), maintenanceCosts (sum of maintenancePerTurn at wave start)
 
-## AI Economy — AA Targeting (server/ai/strategies/maze.ts placeAADefense)
-- AA target count: `4 + wave * 1.5` (proactive, not reactive to air warnings)
-- Placement: horizontal line at rows 12-16, spread horizontally across zone
-- Budget reserve: gap-based (`aaGap * aaCost`), capped at 50% of build budget
-- Wave 1: no AA (all budget to maze). Wave 2+: proactive AA placement.
-- Upgrade ratios: 0% w1-4, 20% w5-7, 35% w8-12, 55% w13-20, 70% w21+
+## AI Economy — Emergent Maze Builder (server/ai/strategies/maze.ts)
+**Architecture:** Greedy hill-climbing. Each tower placement scored by composite function:
+- `score = pathDelta × 15 + pathCoverage × 2 + wallAdjacency × 3 + pathProximity × 1`
+- Lexicographic sort: delta>0 cells ALWAYS placed before delta=0 cells
+- Tower type: WALL (25c) for delta>0, BASIC/specialized for coverage
+
+**AA targeting:** `wave <= 3 ? 2 : wave <= 6 ? 2 + (wave-3)*1.5 : 7 + (wave-6)*2`
+- Placement: rows 12-16, spread horizontally
+- Budget reserve: gap × cost, capped at 50% total budget
+- Wave 1: no AA. Wave 2+: proactive.
+
+**Upgrade ratios:** 0% w1-4, 15% w5-7, 30% w8-10, 55% w11-15, 75% w16-25, 85% w26+
+- Unspent build budget flows to upgrades automatically (AIController)
+- AA upgrade ROI boosted 3× (effective DPS vs flying)
 - Savings reserve: 0% (spend everything)
 
 ## Wave Scaling Formula (server/systems/WaveSystem.ts)

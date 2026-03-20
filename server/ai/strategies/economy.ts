@@ -66,19 +66,21 @@ export function planEconomy(
   // Upgrade ratio: low until maze is established, then scale up
   // Late game: grid saturates, upgrades become primary DPS growth
   const towerCount = Object.values(state.towers).filter(t => t.ownerId === playerId).length;
+  // Emergent maze maxes path at ~86-90 by wave 1-2. After that,
+  // upgrades are the primary DPS growth vector.
   let upgradeRatio: number;
   if (wave <= 4) {
-    upgradeRatio = 0; // all building early — establish maze
+    upgradeRatio = 0; // all building — establish maze
   } else if (wave <= 7) {
-    upgradeRatio = 0.20; // 20% mid-game — upgrade key towers for DPS
-  } else if (wave <= 12) {
-    upgradeRatio = 0.35; // 35% — upgrades more important as enemies scale
-  } else if (wave <= 20) {
-    upgradeRatio = 0.55; // 55% — heavy upgrades, maze is established
-  } else if (wave <= 30) {
-    upgradeRatio = 0.80; // 80% — late game, maze fully saturated
+    upgradeRatio = 0.15;
+  } else if (wave <= 10) {
+    upgradeRatio = 0.30;
+  } else if (wave <= 15) {
+    upgradeRatio = 0.55; // maze maxed, push upgrades
+  } else if (wave <= 25) {
+    upgradeRatio = 0.75;
   } else {
-    upgradeRatio = 0.85; // 85% — very late game, almost all upgrades
+    upgradeRatio = 0.85;
   }
 
   const upgradeBudget = Math.round(afterRestock * upgradeRatio);

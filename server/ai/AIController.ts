@@ -1,6 +1,6 @@
 import { GameState, GamePhase, PlayerSide, AIDifficulty, TowerType, CellType } from '../../shared/types/game.types.js';
 import { ClientMessage } from '../../shared/types/network.types.js';
-import { AI, TOWER_STATS, REPAIR_COST_RATIO } from '../../shared/types/constants.js';
+import { AI, GRID, TOWER_STATS, REPAIR_COST_RATIO } from '../../shared/types/constants.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { planEconomy, getMaintenanceActions, getUpgradeActions, getDynamicPrice } from './strategies/economy.js';
 import { generateMazeLayout } from './strategies/maze.js';

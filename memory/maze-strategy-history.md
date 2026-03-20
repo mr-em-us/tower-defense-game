@@ -316,6 +316,73 @@ Three bugs made higher speeds secretly easier:
 3. Wall thickness issue still unfixed.
 **Status:** Budget bugs fixed, but maze needs to be much larger. Jason suggests "copy-paste" chain approach.
 
+## Iteration 18: Emergent Maze — Greedy Hill-Climbing (2026-03-19, CURRENT ★★★★★★)
+**Problem:** LLM has poor spatial reasoning. All previous approaches designed explicit geometry (boxes, corridors, chains) which required spatial understanding. Jason's insight: use emergent complexity from simple mathematical rules, like Conway's Game of Life.
+
+**Philosophy:**
+- No predefined geometry. Each tower placement is a single decision scored by a math function.
+- Maze structures EMERGE from greedy optimization, not spatial design.
+- Minimize reliance on spatial reasoning — only use BFS (pure math).
+
+**Algorithm:**
+1. For each placement: score ALL candidate cells by a composite function
+2. Composite score = `delta × 10 + coverage × 2 + wallAdj × 3 + proximity × 1`
+   - delta = path length increase from placing tower here (BFS comparison)
+   - coverage = path cells within BASIC range (firing coverage)
+   - wallAdj = adjacent cells that are walls (builds structure)
+   - proximity = closeness to current path
+3. Lexicographic sort: delta>0 cells ALWAYS placed first (path extension priority)
+4. Tower type: WALL (25c) for positive delta, BASIC/specialized for coverage
+5. Breakthrough phase: 2-step look-ahead to find pairs that break local optima
+6. AA defense kept from previous implementation
+
+**Key Files Changed:**
+- `server/ai/strategies/maze.ts` — complete rewrite (was 854 lines → ~450 lines)
+- `server/ai/strategies/economy.ts` — delayed upgrade ratios
+- `server/index.ts` — added `?credits=N` param to ai-test endpoint
+
+**Iteration History:**
+| Version | Key Change | Wave (s=4) | Path (w1) | Notes |
+|---------|-----------|-----------|-----------|-------|
+| v1 | Initial greedy, no stop | 6 | 30 | Only 2 walls placed, zero-delta stop too aggressive |
+| v2 | Zero-delta limit=8 | 7 | 86 (41 walls) | Better but budget wasted on zero-delta walls |
+| v3 | Unified scoring | 11 | 57 | Mixed wall/damage but path lower |
+| v4 | Lexicographic sort | 12 | 86 | delta>0 first, path back to 86 |
+| v5 | Search radius 3 | 11 | 86→118 | Occasional breakthroughs at wave 9 |
+| v6 | Delayed upgrades | 12 (timeout, 240 HP) | 86 | Better economy but path plateau |
+| v7 | Breakthrough pairs | 17 | 86→90 | Best result: wave 15-17, consistent |
+| v8 | BT threshold=1 | 16 | 86→90 | No improvement from lower threshold |
+| v9 | No path revalidation | 13 | 86→90 | WORSE — validation protects path |
+| v10 | Line probe BT (len 3-5) | 15 | 86→90 | No lines found, plateau too deep |
+| v11 | No lex sort | 7 | 59 | MUCH WORSE, lex sort is critical |
+| v12 | DELTA_WEIGHT=15 | 16,15,17 | 86→90 | Same as v7 (lex sort dominates) |
+| v13 | Faster upgrade ramp | 15,16 | 86→90 | Within variance, budget self-balances |
+
+**Best Result (v7-final, VERIFIED at speed=4, 13 total tests):**
+- Range: wave 10-17
+- Median: wave 16, Mean: wave ~15
+- Tests: 10, 12, 14, 15, 15, 15, 16, 16, 16, 16, 16, 17, 17
+- Wave 1: 60 towers (44 WALL, 3 SLOW, 13 BASIC), path 86
+- Path grows to 88-90 by wave 9-12
+- Baseline was wave 9-10 with path 47-59
+- **~60% improvement in wave survival vs baseline**
+
+**Key Learnings:**
+1. Greedy one-at-a-time wall placement creates path 86 on wave 1 (vs 47 from box approach)
+2. Path hits local optimum at 86-88 — no single wall extends it further
+3. Lexicographic sort (delta>0 first) is critical — otherwise damage towers steal wall budget
+4. 2-step breakthrough look-ahead found no pairs at the 86 optimum (too deep)
+5. All-wall approach (wave 1) wastes budget — only 44 of 80 walls are useful
+6. Goal-direction bonus HURTS (diverts walls from path-critical to goal-side)
+7. Wider search radius (3 vs 2) helps occasionally but inconsistently
+8. Removing path revalidation in tickBuild makes things WORSE (blocks path)
+
+**Open Problems:**
+1. Path plateau at 86-88 — need 3+ coordinated walls to break through
+2. "Before path" drops to 56-60 in later waves (placement re-validation failures)
+3. No breakthrough pairs found — look-ahead needs to be deeper (3+ walls)
+4. Income per wave (200-500c) too low for meaningful path extensions after wave 1
+
 ## Dev Tools
 - **AI test endpoint:** `GET /api/ai-test?speed=4&timeout=600000` — USE SPEED=4 (speed bugs fixed)
 - **Speed=1 is ground truth** — no speed bugs at 1x
@@ -332,3 +399,14 @@ Three bugs made higher speeds secretly easier:
 8. **Chained boxes without solving old exit holes** — enemies bypass box 2
 9. **All-BASIC maze (no WALLs)** — 2x cost, fewer walls, shorter path, lower wave count
 10. **Unified ROI scorer replacing maze geometry** — spatial reasoning failure, wave 6-7
+11. **All-wall wave 1** — 80 walls placed but only 44 extend path (rest wasted), zero DPS = wave 3 death
+12. **Goal-direction bonus in scoring** — diverts walls to goal edge instead of path-extending positions, path drops from 86 to 66
+13. **Removing path revalidation from tickBuild** — allows path-blocking placements, wave 13 vs 17
+
+## Proven Emergent Approaches (USE THESE)
+1. **Greedy hill-climbing on path delta** — place one tower at a time, maximize BFS path increase
+2. **Composite scoring (delta + coverage + adjacency + proximity)** — balances structure and DPS
+3. **Lexicographic sort (delta>0 first)** — ensures all path-extending placements before damage
+4. **WALL for delta>0, BASIC for coverage** — cheap structure + expensive DPS
+5. **Candidate set: on-path + within-3 + adjacent-to-walls** — focused but wide enough
+6. **Path revalidation in tickBuild is important** — protects against blocking placements

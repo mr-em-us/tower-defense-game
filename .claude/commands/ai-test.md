@@ -51,8 +51,9 @@ After the test completes:
 |---|---|---|---|---|
 | b24e146 (pre-speed-fix) | speed=10 | 40 | 2026-03-18 | INFLATED by speed bugs |
 | b24e146 + speed fixes | speed=4 | 6-7 | 2026-03-19 | Honest baseline |
-| 541149c + speed fixes | speed=4 | TBD | 2026-03-19 | Jason's preferred version |
-| 541149c + AA improvements | speed=4 | TBD | 2026-03-19 | Current code |
+| 541149c + speed fixes | speed=4 | 10 | 2026-03-19 | Jason's preferred (box maze) |
+| cf0e326 (budget fixes) | speed=4 | 9-10 | 2026-03-19 | Box maze + budget fixes |
+| Emergent maze v7-final | speed=4 | 15-17 (median 16) | 2026-03-19 | Current code, 13 tests |
 
 ## CRITICAL RULES
 - NEVER claim a wave count without reading the actual output

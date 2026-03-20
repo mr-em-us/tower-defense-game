@@ -138,6 +138,12 @@
 **Alternatives**: Continue iterating on the overhaul (rejected — too many changes tangled together), start from scratch (rejected — LLM lacks spatial reasoning for maze design), use genetic algorithm (rejected — too complex for current scope)
 **Consequences**: AI behavior matches what Jason verified visually. Maze geometry is proven and untouched. Future improvements are constrained to economy/spending decisions, not spatial layout.
 
+### 2026-03-19 -- Emergent Maze Builder (Replace Predefined Geometry)
+**Context:** AI maze strategy used predefined box/corridor/chain geometry (850+ lines of spatial code). LLM consistently failed at spatial reasoning when modifying this code. Jason suggested: "take a page from evolution — emergent complexity from simple mathematical rules, like Conway's Game of Life."
+**Decision:** Replace all predefined geometry with greedy hill-climbing. Each tower placement scored by a composite function: `pathDelta × 15 + pathCoverage × 2 + wallAdjacency × 3 + pathProximity × 1`. Lexicographic sort ensures delta>0 cells placed first. Maze structure emerges from repeated application of this single rule. Code reduced from 854 → ~450 lines.
+**Alternatives:** Copy-paste box pattern (Jason's initial suggestion — still requires spatial reasoning), genetic algorithm (too complex), keep tweaking box approach (proven failure due to LLM spatial limitation)
+**Consequences:** Wave 15-17 median at speed=4 (was 9-10 with box approach). ~60% improvement. Path reaches 86 cells on wave 1 (was 47-59 with box). Simpler code, easier to maintain. Path plateaus at 86-88 (local optimum — fundamental limitation of greedy approach). No selling/rebuilding needed — purely additive.
+
 ### 2026-03-19 -- Self-Maintaining Knowledge Architecture
 **Context**: Claude Code sessions accumulate intelligence during work (bug patterns discovered, dead ends hit, decisions made) but this knowledge was lost between sessions. Skills were static playbooks, memory was manually maintained, docs drifted from reality.
 **Decision**: Implement three-layer knowledge system: (1) routing taxonomy mapping each learning type to one canonical file, (2) skills with post-action learning steps that update themselves, (3) /learn meta-skill for end-of-session sweeps. Dead ends file is append-only and highest-ROI knowledge.

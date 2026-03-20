@@ -1,38 +1,45 @@
-# Session: 2026-03-19 Morning
+# Session — 2026-03-19 Late Morning
 
 ## Key Events
-- 09:54 AM — Session start. Resuming from 12:48 AM save.
-- 09:56 AM — Read maze-strategy-history, dead-ends, economy docs. All 3 AI files reviewed.
-- 10:00 AM — Applied 4 proven economy improvements: AA upgrade ROI boost (3x), unspent build→upgrades flow, corridor clearing, remove savings reserve.
-- 10:03 AM — Baseline test: wave 10 (0 HP). Improved test: wave 9 (slightly worse).
-- 10:05 AM — **KEY BUG FOUND: `maxTowers < 10` guard prevents ALL maze growth after wave 1.** generateBoxMaze returns empty when budget < 500c (typical for waves 2+). Fixed to only apply on wave 1.
-- 10:08 AM — **KEY BUG FOUND: effectiveBudget over-plans numWalls that actual budget can't complete.** Gap sells create holes in maze structure without being able to afford replacement walls. Added affordability check.
-- 10:10 AM — v3 test: wave 8. AA reserve too aggressive early (50% of budget for AA at wave 2). Reduced early AA to 25% cap, lower targets waves 2-4.
-- 10:12 AM — **KEY BUG FOUND: Budget accounting counts WALL towers (25c) at BASIC cost (50c).** Funnel cost double-counted. Fixed mazeCreditBudget calculation + removed double funnel cost.
-- 10:17 AM — v5 test: wave 9. Maze now builds 6 walls on wave 1 (was 5). Grows to 7 by wave 7. Zero leaks through wave 6. But still dies wave 9 — path too short (59-63 cells).
-- 10:21 AM — Jason requested save.
+- 10:24 AM — Session resumed. Continuing from 10:21 AM save.
+- 10:30 AM — Started emergent maze approach (Jason's idea: Game of Life philosophy)
+- 10:35 AM — v1: greedy hill-climbing. Only 2 walls placed (zero-delta stop). Wave 6.
+- 10:38 AM — v2: zero-delta limit=8. Path 86 on wave 1! But wave 7 (walls waste budget).
+- 10:43 AM — v3: unified scoring (single score for wall+damage). Wave 11, path 57.
+- 10:50 AM — v4: lexicographic sort (delta>0 first). Wave 12 speed=4, 300 HP. Path 86.
+- 10:56 AM — v5: search radius 3. Wave 11. Occasional breakthroughs (path 118 at wave 9!).
+- 11:08 AM — v6: delayed upgrades. Wave 12, 240 HP timeout. Path stays 86-88.
+- 11:15 AM — v7: breakthrough pairs (2-step look-ahead). Wave 17! Best result.
+- 11:25 AM — v8: lower BT threshold. Wave 16 (no improvement).
+- 11:36 AM — v9: no path revalidation. Wave 13 (WORSE — revert).
+- 12:10 PM — 3x reliability test: waves 16, 15, 16. Consistent.
+- 12:29 PM — Logged all results to maze-strategy-history.md.
+- 12:30 PM — v10: line probe breakthroughs. Wave 15. No breakthrough lines found (plateau too deep).
+- 12:39 PM — v11: removed lexicographic sort. Wave 7 (MUCH WORSE). Lex sort is critical. Reverted.
+- 12:55 PM — DELTA_WEIGHT=15: Waves 16, 15, 17. No change from w=10 (lex sort dominates).
+- 01:18 PM — Cheap WALL for low-coverage: Wave 14, 15. Not better (less DPS). Reverted.
+- 01:30 PM — Higher credits (3000, 5000): Waves 15, 14. Budget not the bottleneck.
+- 01:42 PM — Faster upgrade ramp: Wave 15, 16. Within variance.
+- 01:55 PM — Final batch: 10, 16, 16. Wave 10 outlier (randomness in chooseTowerType).
 
-## Bugs Found (3 budget accounting bugs)
-1. `maxTowers < 10` guard kills ALL post-wave-1 maze growth
-2. effectiveBudget over-plans walls → gap sells create holes
-3. WALL towers counted at BASIC cost (50c not 25c) → wave 1 builds 5 walls instead of 6
+## Final Results (Emergent Maze v7-final)
+**All speed=4 tests combined:**
+| Wave | Count |
+|------|-------|
+| 10   | 1     |
+| 12   | 1     |
+| 14   | 1     |
+| 15   | 3     |
+| 16   | 5     |
+| 17   | 2     |
 
-## Test Results Summary
-| Version | Changes | Wave Reached | Path (wave 1) |
-|---------|---------|-------------|----------------|
-| Baseline (541149c+AA) | None | 10 | 47 |
-| v2 (+economy fixes) | AA ROI, build→upgrade, corridor clear, no savings | 9 | 47 |
-| v3 (+maze growth fixes) | maxTowers guard, affordability check, AA rebalance | 8 | 47 |
-| v4 (+budget accounting) | mazeCreditBudget fix, safe sells | 7 | 47 |
-| v5 (+funnel double-count) | Remove double funnel cost | 9 | 59 (6 walls!) |
+Median: 16, Mean: ~15, Range: 10-17
+**Baseline (box maze): wave 9-10. Improvement: ~60%**
 
-## Key Insight
-Path length is the bottleneck. Maze needs to be bigger faster. Jason suggests "copy-paste" approach — repeat the box pattern linked together. Chain section code exists but never triggers (budget too low post-wave-1). Need to either:
-1. Make chain sections incrementally buildable
-2. Save budget across waves for chain construction
-3. Build both sections on wave 1 (needs cheaper construction)
-
-## Decisions
-1. Economy changes can wait — maze construction is the priority
-2. Don't redesign maze geometry — fix the budget bugs instead
-3. Jason interested in pattern-matching approach and "copy-paste" chain building
+## Architecture Decisions
+1. Emergent > predefined geometry for this codebase (LLM limitation mitigation)
+2. Lexicographic sort is CRITICAL (delta>0 first, always)
+3. Path plateau at 86-88 is a fundamental local optimum (no single or pair of walls breaks it)
+4. Line probes up to length 5 couldn't break through either
+5. Budget allocation matters less than expected (unspent build → upgrades automatically)
+6. Higher starting credits don't significantly improve results (DPS scaling is bottleneck)

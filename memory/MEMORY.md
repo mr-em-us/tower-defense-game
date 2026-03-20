@@ -1,73 +1,78 @@
 # Project Memory -- Tower Defense Game
-Last Save: 2026-03-19 - 10:21 AM PST
+Last Save: 2026-03-19 - 02:10 PM PST
 
 ## Current State
-**AI code from 541149c + speed fixes + budget accounting fixes + economy improvements.**
-Maze now builds 6 walls on wave 1 (was 5), grows to 7 by wave 7. Best result: wave 9 at speed=4.
+**Emergent maze builder — greedy hill-climbing on path length.**
+Complete rewrite of AI maze strategy. No predefined geometry; maze structure emerges from simple scoring rules. Median wave 16 at speed=4 (baseline was wave 9-10). Path 86 on wave 1.
 
-### Changes This Session (from 541149c baseline)
-1. **Budget accounting fixes** (3 bugs found):
-   - `maxTowers < 10` guard prevented ALL maze growth after wave 1 → only applies wave 1 now
-   - effectiveBudget over-planned numWalls → affordability check added
-   - WALL towers counted at BASIC cost (50c not 25c) → fixed mazeCreditBudget + removed funnel double-count
-2. **Economy improvements**:
-   - AA upgrade ROI boost (3x) — AA effective DPS is 3x vs flying
-   - Unspent build budget flows to upgrades (maze saturated → upgrade pool)
-   - Savings reserve removed (spend everything)
-   - Late-game upgrade ratios: 80% w21-30, 85% w31+
-3. **AA rebalance**: conservative early (target 2 at waves 2-3), aggressive later (7 + (wave-6)*2)
-4. **Safe sells**: only sell gap/corridor towers when maze is actually growing AND can afford new seal
+### Key Architecture
+- Each tower placement scored by: `pathDelta×15 + coverage×2 + wallAdj×3 + proximity×1`
+- Lexicographic sort: delta>0 cells ALWAYS placed before delta=0 (CRITICAL — removing this drops to wave 7)
+- Tower type: WALL (25c) for positive delta, BASIC/specialized for coverage
+- Line probe breakthrough search for 3-5 cell wall lines
+- AA defense unchanged from previous (proactive placement, spread scoring)
+- `?credits=N` param added to `/api/ai-test` for high-budget testing
 
 ### Known Issues
-- **Path too short**: 59-63 cells isn't enough. Need 80+ for late-game survival.
-- **Chain sections never trigger**: budget threshold too high, post-wave-1 income too low (~200-500c/wave).
-- **Wall thickness**: Jason reports 2-thick walls visually. Not yet investigated.
+- **Path plateau at 86-88**: Local optimum. No single wall, pair, or line (up to 5) breaks through.
+- **"Before path" drops** to 56-60 in later waves (re-validation rejects some planned placements)
+- **Wave 10 outlier**: ~1 in 13 tests hits wave 10 instead of 15-17 (randomness in chooseTowerType)
+- **Wall thickness**: Jason reported visually. Not investigated.
 
 ## Speed Bug Discovery (CRITICAL KNOWLEDGE)
 **All wave counts from speed>1 tests before commit 8403ec5 were inflated.**
 Always test at speed=4+ with speed fixes in place. Speed=1 is ground truth.
 
-## Test Results This Session
-| Version | Wave | Path (w1) | Key Change |
-|---------|------|-----------|------------|
-| Baseline | 10 | 47 (5 walls) | 541149c restored |
-| v5 (current) | 9 | 59 (6 walls) | Budget fixes + economy |
+## Test Results (Emergent Maze, 13 tests at speed=4)
+| Wave | Count | Cumulative % |
+|------|-------|-------------|
+| 10   | 1     | 8%          |
+| 12   | 1     | 15%         |
+| 14   | 1     | 23%         |
+| 15   | 3     | 46%         |
+| 16   | 5     | 85%         |
+| 17   | 2     | 100%        |
+Median: 16, Mean: ~15. Baseline (box maze): wave 9-10.
 
 ## Next Steps
-1. [ ] Make maze bigger — Jason wants "copy-paste" chain approach (repeat box pattern)
-2. [ ] Chain sections need to be incrementally buildable (can't afford full section at once)
-3. [ ] Fix wall thickness issue
-4. [ ] Visual verification in browser
+1. [ ] Break path plateau at 86-88 (3+ coordinated walls needed, or new approach)
+2. [ ] Investigate "before path" drop (re-validation issue with interdependent placements)
+3. [ ] Fix wave 10 outlier (reduce randomness in chooseTowerType?)
+4. [ ] Visual verification in browser — see what the emergent maze actually looks like
+5. [ ] Fix wall thickness issue Jason reported
 
 ## Recent Sessions
+### 2026-03-19 Afternoon — Emergent Maze Builder (All Day Session)
+- Jason's insight: "take a page from evolution" — emergent complexity from simple rules
+- Complete rewrite of maze.ts (854→~450 lines)
+- 13 iterations tested, 13+ speed=4 tests run
+- Best: wave 17, median: wave 16 (was 9-10)
+- Key findings: lexicographic sort critical, path plateau at 86-88 is fundamental,
+  budget allocation self-balances, higher credits don't help
+- Economy: delayed upgrades, faster upgrade ramp for late game
+- Added `?credits=N` to ai-test endpoint
+
 ### 2026-03-19 Morning — Budget Bug Hunting + Economy Fixes
 - Found 3 budget accounting bugs preventing maze growth
 - Fixed: wave 1 now builds 6 walls (was 5), maze grows to 7 by wave 7
-- Economy: AA ROI boost, unspent build→upgrades, safe sells
-- Best result: wave 9 at speed=4 (baseline was 10 — mixed results)
-- Jason's insight: focus on maze construction quality, economy can be tuned later
-- Jason suggests "copy-paste" box pattern for chain sections
+- Best result: wave 9 at speed=4
 
 ### 2026-03-19 Early AM — Speed Bug Analysis + Strategy Restoration
-- Discovered ALL previous wave counts at speed>1 were inflated by 3 bugs
-- Unified ROI scorer attempted and failed (spatial reasoning limitation)
+- Discovered ALL previous wave counts at speed>1 were inflated
 - Restored 541149c as baseline
-- AA defense rewritten: proactive placement
-
-### 2026-03-18 Late Night — AI Strategy Overhaul (REVERTED)
-- 10 variants tested at speed=4. All got wave 7-10.
-- Changes reverted in favor of restoring known-good 541149c code.
 
 ### Previous sessions: see session-log.md
 
 ## User Preferences
 Jason, PST, fair difficulty, no cheats, spend everything
 **Key feedback:**
-- Focus on maze construction quality — economy can be tuned later
-- "Copy-paste" approach: repeat working box pattern with links
-- LLM has poor spatial reasoning — don't redesign maze geometry from scratch
+- Emergent complexity > predefined geometry (LLM spatial reasoning limitation)
+- "Take a page from evolution" — simple rules producing complex behavior
+- Per-tower marginal decisions > macro budget planning
+- Minimize reliance on spatial reasoning
+- Focus on growth and efficiency of maze over progress in levels
 - Previous "wave 40" claims were inflated by speed bugs
 
 ## Docs & Files
-.claude/docs/: architecture, decisions, economy, features
+.claude/docs/: architecture, decisions, economy, features, dead-ends, knowledge-taxonomy
 memory/: MEMORY, current-session, session-log, maze-strategy-history

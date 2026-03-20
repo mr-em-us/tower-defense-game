@@ -1,5 +1,17 @@
 # Session Log Archive
 
+## Session — 2026-03-19 Afternoon (Emergent Maze Builder)
+- Jason's insight: emergent complexity from simple rules (Game of Life philosophy)
+- Complete rewrite of maze.ts — greedy hill-climbing on path length
+- 13 iterations, 13+ tests at speed=4
+- Key algorithm: score = pathDelta×15 + coverage×2 + wallAdj×3 + proximity×1
+- Lexicographic sort (delta>0 first) is CRITICAL (wave 7 without vs 16 with)
+- Best: wave 17, median: wave 16, baseline was 9-10 (~60% improvement)
+- Path plateau at 86-88 is fundamental local optimum
+- Failed: no-lex-sort (w7), all-wall (w3), goal-bonus (w14), no-revalidation (w13)
+- Higher credits (3K, 5K) don't help — DPS scaling is bottleneck, not budget
+- Added ?credits=N to ai-test endpoint for testing
+
 ## Session — 2026-03-19 Morning (Budget Bug Hunting + Economy Fixes)
 - Found 3 budget accounting bugs preventing maze growth after wave 1
 - Fixed: wave 1 builds 6 walls (was 5), grows to 7 by wave 7

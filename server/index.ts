@@ -31,10 +31,18 @@ const httpServer = http.createServer((req, res) => {
   // --- AI Test endpoint (headless, no browser needed) ---
   if (url.pathname === '/api/ai-test' && req.method === 'GET') {
     const speed = parseInt(url.searchParams.get('speed') || '4', 10);
+    const credits = parseInt(url.searchParams.get('credits') || '0', 10);
     const testRoom = new GameRoom(GameMode.OBSERVER);
     const dummyWs = { readyState: 0, send: () => {} } as unknown as import('ws').WebSocket;
     const dummyId = 'test-' + uuid();
     testRoom.addPlayer(dummyId, dummyWs, 'TestBot');
+    // Override starting credits if specified
+    if (credits > 0) {
+      (testRoom as any).state.settings.startingCredits = credits;
+      for (const p of Object.values((testRoom as any).state.players) as any[]) {
+        p.credits = credits;
+      }
+    }
     // Override speed
     const dummyPlayer = Object.values((testRoom as any).state.players).find((p: any) => !p.isAI) as any;
     if (dummyPlayer) dummyPlayer.requestedSpeed = speed;

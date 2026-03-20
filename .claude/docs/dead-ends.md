@@ -31,6 +31,26 @@
 **Happened:** Maze cost doubled. With 2000c wave 1 budget, could only afford 3 walls (was 4). Path length 30-36 (was 43-75). Fewer switchbacks = less enemy exposure time.
 **What works instead:** Hybrid: WALL (25c) for structural cells not adjacent to corridors (seals, funnels, sides). BASIC (50c) for internal walls adjacent to corridors (they shoot enemies walking past). This is what the proven 541149c code does.
 
+## Removing Lexicographic Sort from Emergent Scoring (2026-03-19)
+**Tried:** Removing the lexicographic sort (delta>0 first) from the emergent maze scorer, letting raw composite scores determine placement order. Theory: D×L optimization might favor more damage towers over more path length.
+**Happened:** Wave 7 (was 15-17). Path dropped from 86 to 59 on wave 1. Coverage-only damage towers (score ~20) outranked delta=1 walls (score ~15), so walls weren't placed until late. Path too short for any towers to be effective.
+**What works instead:** Lexicographic sort: always place ALL delta>0 cells before ANY delta=0 cells. The path length multiplies ALL existing damage, so extending the path is almost always more valuable than adding one more damage tower.
+
+## All-Wall Wave 1 Strategy (2026-03-19)
+**Tried:** Placing ONLY WALL towers (25c each, 80 total) on wave 1 to maximize path length. Theory: denser obstacle field = longer path.
+**Happened:** Wave 3. Path was 88 (only 2 more than mixed approach's 86), but ZERO damage towers = enemies walk through maze completely unharmed.
+**What works instead:** Mixed approach (44 WALL + 16 damage towers). Path 86 with enough DPS to survive.
+
+## Goal-Direction Bonus in Wall Scoring (2026-03-19)
+**Tried:** Adding a bonus for cells closer to the goal edge in the wall scoring function. Theory: walls between path and goal force longer routes.
+**Happened:** Path dropped from 86 to 66 on wave 1. The bonus diverted walls to the goal side (far from current path) instead of path-adjacent positions that actually extend the path.
+**What works instead:** Score by proximity to current path + adjacency to existing walls. The greedy algorithm naturally builds structure near the path.
+
+## Removing Path Revalidation from AI tickBuild (2026-03-19)
+**Tried:** Skipping `wouldBlockPath` check in AIController.tickBuild when executing planned placements. Theory: planning phase already validated the full set.
+**Happened:** Wave 13 (was 17). Some placements actually blocked the path when placed individually (different from planning context where all previous placements were simulated).
+**What works instead:** Keep the full re-validation. Some planned placements will be rejected (causing the "before path" drop), but this is safer than risking path-blocking placements that cascade into tower destruction.
+
 ---
 
-*See also: `memory/maze-strategy-history.md` for the complete maze-specific iteration history (16+ iterations).*
+*See also: `memory/maze-strategy-history.md` for the complete maze-specific iteration history (18+ iterations).*

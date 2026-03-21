@@ -76,17 +76,10 @@ export function generateMazeLayout(
   const xMax = side === PlayerSide.RIGHT ? GRID.WIDTH - 1 : GRID.LEFT_ZONE_END;
 
   // === UNIFIED PLACEMENT LOOP ===
-  // Strategy: maximize tower density first (WALL towers at 25c each to create
-  // a dense obstacle field), then add damage towers for DPS.
-  //
-  // Wave 1: Use WALL for ALL positive-delta AND zero-delta placements near
-  // the path. This maximizes total tower count = denser obstacles = longer path.
-  // Later waves: Mix WALL (structure) and BASIC+ (damage) based on scoring.
   let towersPlaced = 0;
   let consecutiveLowScore = 0;
   const LOW_SCORE_LIMIT = 5;
   const LOW_SCORE_THRESHOLD = 1.0;
-  const useWallHeavy = false; // Unified approach works better than all-wall
 
   while (spent < mazeBudget && towersPlaced < 300) {
     const currentPath = findPath(state.grid, side);
@@ -98,8 +91,7 @@ export function generateMazeLayout(
     const best = candidates[0];
     if (best.score <= 0) break;
 
-    // Track diminishing returns (only for non-wall-heavy phases)
-    if (!useWallHeavy && best.score < LOW_SCORE_THRESHOLD) {
+    if (best.score < LOW_SCORE_THRESHOLD) {
       consecutiveLowScore++;
       if (consecutiveLowScore >= LOW_SCORE_LIMIT) {
         log(`[MAZE] Stopping: ${consecutiveLowScore} low-score placements`);
@@ -113,16 +105,12 @@ export function generateMazeLayout(
     let towerType: TowerType;
     let cost: number;
 
-    if (useWallHeavy) {
-      // Wave 1-2: ALL walls — maximize density for path length
-      towerType = TowerType.WALL;
-      cost = getDynamicPrice(state, TowerType.WALL);
-    } else if (best.delta >= 1) {
+    if (best.delta >= 1) {
       // Positive delta → cheap WALL for structure
       towerType = TowerType.WALL;
       cost = getDynamicPrice(state, TowerType.WALL);
     } else if (best.coverage >= 4) {
-      // High coverage → offensive tower
+      // Good coverage position — specialized tower
       towerType = chooseTowerType(state, playerId, depth, towerTypeCounts);
       cost = getDynamicPrice(state, towerType);
       if (spent + cost > mazeBudget) {
@@ -130,7 +118,6 @@ export function generateMazeLayout(
         cost = getDynamicPrice(state, TowerType.BASIC);
       }
     } else {
-      // Low coverage, no delta → BASIC
       towerType = TowerType.BASIC;
       cost = getDynamicPrice(state, TowerType.BASIC);
     }
@@ -141,7 +128,6 @@ export function generateMazeLayout(
       if (spent + cost > mazeBudget) break;
     }
 
-    // Place the tower
     state.grid.cells[best.y][best.x] = CellType.TOWER;
     if (!findPath(state.grid, side)) {
       state.grid.cells[best.y][best.x] = CellType.EMPTY;
@@ -235,6 +221,7 @@ export function generateMazeLayout(
 
   return { placements, sellTowerIds: [] };
 }
+
 
 /**
  * Unified scoring: combines path extension + damage coverage + structure.

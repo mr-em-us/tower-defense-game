@@ -1,5 +1,15 @@
 # Session Log Archive
 
+## Session — 2026-03-20 (Plateau Research + Cellular Automaton Discovery)
+- Tried 5 approaches to break wave-16 plateau: mutation (sell/rebuild), catalyst (2-step lookahead), BASIC-first, hybrid 50/50, reduced AA
+- None beat baseline median 16. Path vs DPS is zero-sum tradeoff.
+- Changed SELL_REFUND_RATIO from 0.6 to 1.0 (Jason's request — full refund on sell)
+- Built sandbox.html for cellular automaton research (exhaustive sweep of birth rules)
+- Key discovery: B0+onPath = path 128 (isolated on-path placements, 49% longer than baseline)
+- Critical insight: local CA rules alone can't build mazes. Neighbor count ≠ path effectiveness. The +onPath constraint smuggles global BFS info into the local rule.
+- In-game test of skeleton approach: wave 8 (path 89 but insufficient DPS split). Not yet competitive.
+- Committed: sell refund change + sandbox tool. Maze strategy unchanged (proven baseline).
+
 ## Session — 2026-03-19 Afternoon (Emergent Maze Builder)
 - Jason's insight: emergent complexity from simple rules (Game of Life philosophy)
 - Complete rewrite of maze.ts — greedy hill-climbing on path length

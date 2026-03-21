@@ -1,45 +1,30 @@
-# Session — 2026-03-19 Late Morning
+# Session — 2026-03-20 Morning
 
-## Key Events
-- 10:24 AM — Session resumed. Continuing from 10:21 AM save.
-- 10:30 AM — Started emergent maze approach (Jason's idea: Game of Life philosophy)
-- 10:35 AM — v1: greedy hill-climbing. Only 2 walls placed (zero-delta stop). Wave 6.
-- 10:38 AM — v2: zero-delta limit=8. Path 86 on wave 1! But wave 7 (walls waste budget).
-- 10:43 AM — v3: unified scoring (single score for wall+damage). Wave 11, path 57.
-- 10:50 AM — v4: lexicographic sort (delta>0 first). Wave 12 speed=4, 300 HP. Path 86.
-- 10:56 AM — v5: search radius 3. Wave 11. Occasional breakthroughs (path 118 at wave 9!).
-- 11:08 AM — v6: delayed upgrades. Wave 12, 240 HP timeout. Path stays 86-88.
-- 11:15 AM — v7: breakthrough pairs (2-step look-ahead). Wave 17! Best result.
-- 11:25 AM — v8: lower BT threshold. Wave 16 (no improvement).
-- 11:36 AM — v9: no path revalidation. Wave 13 (WORSE — revert).
-- 12:10 PM — 3x reliability test: waves 16, 15, 16. Consistent.
-- 12:29 PM — Logged all results to maze-strategy-history.md.
-- 12:30 PM — v10: line probe breakthroughs. Wave 15. No breakthrough lines found (plateau too deep).
-- 12:39 PM — v11: removed lexicographic sort. Wave 7 (MUCH WORSE). Lex sort is critical. Reverted.
-- 12:55 PM — DELTA_WEIGHT=15: Waves 16, 15, 17. No change from w=10 (lex sort dominates).
-- 01:18 PM — Cheap WALL for low-coverage: Wave 14, 15. Not better (less DPS). Reverted.
-- 01:30 PM — Higher credits (3000, 5000): Waves 15, 14. Budget not the bottleneck.
-- 01:42 PM — Faster upgrade ramp: Wave 15, 16. Within variance.
-- 01:55 PM — Final batch: 10, 16, 16. Wave 10 outlier (randomness in chooseTowerType).
-
-## Final Results (Emergent Maze v7-final)
-**All speed=4 tests combined:**
-| Wave | Count |
-|------|-------|
-| 10   | 1     |
-| 12   | 1     |
-| 14   | 1     |
-| 15   | 3     |
-| 16   | 5     |
-| 17   | 2     |
-
-Median: 16, Mean: ~15, Range: 10-17
-**Baseline (box maze): wave 9-10. Improvement: ~60%**
-
-## Architecture Decisions
-1. Emergent > predefined geometry for this codebase (LLM limitation mitigation)
-2. Lexicographic sort is CRITICAL (delta>0 first, always)
-3. Path plateau at 86-88 is a fundamental local optimum (no single or pair of walls breaks it)
-4. Line probes up to length 5 couldn't break through either
-5. Budget allocation matters less than expected (unspent build → upgrades automatically)
-6. Higher starting credits don't significantly improve results (DPS scaling is bottleneck)
+- 09:35 AM — Session started. Resuming from emergent maze builder (median wave 16).
+- 09:36 AM — Investigated "Watch AI doesn't match test results" — user was checking Render deployment, not local. Code is pushed, likely Render redeploy issue.
+- 09:38 AM — Saved feedback: always start local server on session boot, output URL.
+- 09:46 AM — Implemented mutation mechanism (mechanism #1): sell weakest walls to escape local optima.
+- 10:00 AM — Mutation v1 (individual weak walls): no improvement, greedy fills same spots
+- 10:05 AM — Mutation v2 (cluster sell+rebuild): path went to 90-92 but "before path" drops between waves — sells cause coordination problem with re-validation
+- 10:15 AM — Changed SELL_REFUND_RATIO to 1.0 (Jason approved removing sell penalty)
+- 10:20 AM — Tried generations approach (mechanism #3): Gen 0 deterministic wins every time, random makes things worse. 86 is true local optimum for greedy.
+- 10:26 AM — Abandoned mutations and generations. Implemented catalyst approach instead: 2-step lookahead finds delta=0 placements that unlock delta>0 follow-ups
+- 10:35 AM — Also changed tower type logic: BASIC instead of WALL when path >= 90 (adds DPS), lowered coverage threshold to 3
+- 10:42 AM — Catalyst breakthrough: path 86→88→96→100→106→110→116! But AI dies wave 8-9 from insufficient DPS despite longer path. Tower destruction during combat + AA over-allocation eating too much budget.
+- 10:48 AM — Switched to BASIC towers for delta>0 placements (blocks AND fires). Reduced AA targets, earlier upgrade ramp.
+- 10:59 AM — BREAKTHROUGH: Wave 14+ (timed out)! Path hits 118 by wave 6, 0 leaks through wave 12. BASIC-first means every tower deals damage. Key: 37 BASIC + 6 WALL on wave 1 vs 44 WALL + 15 BASIC before.
+- 11:00 AM — Full BASIC: waves 14, 14, 16, 14, 13 (median 14). Lower density = more leaks despite better DPS.
+- 11:25 AM — Hybrid 50/50 WALL+BASIC: waves 9, 10. Worse — neither enough density nor DPS.
+- 11:35 AM — Reduced AA targets caused wave 8 death with WALL approach. AA defense is critical!
+- 11:40 AM — Reverted ALL economy/AA changes. Only change from baseline: catalyst 2-step lookahead.
+- 11:45 AM — Catalyst-only with WALL: waves 8,8,8. Catalyst actively hurts WALL approach (steals DPS budget).
+- 11:50 AM — Reverted to clean baseline. Only lasting code change: SELL_REFUND_RATIO=1.0. Pushed to GitHub.
+- 12:00 PM — /learn knowledge sweep: routed 7 failed approaches to maze-strategy-history, 2 dead-ends, 1 decision (sell refund), fixed stale economy docs.
+- 12:10 PM — Jason asks: "what's the next GoL-inspired algorithm tweak?" Discussion about cellular automaton birth rules.
+- 12:30 PM — Built sandbox.html: visual tool for testing automaton rules on the game grid. Served at /sandbox.html.
+- 12:40 PM — First sandbox run: all 32 birth rules produce path 30. Local rules can't see global pathfinding.
+- 12:50 PM — Extended sweep (160 configs): **B0 +onPath = path 128!** Place on path with zero tower neighbors. Isolation forces spread, each tower independently reroutes. Best result by far.
+- Key finding: neighbor count alone is useless. The "+onPath" constraint is what matters — placing directly ON the BFS path forces reroutes. The "0 neighbors" constraint prevents clustering.
+- Hierarchy: B0+onPath=128 > B0,1+onPath=101 > B0+pathAdj=62 > everything else=30
+- 11:00 PM — Implemented B0+onPath skeleton (50% budget) + greedy DPS fill (50%). Wave 1: 40 skeleton WALLs, path 89, 18 DPS towers. Result: wave 8. Path better than baseline (89 vs 86) but marginal, and DPS split hurts.
+- Reverted maze.ts to proven baseline for save. Sandbox remains for future research.

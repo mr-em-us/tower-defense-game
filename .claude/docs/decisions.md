@@ -138,6 +138,12 @@
 **Alternatives**: Continue iterating on the overhaul (rejected — too many changes tangled together), start from scratch (rejected — LLM lacks spatial reasoning for maze design), use genetic algorithm (rejected — too complex for current scope)
 **Consequences**: AI behavior matches what Jason verified visually. Maze geometry is proven and untouched. Future improvements are constrained to economy/spending decisions, not spatial layout.
 
+### 2026-03-20 -- Full Sell Refund (SELL_REFUND_RATIO 0.6 → 1.0)
+**Context:** Exploring mutation-based maze evolution required selling and rebuilding towers. The 40% sell penalty made exploration too costly — every repositioning attempt hemorrhaged credits. Jason suggested removing the penalty entirely.
+**Decision:** Changed SELL_REFUND_RATIO from 0.6 to 1.0. Towers now sell for 100% of invested value (base cost + upgrades). Same-phase sell already had 100% refund; this extends full refund to all phases.
+**Alternatives:** Keep 60% (status quo — penalizes experimentation), partial increase to 80% (compromise)
+**Consequences:** Players can freely reposition towers without economic penalty. Reduces "commitment anxiety" when placing towers. Makes sell/rebuild viable as a human strategy. AI mutation approaches become economically feasible (though the coordination problem still prevents effective AI sell/rebuild). Risk: may make the game too forgiving if players can endlessly rearrange with zero cost.
+
 ### 2026-03-19 -- Emergent Maze Builder (Replace Predefined Geometry)
 **Context:** AI maze strategy used predefined box/corridor/chain geometry (850+ lines of spatial code). LLM consistently failed at spatial reasoning when modifying this code. Jason suggested: "take a page from evolution — emergent complexity from simple mathematical rules, like Conway's Game of Life."
 **Decision:** Replace all predefined geometry with greedy hill-climbing. Each tower placement scored by a composite function: `pathDelta × 15 + pathCoverage × 2 + wallAdjacency × 3 + pathProximity × 1`. Lexicographic sort ensures delta>0 cells placed first. Maze structure emerges from repeated application of this single rule. Code reduced from 854 → ~450 lines.

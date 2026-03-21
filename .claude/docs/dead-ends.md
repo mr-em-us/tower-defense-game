@@ -51,6 +51,17 @@
 **Happened:** Wave 13 (was 17). Some placements actually blocked the path when placed individually (different from planning context where all previous placements were simulated).
 **What works instead:** Keep the full re-validation. Some planned placements will be rejected (causing the "before path" drop), but this is safer than risking path-blocking placements that cascade into tower destruction.
 
+## Path Length vs DPS — Zero-Sum Tradeoff (2026-03-20)
+**Tried:** Multiple approaches to break the path-86 plateau: mutation (sell/rebuild), catalyst (2-step lookahead), BASIC-first (every tower fights), hybrid WALL+BASIC, and reduced AA allocation. Successfully extended path from 86 to 118 using catalysts.
+**Happened:** Longer path with WALL-based catalyst = wave 8 (was 16). Path length without DPS is worthless. BASIC-first with natural path 118 = median wave 14 (was 16) — better per-tower DPS but lower density means more leaks. Hybrid 50/50 = wave 9-10 (worst of both). Reduced AA = wave 8 (flying enemies devastate).
+**What works instead:** The original WALL-heavy baseline (path 86, median wave 16) is the correct balance point. The path-86 plateau is NOT a bottleneck — it's the optimal tradeoff between path length and DPS density. Any budget spent extending the path beyond 86 is budget NOT spent on towers that kill enemies. The 60 towers (44 WALL + 16 DPS) provide both density and firepower.
+**Root cause:** Path length multiplies existing DPS exposure time, but only if DPS exists. Adding path with WALLs adds zero DPS. Adding path with BASIC reduces density (50c vs 25c = half as many towers). The marginal value of path extension diminishes once the path is "long enough" (80-90 cells).
+
+## Sell/Rebuild Coordination Problem (2026-03-20)
+**Tried:** Selling clusters of towers during BUILD phase and rebuilding in the freed space. Three variants: individual weak walls, cluster sell+rebuild, speculative (simulate before committing).
+**Happened:** Sells execute one-by-one via action queue, then placements execute one-by-one. Each placement is re-validated against the current grid state. Some planned placements fail re-validation because the grid has diverged from planning time (other placements changed pathfinding). Net tower loss between waves — "before path" dropped from 86 to 56-68.
+**What works instead:** Don't sell towers. The greedy placer's purely additive approach avoids this coordination problem entirely. If towers must be repositioned, the 100% sell refund (SELL_REFUND_RATIO=1.0) makes same-wave sell+rebuy viable for humans, but the AI's action queue timing makes it unreliable.
+
 ---
 
 *See also: `memory/maze-strategy-history.md` for the complete maze-specific iteration history (18+ iterations).*

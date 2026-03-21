@@ -7,7 +7,7 @@
     "build:shared": "tsc -p tsconfig.shared.json",
     "build:server": "tsc -p tsconfig.server.json",
     "build:client": "npx esbuild client/main.ts --bundle --outfile=dist/client/bundle.js --format=esm --platform=browser --tsconfig=tsconfig.client.json",
-    "build": "npm run build:shared && npm run build:server && npm run build:client && cp client/index.html dist/client/ && cp client/styles.css dist/client/",
+    "build": "npm run build:shared && npm run build:server && npm run build:client && cp client/index.html dist/client/ && cp client/styles.css dist/client/ && cp -f client/sandbox.html dist/client/ 2>/dev/null; true",
     "start": "node dist/server/server/index.js",
     "dev:server": "npx tsx server/index.ts",
     "dev:client": "npx esbuild client/main.ts --bundle --outfile=dist/client/bundle.js --format=esm --platform=browser --tsconfig=tsconfig.client.json --watch --servedir=dist/client",

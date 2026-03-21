@@ -402,6 +402,13 @@ Three bugs made higher speeds secretly easier:
 11. **All-wall wave 1** — 80 walls placed but only 44 extend path (rest wasted), zero DPS = wave 3 death
 12. **Goal-direction bonus in scoring** — diverts walls to goal edge instead of path-extending positions, path drops from 86 to 66
 13. **Removing path revalidation from tickBuild** — allows path-blocking placements, wave 13 vs 17
+14. **Mutation: sell weak walls individually** — greedy refills same spots, no improvement (2026-03-20)
+15. **Mutation: cluster sell+rebuild** — path reached 90-92 but sell/placement coordination bug causes towers to be lost between waves. "Before path" drops 86→56-68 due to re-validation rejecting planned placements after sells change the grid (2026-03-20)
+16. **Generations: run greedy multiple times with randomized candidate selection** — Gen 0 (deterministic) wins every time. Random deviations make things worse. 86 is true local optimum for greedy (2026-03-20)
+17. **Catalyst 2-step lookahead + WALL towers** — finds delta=0 placements that unlock delta>0 follow-ups. Path breaks through 86→118! But extra WALLs steal budget from DPS towers. Wave 8 consistently (was 16). Path length without DPS is worthless (2026-03-20)
+18. **BASIC-first (all delta>0 placements use BASIC instead of WALL)** — fewer towers (43 vs 60) but all deal damage. Path reaches 118 via natural catalyst effect. Median wave 14 (was 16). Less density = more enemy leaks despite higher per-tower DPS (2026-03-20)
+19. **Hybrid 50/50 WALL+BASIC** — worst of both worlds. Wave 9-10. Neither enough density nor enough DPS (2026-03-20)
+20. **Reducing AA targets (halved)** — wave 8 death consistently. AA defense is critical for flying enemies. Don't reduce AA targets (2026-03-20)
 
 ## Proven Emergent Approaches (USE THESE)
 1. **Greedy hill-climbing on path delta** — place one tower at a time, maximize BFS path increase
@@ -410,3 +417,33 @@ Three bugs made higher speeds secretly easier:
 4. **WALL for delta>0, BASIC for coverage** — cheap structure + expensive DPS
 5. **Candidate set: on-path + within-3 + adjacent-to-walls** — focused but wide enough
 6. **Path revalidation in tickBuild is important** — protects against blocking placements
+
+## Cellular Automaton Research (2026-03-20, RESEARCH — NOT YET PROVEN IN GAME)
+
+### Sandbox Tool
+Built `client/sandbox.html` — visual tool for testing automaton birth rules on the game grid. Exhaustive sweep of all 32 birth rules × 5 condition sets (160 configs). Served at `/sandbox.html`.
+
+### Key Finding: B0 +onPath = Path 128
+**Rule:** Place a tower on a path cell that has zero tower neighbors.
+**Result:** Path 128 (vs 86 from greedy). 80 towers, all isolated.
+**Why it works:** Zero-neighbor constraint forces maximum separation. Each isolated tower creates an independent reroute. No clustering, no blobs.
+
+**Hierarchy (path length):**
+- B0 +onPath = **128** (isolated on-path)
+- B0,1 +onPath = **101** (1-neighbor allowed → towers cluster, fewer reroutes)
+- B0 +pathAdj = **62** (adjacent-to-path → less precise targeting)
+- B0 (no constraint) = **30** (towers grow into dead zones)
+- All rules without +onPath = **30** (neighbor rules alone can't see global path)
+
+**Critical insight:** Cellular automaton neighbor-count rules CANNOT produce effective mazes on their own. Maze effectiveness is a GLOBAL property (BFS pathfinding), not a LOCAL property (neighbor count). The "+onPath" constraint smuggles global information (the BFS path) into the local rule. Without it, all 32 birth rules produce identical path length (30 = baseline).
+
+### In-Game Test: Skeleton + DPS Fill
+**Approach:** Use B0+onPath for first 50% of budget (skeleton), then greedy scorer for remaining 50% (DPS fill).
+**Result:** Wave 8. Path 89 (better than 86), but DPS insufficient. 40 skeleton WALLs don't fire; only 18 DPS towers placed with remaining budget.
+**Status:** Promising path length but needs better DPS integration. Not yet competitive with baseline (wave 16).
+
+### Next Steps for This Research
+1. Use BASIC instead of WALL for skeleton (blocks + shoots)
+2. Try lower skeleton budget (30% or 20%) for more DPS
+3. Integrate B0+onPath INTO the greedy scorer as an additional candidate source
+4. Consider: skeleton sets the path shape, greedy fills in the kill zones

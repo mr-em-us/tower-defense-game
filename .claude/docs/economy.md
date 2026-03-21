@@ -48,7 +48,7 @@ Additional tower stats: upgradeCostMultiplier (BASIC 1.5, SNIPER 1.6, SPLASH 1.5
 
 ## Economy Flow
 1. **Start**: Players begin with startingCredits (default 2000)
-2. **Build phase**: Place/upgrade/sell towers. Sell refund = 60% of total invested (SELL_REFUND_RATIO=0.6)
+2. **Build phase**: Place/upgrade/sell towers. Sell refund = 100% of total invested (SELL_REFUND_RATIO=1.0)
 3. **Combat phase**: Towers fire, consuming ammo + credits (ammoCostPerRound per shot). Kill rewards = enemy.creditValue
 4. **Wave end**: Each player gets CREDITS_PER_WAVE (50) + tower incomePerTurn - tower maintenancePerTurn
 5. **Repair**: Available during BUILD and COMBAT. Cost = damageRatio * baseCost * REPAIR_COST_RATIO (0.5)
@@ -99,7 +99,7 @@ Type distribution:
 
 Enemy HP scaling: `hp = baseHealth * getDifficultyMultiplier(wave, curve) * (enemyOverride ?? 1)`
 
-Spawn timing: Total enemies spread over WAVE_SPAWN_DURATION (45 seconds), shuffled order.
+Spawn timing: Total enemies spread over WAVE_SPAWN_DURATION (8 seconds), batch size = min(5, 1+floor((wave-1)/2)).
 
 ## Wave Count Examples (Normal difficulty, firstWaveEnemies=15)
 

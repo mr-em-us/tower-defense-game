@@ -27,8 +27,12 @@ export class ProjectileSystem {
 
         // Splash damage
         if (proj.isSplash && proj.splashRadius > 0) {
+          // AA splash only hits flying enemies
+          const splashTower = proj.towerId ? state.towers[proj.towerId] : null;
+          const isAASplash = splashTower?.type === TowerType.AA;
           for (const enemy of Object.values(state.enemies)) {
             if (enemy.id === proj.targetId) continue;
+            if (isAASplash && enemy.type !== EnemyType.FLYING) continue;
             if (distance(enemy.position, proj.position) <= proj.splashRadius) {
               this.applyDamage(state, enemy.id, Math.round(proj.damage * 0.5), proj.towerId);
             }

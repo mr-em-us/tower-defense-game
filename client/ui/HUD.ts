@@ -108,6 +108,9 @@ export class HUD {
         oppPanel.appendChild(span(oppLabel, 'opacity:0.6'));
         oppPanel.appendChild(span(`${Math.ceil(oppHp.current).toLocaleString()}HP`, 'opacity:0.6'));
         oppPanel.appendChild(span(`${Math.floor(oppCredits).toLocaleString()}c`, 'opacity:0.6'));
+        if (state.aiDefeatedCount > 0) {
+          oppPanel.appendChild(span(`Defeated: ${state.aiDefeatedCount}x`, 'color:#FBBF24'));
+        }
       }
     }
 
@@ -292,31 +295,25 @@ export class HUD {
       saveBtn.style.display = (isBuild && state.gameMode === GameMode.SINGLE && state.gameMode !== GameMode.OBSERVER) ? '' : 'none';
     }
 
-    // Auto R&R button
-    const autoRepairBtn = document.getElementById('auto-repair-btn');
-    if (autoRepairBtn) {
+    // Repair / Reload / Rebuild toggle buttons
+    const isCombat = state.phase === GamePhase.COMBAT;
+    const toggles = [
+      { id: 'auto-repair-btn', label: 'Repair', enabled: this.gameClient.isAutoRepairEnabled() },
+      { id: 'auto-restock-btn', label: 'Reload', enabled: this.gameClient.isAutoRestockEnabled() },
+      { id: 'auto-rebuild-btn', label: 'Rebuild', enabled: state.players[playerId!]?.autoRebuildEnabled ?? false },
+    ];
+    for (const t of toggles) {
+      const btn = document.getElementById(t.id);
+      if (!btn) continue;
       if (isBuildOrCombat) {
-        autoRepairBtn.style.display = '';
-        const enabled = this.gameClient.isAutoRepairEnabled();
-        const newText = enabled ? 'Auto Fix: ON' : 'Auto Fix: OFF';
-        if (autoRepairBtn.textContent !== newText) autoRepairBtn.textContent = newText;
-        autoRepairBtn.classList.toggle('selected', enabled);
+        btn.style.display = '';
+        const suffix = !t.enabled ? 'OFF' : isCombat ? 'ON' : 'RDY';
+        const newText = `${t.label}: ${suffix}`;
+        if (btn.textContent !== newText) btn.textContent = newText;
+        btn.classList.toggle('selected', t.enabled);
+        btn.style.opacity = t.enabled && !isCombat ? '0.6' : '1';
       } else {
-        autoRepairBtn.style.display = 'none';
-      }
-    }
-
-    // Auto-Rebuild button
-    const autoRebuildBtn = document.getElementById('auto-rebuild-btn');
-    if (autoRebuildBtn) {
-      if (isBuildOrCombat) {
-        autoRebuildBtn.style.display = '';
-        const isAutoRebuild = state.players[playerId!]?.autoRebuildEnabled ?? false;
-        const newText = isAutoRebuild ? 'Rebuild: ON' : 'Rebuild: OFF';
-        if (autoRebuildBtn.textContent !== newText) autoRebuildBtn.textContent = newText;
-        autoRebuildBtn.classList.toggle('selected', isAutoRebuild);
-      } else {
-        autoRebuildBtn.style.display = 'none';
+        btn.style.display = 'none';
       }
     }
 
@@ -521,10 +518,18 @@ export class HUD {
     const autoRepairBtn = document.createElement('button');
     autoRepairBtn.id = 'auto-repair-btn';
     autoRepairBtn.className = 'action-btn compact-btn fixed-width-btn';
-    autoRepairBtn.textContent = 'Auto Fix: OFF';
+    autoRepairBtn.textContent = 'Repair: OFF';
     autoRepairBtn.style.display = 'none';
     autoRepairBtn.addEventListener('click', () => this.gameClient.toggleAutoRepair());
     togglesGroup.appendChild(autoRepairBtn);
+
+    const autoRestockBtn = document.createElement('button');
+    autoRestockBtn.id = 'auto-restock-btn';
+    autoRestockBtn.className = 'action-btn compact-btn fixed-width-btn';
+    autoRestockBtn.textContent = 'Reload: OFF';
+    autoRestockBtn.style.display = 'none';
+    autoRestockBtn.addEventListener('click', () => this.gameClient.toggleAutoRestock());
+    togglesGroup.appendChild(autoRestockBtn);
 
     const autoRebuildBtn = document.createElement('button');
     autoRebuildBtn.id = 'auto-rebuild-btn';

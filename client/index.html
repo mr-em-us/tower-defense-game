@@ -19,21 +19,23 @@
           <label style="font-size:12px;color:#94A3B8;cursor:pointer;display:flex;align-items:center;gap:4px;">
             <input type="checkbox" id="ai-toggle" style="cursor:pointer;"> Include AI
           </label>
-          <select id="ai-difficulty" style="display:none;font-family:inherit;font-size:12px;padding:2px 6px;background:#1E293B;color:#fff;border:1px solid #475569;border-radius:4px;">
-            <option value="EASY">Easy</option>
-            <option value="MEDIUM" selected>Medium</option>
-            <option value="HARD">Hard</option>
-          </select>
+        </div>
+        <div id="start-wave-options" style="display:flex;align-items:center;justify-content:center;gap:8px;margin:-4px 0 8px;">
+          <label style="font-size:12px;color:#94A3B8;display:flex;align-items:center;gap:4px;">
+            Start Wave:
+            <select id="start-wave-select" style="font-family:inherit;font-size:12px;padding:2px 6px;background:#1E293B;color:#fff;border:1px solid #475569;border-radius:4px;">
+              <option value="1" selected>1</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="20">20</option>
+              <option value="25">25</option>
+              <option value="30">30</option>
+            </select>
+          </label>
         </div>
         <button id="btn-multi" class="menu-btn">Multiplayer</button>
         <button id="btn-observer" class="menu-btn" style="margin-top:8px;opacity:0.85;font-size:14px;">Watch AI Play</button>
-        <div id="observer-options" style="display:flex;align-items:center;justify-content:center;gap:8px;margin:-4px 0 4px;">
-          <select id="observer-difficulty" style="font-family:inherit;font-size:12px;padding:2px 6px;background:#1E293B;color:#fff;border:1px solid #475569;border-radius:4px;">
-            <option value="EASY">Easy AI</option>
-            <option value="MEDIUM">Medium AI</option>
-            <option value="HARD" selected>Hard AI</option>
-          </select>
-        </div>
       </div>
       <div id="menu-difficulty" class="menu-difficulty hidden">
         <span id="menu-difficulty-label"></span>
@@ -42,6 +44,7 @@
       <button id="btn-settings" class="menu-btn settings-trigger">Settings</button>
       <button id="btn-leaderboard" class="menu-btn settings-trigger">Leaderboard</button>
       <button id="btn-load-save" class="menu-btn settings-trigger">Load Game</button>
+      <a href="sandbox.html" class="menu-btn settings-trigger" style="display:inline-block;text-decoration:none;text-align:center;font-size:14px;opacity:0.6;">Dev Sandbox</a>
     </div>
     <div id="username-panel" class="hidden"></div>
     <div id="leaderboard-panel" class="hidden"></div>

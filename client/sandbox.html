@@ -2,46 +2,51 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Cellular Automaton Maze Sandbox</title>
+<title>Maze Algorithm Sandbox</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #111; color: #ddd; font-family: 'Courier New', monospace; display: flex; height: 100vh; }
-  #sidebar { width: 420px; padding: 16px; overflow-y: auto; border-right: 1px solid #333; }
-  #sidebar h2 { color: #0f0; margin-bottom: 12px; font-size: 14px; }
-  .btn { display: inline-block; padding: 8px 16px; margin: 4px 2px; background: #333; color: #0f0; border: 1px solid #0f0; cursor: pointer; font-family: inherit; font-size: 13px; }
+  body { background: #111; color: #ddd; font-family: 'Courier New', monospace; display: flex; flex-direction: column; min-height: 100vh; }
+  #controls { padding: 8px 12px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #333; flex-wrap: wrap; }
+  #controls h2 { color: #0f0; font-size: 13px; white-space: nowrap; }
+  .btn { padding: 5px 12px; background: #333; color: #0f0; border: 1px solid #0f0; cursor: pointer; font-family: inherit; font-size: 11px; white-space: nowrap; }
   .btn:hover { background: #0f0; color: #111; }
-  #results { margin-top: 12px; font-size: 11px; }
+  .btn.active { background: #0a0; color: #111; }
+  #status { color: #888; font-size: 11px; min-height: 16px; flex: 1; text-align: right; }
+  #canvas-wrap { padding: 8px 12px; display: flex; flex-direction: column; align-items: center; }
+  canvas { image-rendering: pixelated; width: 100%; max-width: 720px; height: auto; }
+  #viz-label { color: #0f0; font-size: 12px; margin-bottom: 4px; }
+  #viz-stats { color: #888; font-size: 11px; margin-top: 4px; }
+  #results { padding: 0 12px 12px; font-size: 11px; overflow-y: auto; flex: 1; }
   #results table { border-collapse: collapse; width: 100%; }
-  #results th, #results td { padding: 3px 6px; border: 1px solid #333; text-align: right; }
-  #results th { background: #222; color: #0a0; text-align: left; }
+  #results th, #results td { padding: 2px 6px; border: 1px solid #333; text-align: right; }
+  #results th { background: #222; color: #0a0; text-align: left; position: sticky; top: 0; }
+  #results td:first-child, #results th:first-child { text-align: center; }
+  #results td:nth-child(2), #results th:nth-child(2) { text-align: left; }
   #results tr:hover { background: #1a1a1a; cursor: pointer; }
   #results tr.selected { background: #030; }
   #results .best { color: #0f0; font-weight: bold; }
-  #status { margin: 8px 0; color: #888; font-size: 12px; min-height: 18px; }
-  #canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; }
-  canvas { image-rendering: pixelated; }
-  #viz-label { color: #0f0; font-size: 13px; margin-bottom: 8px; }
-  #viz-stats { color: #888; font-size: 11px; margin-top: 8px; }
+  #results .improvement { color: #0f0; }
+  #results .regression { color: #f44; }
 </style>
 </head>
 <body>
-<div id="sidebar">
-  <h2>MAZE AUTOMATON — EXHAUSTIVE SWEEP</h2>
-  <p style="font-size:11px; color:#666; margin-bottom:12px;">
-    Tests all 32 birth rules (neighbor counts 0-4). Click any row to visualize the maze.
-  </p>
-  <div>
-    <button class="btn" id="btn-sweep">RUN ALL 32 RULES</button>
-  </div>
+<div id="controls">
+  <h2>MAZE ALGORITHMS</h2>
+  <button class="btn" id="btn-sweep">RUN SWEEP</button>
+  <label style="font-size:11px;color:#888;display:flex;align-items:center;gap:4px;">
+    Towers: <input id="tower-count" type="number" value="80" min="20" max="200" step="10"
+      style="width:45px;background:#222;color:#0f0;border:1px solid #333;font-family:inherit;font-size:11px;padding:2px;">
+  </label>
   <div id="status"></div>
-  <div id="results"></div>
 </div>
 
 <div id="canvas-wrap">
-  <div id="viz-label">Click RUN to start</div>
+  <div id="viz-label">Click RUN SWEEP to start</div>
   <canvas id="grid"></canvas>
   <div id="viz-stats"></div>
 </div>
+
+<div id="results"></div>
 
 <script>
 const W = 60, H = 30, CELL = 16;
@@ -53,6 +58,8 @@ const ctx = canvas.getContext('2d');
 canvas.width = W * CELL;
 canvas.height = H * CELL;
 
+// ── Grid helpers ──
+
 function makeGrid() {
   const g = [];
   for (let y = 0; y < H; y++) {
@@ -63,43 +70,47 @@ function makeGrid() {
   }
   return g;
 }
-
 function cloneGrid(g) { return g.map(row => new Uint8Array(row)); }
-
 function isSpawnZone(x, y) { return (x === 29 || x === 30) && y >= 12 && y <= 16; }
 
-// Optimized BFS — returns path length (or 0 if blocked), and optionally the path
+// ── Seeded RNG (xorshift32) ──
+
+function makeRng(seed) {
+  let s = seed | 0 || 1;
+  return function() {
+    s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+    return (s >>> 0) / 4294967296;
+  };
+}
+
+// ── BFS ──
+
 function bfs(grid, returnPath = false) {
   const visited = new Uint8Array(W * H);
   const parent = returnPath ? new Int32Array(W * H).fill(-1) : null;
   const queue = new Int32Array(W * H);
   let qHead = 0, qTail = 0;
-
   for (let y = 12; y <= 16; y++) {
     for (const x of [29, 30]) {
       const idx = y * W + x;
       if (!visited[idx]) { visited[idx] = 1; queue[qTail++] = idx; }
     }
   }
-
   while (qHead < qTail) {
     const idx = queue[qHead++];
     const x = idx % W, y = (idx - x) / W;
     if (x === W - 1 && GOAL_ROWS_SET.has(y)) {
-      if (!returnPath) return 1; // just "path exists"
+      if (!returnPath) return 1;
       const result = [];
       let cur = idx;
       while (cur !== -1) { result.push({ x: cur % W, y: Math.floor(cur / W) }); cur = parent[cur]; }
       result.reverse();
       return result;
     }
-    const dirs = [idx - 1, idx + 1, idx - W, idx + W];
-    const xs   = [x - 1,   x + 1,   x,       x];
-    const ys   = [y,       y,       y - 1,   y + 1];
-    for (let d = 0; d < 4; d++) {
-      const nx = xs[d], ny = ys[d];
+    for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nx = x + dx, ny = y + dy;
       if (nx < 29 || nx >= W || ny < 0 || ny >= H) continue;
-      const nidx = dirs[d];
+      const nidx = ny * W + nx;
       if (visited[nidx] || grid[ny][nx] === 1) continue;
       visited[nidx] = 1;
       if (parent) parent[nidx] = idx;
@@ -109,102 +120,17 @@ function bfs(grid, returnPath = false) {
   return returnPath ? [] : 0;
 }
 
-// Run one automaton rule to completion
-function runAutomaton(birthBits) {
-  const grid = makeGrid();
-  let towers = 0;
-  const MAX_TOWERS = 80;
-  const SEEDS = 3;
-
-  for (let gen = 0; gen < 500 && towers < MAX_TOWERS; gen++) {
-    const path = bfs(grid, true);
-    if (!path.length) break;
-    const currentLen = path.length;
-
-    // Build set of candidate cells: neighbors of existing towers + path cells
-    const candidateSet = new Set();
-
-    // Neighbors of existing towers
-    for (let y = 0; y < H; y++) {
-      for (let x = ZONE_START; x <= ZONE_END; x++) {
-        if (grid[y][x] !== 1) continue;
-        for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-          const nx = x + dx, ny = y + dy;
-          if (nx >= ZONE_START && nx <= ZONE_END && ny >= 0 && ny < H && grid[ny][nx] === 0 && !isSpawnZone(nx, ny)) {
-            candidateSet.add(ny * W + nx);
-          }
-        }
-      }
-    }
-
-    // If few towers, also add path cells as seed candidates
-    if (towers < SEEDS) {
-      for (const p of path) {
-        if (p.x >= ZONE_START && p.x <= ZONE_END && !isSpawnZone(p.x, p.y) && grid[p.y][p.x] === 0) {
-          candidateSet.add(p.y * W + p.x);
-        }
-      }
-    }
-
-    // Evaluate candidates
-    let bestX = -1, bestY = -1, bestDelta = -999, bestN = -1;
-
-    for (const idx of candidateSet) {
-      const x = idx % W, y = (idx - x) / W;
-      const n = countN(grid, x, y);
-
-      // Seed: allow 0 neighbors when few towers
-      const isSeed = n === 0 && towers < SEEDS;
-      if (!isSeed && !(birthBits & (1 << n))) continue;
-
-      // Quick path validity check
-      grid[y][x] = 1;
-      const newLen = bfsLen(grid);
-      grid[y][x] = 0;
-      if (newLen === 0) continue;
-
-      const delta = newLen - currentLen;
-
-      // Pick best: highest delta, then most neighbors
-      if (delta > bestDelta || (delta === bestDelta && n > bestN)) {
-        bestDelta = delta;
-        bestX = x; bestY = y; bestN = n;
-      }
-    }
-
-    if (bestX === -1) break;
-
-    grid[bestY][bestX] = 1;
-    towers++;
-  }
-
-  const finalPath = bfs(grid, true);
-  return { grid: cloneGrid(grid), towers, pathLen: finalPath.length, path: finalPath };
-}
-
-function countN(grid, x, y) {
-  let n = 0;
-  if (x > 0 && grid[y][x-1] === 1) n++;
-  if (x < W-1 && grid[y][x+1] === 1) n++;
-  if (y > 0 && grid[y-1][x] === 1) n++;
-  if (y < H-1 && grid[y+1][x] === 1) n++;
-  return n;
-}
-
-// Fast BFS that just returns path length (no path reconstruction)
 function bfsLen(grid) {
   const visited = new Uint8Array(W * H);
   const queue = new Int32Array(W * H);
   const dist = new Int32Array(W * H);
   let qHead = 0, qTail = 0;
-
   for (let y = 12; y <= 16; y++) {
     for (const x of [29, 30]) {
       const idx = y * W + x;
-      if (!visited[idx]) { visited[idx] = 1; queue[qTail++] = idx; dist[idx] = 0; }
+      if (!visited[idx]) { visited[idx] = 1; queue[qTail++] = idx; }
     }
   }
-
   while (qHead < qTail) {
     const idx = queue[qHead++];
     const x = idx % W, y = (idx - x) / W;
@@ -221,33 +147,471 @@ function bfsLen(grid) {
   return 0;
 }
 
-// Async sweep — process one rule at a time with UI updates
+// Count direction changes in a path
+function countDirChanges(path) {
+  if (path.length < 3) return 0;
+  let changes = 0;
+  for (let i = 2; i < path.length; i++) {
+    const dx1 = path[i-1].x - path[i-2].x, dy1 = path[i-1].y - path[i-2].y;
+    const dx2 = path[i].x - path[i-1].x, dy2 = path[i].y - path[i-1].y;
+    if (dx1 !== dx2 || dy1 !== dy2) changes++;
+  }
+  return changes;
+}
+
+// Manhattan distance to nearest tower
+function minTowerDist(grid, x, y) {
+  let minD = 999;
+  for (let ty = 0; ty < H; ty++) {
+    for (let tx = ZONE_START; tx <= ZONE_END; tx++) {
+      if (grid[ty][tx] === 1) {
+        const d = Math.abs(tx - x) + Math.abs(ty - y);
+        if (d < minD) minD = d;
+      }
+    }
+  }
+  return minD;
+}
+
+// Count adjacent towers
+function countAdj(grid, x, y) {
+  let n = 0;
+  if (x > 0 && grid[y][x-1] === 1) n++;
+  if (x < W-1 && grid[y][x+1] === 1) n++;
+  if (y > 0 && grid[y-1][x] === 1) n++;
+  if (y < H-1 && grid[y+1][x] === 1) n++;
+  return n;
+}
+
+// ── Candidate generation ──
+
+function getCandidates(grid, path, towers) {
+  const set = new Set();
+  // On-path cells
+  for (const p of path) {
+    if (p.x >= ZONE_START && p.x <= ZONE_END && !isSpawnZone(p.x, p.y) && grid[p.y][p.x] === 0) {
+      set.add(p.y * W + p.x);
+    }
+  }
+  // Within distance 3 of path
+  const pathSet = new Set(path.map(p => p.y * W + p.x));
+  for (const pidx of pathSet) {
+    const px = pidx % W, py = (pidx - px) / W;
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) > 3) continue;
+        const nx = px + dx, ny = py + dy;
+        if (nx < ZONE_START || nx > ZONE_END || ny < 0 || ny >= H) continue;
+        if (grid[ny][nx] !== 0 || isSpawnZone(nx, ny)) continue;
+        set.add(ny * W + nx);
+      }
+    }
+  }
+  // Adjacent to existing towers
+  for (let y = 0; y < H; y++) {
+    for (let x = ZONE_START; x <= ZONE_END; x++) {
+      if (grid[y][x] !== 1) continue;
+      for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= ZONE_START && nx <= ZONE_END && ny >= 0 && ny < H && grid[ny][nx] === 0 && !isSpawnZone(nx, ny)) {
+          set.add(ny * W + nx);
+        }
+      }
+    }
+  }
+  return set;
+}
+
+// ── BFS returning path (for maxX / column analysis) ──
+
+function bfsPath(grid) {
+  return bfs(grid, true);
+}
+
+function pathMaxX(path) {
+  let mx = 0;
+  for (const p of path) mx = Math.max(mx, p.x);
+  return mx;
+}
+
+function pathColsUsed(path) {
+  const cols = new Set();
+  for (const p of path) cols.add(p.x);
+  return cols.size;
+}
+
+// ── Core greedy algorithm (configurable) ──
+
+function runGreedy(config = {}) {
+  const {
+    maxTowers = 80,
+    minSpacing = 0,       // minimum Manhattan distance to nearest tower
+    relaxSpacing = true,  // relax spacing when no candidates pass
+    temperature = 0,      // SA temperature (0 = deterministic)
+    tempDecay = 0.97,     // temperature decay per placement
+    dirBonus = 0,         // weight for direction-change scoring
+    leftBias = 0,         // among delta>0, prefer leftmost (weight per column)
+    columnBand = 0,       // hard column frontier: only allow placements within band of N cols, expand when stuck
+    rngSeed = 42,
+  } = config;
+
+  const grid = makeGrid();
+  const rng = makeRng(rngSeed);
+  let towers = 0;
+  let temp = temperature;
+  let colFrontier = columnBand > 0 ? ZONE_START + columnBand - 1 : ZONE_END;
+
+  for (let step = 0; step < 500 && towers < maxTowers; step++) {
+    const path = bfs(grid, true);
+    if (!path.length) break;
+    const currentLen = path.length;
+
+    const candidates = getCandidates(grid, path, towers);
+    let scored = [];
+
+    for (const idx of candidates) {
+      const x = idx % W, y = (idx - x) / W;
+
+      // Column frontier constraint
+      if (columnBand > 0 && x > colFrontier) continue;
+
+      // Spacing constraint
+      if (minSpacing > 0 && towers > 0) {
+        const dist = minTowerDist(grid, x, y);
+        if (dist < minSpacing) continue;
+      }
+
+      // Evaluate placement
+      grid[y][x] = 1;
+      const newLen = bfsLen(grid);
+      grid[y][x] = 0;
+      if (newLen === 0) continue;
+
+      const delta = newLen - currentLen;
+      const adj = countAdj(grid, x, y);
+
+      // Count path cells within range 3 (coverage proxy)
+      let coverage = 0;
+      for (const p of path) {
+        if (Math.abs(p.x - x) + Math.abs(p.y - y) <= 3) coverage++;
+      }
+
+      // Direction change bonus
+      let dirScore = 0;
+      if (dirBonus > 0 && delta >= 0) {
+        grid[y][x] = 1;
+        const newPath = bfs(grid, true);
+        grid[y][x] = 0;
+        if (newPath.length) {
+          dirScore = countDirChanges(newPath) - countDirChanges(path);
+        }
+      }
+
+      // Left bias: among delta>0, prefer lower x
+      const leftPenalty = leftBias > 0 && delta > 0 ? (x - ZONE_START) * leftBias : 0;
+
+      const score = (delta > 0 ? 1e9 : 0) + delta * 15 + coverage * 2 + adj * 3
+        + dirScore * dirBonus
+        - leftPenalty;
+      scored.push({ x, y, score, delta });
+    }
+
+    // Column frontier: if no delta>0 in current band, expand
+    if (scored.length === 0 || !scored.some(s => s.delta > 0)) {
+      if (columnBand > 0 && colFrontier < ZONE_END) {
+        colFrontier = Math.min(ZONE_END, colFrontier + columnBand);
+        continue; // retry with expanded frontier
+      }
+    }
+
+    if (scored.length === 0) {
+      // If spacing blocked everything, relax and retry
+      if (minSpacing > 0 && relaxSpacing) {
+        config = { ...config, minSpacing: Math.max(0, minSpacing - 1) };
+        continue;
+      }
+      break;
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+
+    // Selection: deterministic or SA
+    let pick;
+    if (temp > 0.1 && scored.length > 1) {
+      // Boltzmann selection from top 10
+      const top = scored.slice(0, Math.min(10, scored.length));
+      const maxScore = top[0].score;
+      const weights = top.map(c => Math.exp((c.score - maxScore) / temp));
+      const totalW = weights.reduce((a, b) => a + b, 0);
+      let r = rng() * totalW;
+      pick = top[top.length - 1]; // fallback
+      for (let i = 0; i < top.length; i++) {
+        r -= weights[i];
+        if (r <= 0) { pick = top[i]; break; }
+      }
+      temp *= tempDecay;
+    } else {
+      pick = scored[0];
+    }
+
+    grid[pick.y][pick.x] = 1;
+    towers++;
+  }
+
+  const finalPath = bfs(grid, true);
+  return { grid: cloneGrid(grid), towers, pathLen: finalPath.length, path: finalPath, dirChanges: countDirChanges(finalPath), maxX: pathMaxX(finalPath), colsUsed: pathColsUsed(finalPath) };
+}
+
+// ── Plateau pair search ──
+
+function runPlateauPairs(config = {}) {
+  const { maxTowers = 80, pairDepth = 2 } = config;
+  const grid = makeGrid();
+  let towers = 0;
+  let plateauHits = 0;
+
+  for (let step = 0; step < 500 && towers < maxTowers; step++) {
+    const path = bfs(grid, true);
+    if (!path.length) break;
+    const currentLen = path.length;
+
+    const candidates = getCandidates(grid, path, towers);
+    const scored = [];
+
+    for (const idx of candidates) {
+      const x = idx % W, y = (idx - x) / W;
+      grid[y][x] = 1;
+      const newLen = bfsLen(grid);
+      grid[y][x] = 0;
+      if (newLen === 0) continue;
+      const delta = newLen - currentLen;
+      const adj = countAdj(grid, x, y);
+      let coverage = 0;
+      for (const p of path) {
+        if (Math.abs(p.x - x) + Math.abs(p.y - y) <= 3) coverage++;
+      }
+      const score = (delta > 0 ? 1e9 : 0) + delta * 15 + coverage * 2 + adj * 3;
+      scored.push({ x, y, score, delta, idx });
+    }
+
+    if (scored.length === 0) break;
+    scored.sort((a, b) => b.score - a.score);
+
+    // If we have a positive-delta placement, take it (normal greedy)
+    if (scored[0].delta > 0) {
+      grid[scored[0].y][scored[0].x] = 1;
+      towers++;
+      plateauHits = 0;
+      continue;
+    }
+
+    // Plateau — try coordinated pairs
+    plateauHits++;
+    if (plateauHits > 3) {
+      // Give up on breaking plateau, just place best zero-delta
+      grid[scored[0].y][scored[0].x] = 1;
+      towers++;
+      continue;
+    }
+
+    // Get top candidates for pair search
+    const topN = scored.slice(0, Math.min(30, scored.length));
+    let bestPairDelta = 0;
+    let bestPair = null;
+
+    if (pairDepth >= 2) {
+      for (let i = 0; i < topN.length; i++) {
+        const a = topN[i];
+        grid[a.y][a.x] = 1;
+        const lenAfterA = bfsLen(grid);
+        if (lenAfterA === 0) { grid[a.y][a.x] = 0; continue; }
+
+        for (let j = i + 1; j < topN.length; j++) {
+          const b = topN[j];
+          if (grid[b.y][b.x] !== 0) continue;
+          grid[b.y][b.x] = 1;
+          const lenAfterAB = bfsLen(grid);
+          grid[b.y][b.x] = 0;
+          if (lenAfterAB === 0) continue;
+          const pairDelta = lenAfterAB - currentLen;
+          if (pairDelta > bestPairDelta) {
+            bestPairDelta = pairDelta;
+            bestPair = [a, b];
+          }
+        }
+        grid[a.y][a.x] = 0;
+      }
+    }
+
+    // Try triples if pairs didn't work
+    if (!bestPair && pairDepth >= 3) {
+      const top15 = topN.slice(0, Math.min(15, topN.length));
+      for (let i = 0; i < top15.length; i++) {
+        const a = top15[i];
+        grid[a.y][a.x] = 1;
+        if (bfsLen(grid) === 0) { grid[a.y][a.x] = 0; continue; }
+        for (let j = i + 1; j < top15.length; j++) {
+          const b = top15[j];
+          if (grid[b.y][b.x] !== 0) continue;
+          grid[b.y][b.x] = 1;
+          if (bfsLen(grid) === 0) { grid[b.y][b.x] = 0; continue; }
+          for (let k = j + 1; k < top15.length; k++) {
+            const c = top15[k];
+            if (grid[c.y][c.x] !== 0) continue;
+            grid[c.y][c.x] = 1;
+            const len = bfsLen(grid);
+            grid[c.y][c.x] = 0;
+            if (len === 0) continue;
+            const tripleDelta = len - currentLen;
+            if (tripleDelta > bestPairDelta) {
+              bestPairDelta = tripleDelta;
+              bestPair = [a, b, c];
+            }
+          }
+          grid[b.y][b.x] = 0;
+        }
+        grid[a.y][a.x] = 0;
+      }
+    }
+
+    if (bestPair && bestPairDelta > 0) {
+      for (const p of bestPair) { grid[p.y][p.x] = 1; towers++; }
+      plateauHits = 0;
+    } else {
+      // No breakthrough, place best zero-delta
+      grid[scored[0].y][scored[0].x] = 1;
+      towers++;
+    }
+  }
+
+  const finalPath = bfs(grid, true);
+  return { grid: cloneGrid(grid), towers, pathLen: finalPath.length, path: finalPath, dirChanges: countDirChanges(finalPath), maxX: pathMaxX(finalPath), colsUsed: pathColsUsed(finalPath) };
+}
+
+// ── Multi-start tournament ──
+
+function runTournament(strategies, maxTowers = 80) {
+  let best = null;
+  for (const strat of strategies) {
+    const result = runGreedy({ ...strat, maxTowers });
+    if (!best || result.pathLen > best.pathLen) {
+      best = result;
+      best._winnerName = strat._name || '?';
+    }
+  }
+  return best;
+}
+
+// ── Algorithm definitions ──
+
+function getAlgorithms(maxTowers) {
+  return [
+    { name: 'Greedy (baseline)', run: () => runGreedy({ maxTowers }) },
+    { name: 'Spacing S=2', run: () => runGreedy({ maxTowers, minSpacing: 2 }) },
+    { name: 'Spacing S=3', run: () => runGreedy({ maxTowers, minSpacing: 3 }) },
+    { name: 'Spacing S=4', run: () => runGreedy({ maxTowers, minSpacing: 4 }) },
+    { name: 'Spacing S=2 no-relax', run: () => runGreedy({ maxTowers, minSpacing: 2, relaxSpacing: false }) },
+    { name: 'SA T=3', run: () => {
+      const runs = [1,2,3,4,5].map(s => runGreedy({ maxTowers, temperature: 3, rngSeed: s * 7 }));
+      runs.sort((a, b) => b.pathLen - a.pathLen);
+      const r = runs[Math.floor(runs.length / 2)]; // median
+      r._allPaths = runs.map(r => r.pathLen);
+      return r;
+    }},
+    { name: 'SA T=8', run: () => {
+      const runs = [1,2,3,4,5].map(s => runGreedy({ maxTowers, temperature: 8, rngSeed: s * 13 }));
+      runs.sort((a, b) => b.pathLen - a.pathLen);
+      const r = runs[Math.floor(runs.length / 2)];
+      r._allPaths = runs.map(r => r.pathLen);
+      return r;
+    }},
+    { name: 'SA T=20', run: () => {
+      const runs = [1,2,3,4,5].map(s => runGreedy({ maxTowers, temperature: 20, rngSeed: s * 17 }));
+      runs.sort((a, b) => b.pathLen - a.pathLen);
+      const r = runs[Math.floor(runs.length / 2)];
+      r._allPaths = runs.map(r => r.pathLen);
+      return r;
+    }},
+    { name: 'DirChange bonus=5', run: () => runGreedy({ maxTowers, dirBonus: 5 }) },
+    { name: 'DirChange bonus=10', run: () => runGreedy({ maxTowers, dirBonus: 10 }) },
+    { name: 'Spacing S=2 + SA T=3', run: () => {
+      const runs = [1,2,3,4,5].map(s => runGreedy({ maxTowers, minSpacing: 2, temperature: 3, rngSeed: s * 11 }));
+      runs.sort((a, b) => b.pathLen - a.pathLen);
+      const r = runs[Math.floor(runs.length / 2)];
+      r._allPaths = runs.map(r => r.pathLen);
+      return r;
+    }},
+    { name: 'Spacing S=3 + SA T=5', run: () => {
+      const runs = [1,2,3,4,5].map(s => runGreedy({ maxTowers, minSpacing: 3, temperature: 5, rngSeed: s * 19 }));
+      runs.sort((a, b) => b.pathLen - a.pathLen);
+      const r = runs[Math.floor(runs.length / 2)];
+      r._allPaths = runs.map(r => r.pathLen);
+      return r;
+    }},
+    { name: 'LeftBias=10', run: () => runGreedy({ maxTowers, leftBias: 10 }) },
+    { name: 'LeftBias=50', run: () => runGreedy({ maxTowers, leftBias: 50 }) },
+    { name: 'LeftBias=200', run: () => runGreedy({ maxTowers, leftBias: 200 }) },
+    { name: 'ColBand=3', run: () => runGreedy({ maxTowers, columnBand: 3 }) },
+    { name: 'ColBand=5', run: () => runGreedy({ maxTowers, columnBand: 5 }) },
+    { name: 'ColBand=8', run: () => runGreedy({ maxTowers, columnBand: 8 }) },
+    { name: 'ColBand=10', run: () => runGreedy({ maxTowers, columnBand: 10 }) },
+    { name: 'S=2 + LeftBias=50', run: () => runGreedy({ maxTowers, minSpacing: 2, leftBias: 50 }) },
+    { name: 'S=2 + ColBand=5', run: () => runGreedy({ maxTowers, minSpacing: 2, columnBand: 5 }) },
+    { name: 'S=2 + ColBand=8', run: () => runGreedy({ maxTowers, minSpacing: 2, columnBand: 8 }) },
+    { name: 'Plateau pairs (d=2)', run: () => runPlateauPairs({ maxTowers, pairDepth: 2 }) },
+    { name: 'Plateau triples (d=3)', run: () => runPlateauPairs({ maxTowers, pairDepth: 3 }) },
+    { name: 'Best-of-5 tournament', run: () => {
+      const strats = [
+        { _name: 'greedy' },
+        { _name: 'S=2', minSpacing: 2 },
+        { _name: 'SA T=5', temperature: 5, rngSeed: 42 },
+        { _name: 'SA T=5 #2', temperature: 5, rngSeed: 99 },
+        { _name: 'S=2+SA', minSpacing: 2, temperature: 3, rngSeed: 77 },
+      ];
+      const result = runTournament(strats, maxTowers);
+      result._winner = result._winnerName;
+      return result;
+    }},
+  ];
+}
+
+// ── Sweep ──
+
 async function sweepAll() {
   const status = document.getElementById('status');
   const resultsDiv = document.getElementById('results');
+  const maxTowers = parseInt(document.getElementById('tower-count').value) || 80;
+  const algorithms = getAlgorithms(maxTowers);
   const results = [];
+  let baselinePath = 0;
 
-  for (let mask = 0; mask < 32; mask++) {
-    const bits = [];
-    for (let b = 0; b < 5; b++) { if (mask & (1 << b)) bits.push(b); }
-    const label = 'B' + (bits.length === 0 ? '∅' : bits.join(','));
-    status.textContent = `Testing ${label} (${mask + 1}/32)...`;
-
-    // Yield to UI
+  for (let i = 0; i < algorithms.length; i++) {
+    const algo = algorithms[i];
+    status.textContent = `${algo.name} (${i + 1}/${algorithms.length})...`;
     await new Promise(r => setTimeout(r, 0));
 
-    const result = runAutomaton(mask);
-    results.push({ mask, label, ...result });
+    const t0 = performance.now();
+    const result = algo.run();
+    const elapsed = Math.round(performance.now() - t0);
+
+    if (i === 0) baselinePath = result.pathLen;
+    results.push({ name: algo.name, elapsed, ...result });
   }
 
-  // Sort by path length desc
-  results.sort((a, b) => b.pathLen - a.pathLen || b.towers - a.towers);
+  results.sort((a, b) => b.pathLen - a.pathLen || a.towers - b.towers);
   const bestPath = results[0]?.pathLen ?? 0;
 
-  let html = '<table><tr><th>#</th><th>Birth Rule</th><th>Towers</th><th>Path</th></tr>';
+  let html = '<table><tr><th>#</th><th>Algorithm</th><th>Twrs</th><th>Path</th><th>vs Base</th><th>maxX</th><th>Cols</th><th>P/C</th><th>Turns</th><th>ms</th><th>Notes</th></tr>';
   results.forEach((r, i) => {
-    const cls = r.pathLen === bestPath ? 'best' : '';
-    html += `<tr data-idx="${i}"><td style="color:#666">${i+1}</td><td>${r.label}</td><td>${r.towers}</td><td class="${cls}">${r.pathLen}</td></tr>`;
+    const pathCls = r.pathLen === bestPath ? 'best' : '';
+    const diff = r.pathLen - baselinePath;
+    const diffStr = diff > 0 ? `+${diff}` : diff === 0 ? '—' : `${diff}`;
+    const diffCls = diff > 0 ? 'improvement' : diff < 0 ? 'regression' : '';
+    const pc = r.colsUsed ? (r.pathLen / r.colsUsed).toFixed(1) : '—';
+    const notes = [];
+    if (r._allPaths) notes.push(`[${r._allPaths.join(',')}]`);
+    if (r._winner) notes.push(`won: ${r._winner}`);
+    html += `<tr data-idx="${i}"><td style="color:#666">${i+1}</td><td>${r.name}</td><td>${r.towers}</td><td class="${pathCls}">${r.pathLen}</td><td class="${diffCls}">${diffStr}</td><td>${r.maxX || '—'}</td><td>${r.colsUsed || '—'}</td><td>${pc}</td><td>${r.dirChanges || 0}</td><td style="color:#555">${r.elapsed}</td><td style="color:#666;font-size:10px">${notes.join(' ')}</td></tr>`;
   });
   html += '</table>';
   resultsDiv.innerHTML = html;
@@ -259,21 +623,23 @@ async function sweepAll() {
       document.querySelectorAll('#results tr.selected').forEach(el => el.classList.remove('selected'));
       tr.classList.add('selected');
       const r = results[parseInt(tr.dataset.idx)];
-      drawGrid(r.grid, r.path, r.label, r.towers, r.pathLen);
+      drawGrid(r.grid, r.path, r.name, r.towers, r.pathLen, r.dirChanges);
     };
   });
 
   if (results.length > 0) {
-    drawGrid(results[0].grid, results[0].path, results[0].label, results[0].towers, results[0].pathLen);
+    drawGrid(results[0].grid, results[0].path, results[0].name, results[0].towers, results[0].pathLen, results[0].dirChanges);
     resultsDiv.querySelector('tr[data-idx="0"]')?.classList.add('selected');
   }
 
-  status.textContent = `Done! Best path: ${bestPath}. Click rows to visualize.`;
+  status.textContent = `Done! Best: ${bestPath} (baseline: ${baselinePath}). Click rows to visualize.`;
 }
 
-function drawGrid(grid, path, label, towers, pathLen) {
+// ── Drawing ──
+
+function drawGrid(grid, path, label, towers, pathLen, dirChanges) {
   document.getElementById('viz-label').textContent = label;
-  document.getElementById('viz-stats').textContent = `Towers: ${towers} | Path: ${pathLen}`;
+  document.getElementById('viz-stats').textContent = `Towers: ${towers} | Path: ${pathLen} | Direction changes: ${dirChanges || 0}`;
 
   ctx.fillStyle = '#111';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -313,16 +679,23 @@ function drawGrid(grid, path, label, towers, pathLen) {
     ctx.stroke();
   }
 
+  // Goal markers
   ctx.fillStyle = '#00f';
   for (const gy of [12,13,14,15,16,17]) {
     ctx.fillRect(59 * CELL + CELL - 3, gy * CELL + 4, 3, CELL - 8);
   }
+
+  // Zone divider label
+  ctx.fillStyle = '#333';
+  ctx.font = '10px monospace';
+  ctx.fillText('LEFT (unused)', 2, 12);
+  ctx.fillText('RIGHT (player zone)', ZONE_START * CELL + 4, 12);
 }
 
 document.getElementById('btn-sweep').onclick = sweepAll;
 
 // Initial empty grid
-drawGrid(makeGrid(), bfs(makeGrid(), true), 'Click RUN to start', 0, bfs(makeGrid(), true).length);
+drawGrid(makeGrid(), bfs(makeGrid(), true), 'Click RUN SWEEP to start', 0, bfs(makeGrid(), true).length, 0);
 </script>
 </body>
 </html>

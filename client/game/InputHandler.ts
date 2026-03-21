@@ -6,6 +6,12 @@ export class InputHandler {
   private canvasRect: DOMRect;
   private lastPinchDistance = 0;
   private brushDragging = false;
+  private placeDragging = false;
+  private placeMouseDown = false;
+  private suppressNextClick = false;
+  private placeStartX = 0;
+  private placeStartY = 0;
+  private lastPlaceCell: string | null = null;
   private lastBrushTime = 0;
 
   constructor(
@@ -22,15 +28,40 @@ export class InputHandler {
       if (this.gameClient.clientState.activeTool === 'brush') {
         this.brushDragging = true;
         this.onBrush(e);
+      } else if (this.gameClient.clientState.selectedTowerType && this.gameClient.clientState.activeTool === 'place') {
+        // Track mousedown — only start drag after mouse moves 5+ pixels
+        this.placeMouseDown = true;
+        this.placeDragging = false;
+        this.placeStartX = e.clientX;
+        this.placeStartY = e.clientY;
+        this.lastPlaceCell = null;
       }
     });
     canvas.addEventListener('mousemove', (e) => {
       if (this.brushDragging) {
         this.onBrush(e);
+      } else if (this.placeMouseDown) {
+        // Start dragging after 5px movement threshold
+        if (!this.placeDragging) {
+          const dx = e.clientX - this.placeStartX;
+          const dy = e.clientY - this.placeStartY;
+          if (dx * dx + dy * dy > 25) {
+            this.placeDragging = true;
+          }
+        }
+        if (this.placeDragging) {
+          this.onPlaceDrag(e);
+        }
       }
     });
     canvas.addEventListener('mouseup', () => {
+      if (this.placeDragging) {
+        this.suppressNextClick = true;
+      }
       this.brushDragging = false;
+      this.placeMouseDown = false;
+      this.placeDragging = false;
+      this.lastPlaceCell = null;
     });
 
     // Mouse wheel zoom
@@ -114,6 +145,8 @@ export class InputHandler {
 
     canvas.addEventListener('touchend', () => {
       this.brushDragging = false;
+      this.placeDragging = false;
+      this.lastPlaceCell = null;
     });
 
     // Keyboard: reset zoom with 0 or Home, arrow keys / WASD to pan
@@ -261,6 +294,30 @@ export class InputHandler {
     }
   }
 
+  private onPlaceDrag(e: MouseEvent): void {
+    const state = this.gameClient.getState();
+    if (!state) return;
+    if (state.phase !== GamePhase.BUILD) return;
+    if (!this.gameClient.clientState.selectedTowerType) return;
+    if (this.gameClient.clientState.activeTool !== 'place') return;
+
+    const cell = this.pixelToGrid(e.clientX, e.clientY);
+    if (!cell) return;
+
+    // Only place if we moved to a new cell
+    const cellKey = `${cell.x},${cell.y}`;
+    if (cellKey === this.lastPlaceCell) return;
+    this.lastPlaceCell = cellKey;
+
+    // Don't place on existing towers
+    const existing = Object.values(state.towers).find(
+      t => t.position.x === cell.x && t.position.y === cell.y
+    );
+    if (existing) return;
+
+    this.gameClient.placeTower(cell);
+  }
+
   private pixelToCanvas(px: number, py: number): { x: number; y: number } {
     const scaleX = this.canvas.width / this.canvasRect.width;
     const scaleY = this.canvas.height / this.canvasRect.height;
@@ -271,6 +328,11 @@ export class InputHandler {
   }
 
   private onClick(e: MouseEvent): void {
+    // Suppress click after drag-place to avoid deselecting tower
+    if (this.suppressNextClick) {
+      this.suppressNextClick = false;
+      return;
+    }
     const state = this.gameClient.getState();
     if (!state) return;
     if (state.phase !== GamePhase.BUILD && state.phase !== GamePhase.COMBAT) return;

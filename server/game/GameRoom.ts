@@ -154,6 +154,7 @@ export class GameRoom {
       settings: { ...DEFAULT_GAME_SETTINGS },
       waveEconomy: {},
       airWaveCountdown: -1,
+      aiDefeatedCount: 0,
     };
   }
 
@@ -195,6 +196,7 @@ export class GameRoom {
       maxHealth: this.state.settings.startingHealth,
       isReady: false,
       autoRepairEnabled: false,
+      autoRestockEnabled: false,
       autoRebuildEnabled: false,
       requestedSpeed: 1,
       isAI: false,
@@ -237,8 +239,9 @@ export class GameRoom {
       health: this.state.settings.startingHealth,
       maxHealth: this.state.settings.startingHealth,
       isReady: false,
-      autoRepairEnabled: false,
-      autoRebuildEnabled: false,
+      autoRepairEnabled: true,
+      autoRestockEnabled: true,
+      autoRebuildEnabled: true,
       requestedSpeed: 1,
       isAI: true,
     };
@@ -278,10 +281,34 @@ export class GameRoom {
   // --- Game lifecycle ---
 
   private startGame(): void {
+    const startWave = this.state.settings.startWave || 1;
     this.state.phase = GamePhase.BUILD;
-    this.state.waveNumber = 1;
+    this.state.waveNumber = startWave;
     this.state.phaseTimeRemaining = GAME.BUILD_PHASE_DURATION;
-    this.initWaveStats(); // Track spending from the very first BUILD phase
+
+    // Scale credits for skipped waves
+    if (startWave > 1) {
+      // Simulate cumulative income from skipped waves
+      let bonusCredits = 0;
+      const curve = this.state.settings.difficultyCurve;
+      for (let w = 1; w < startWave; w++) {
+        // Wave bonus
+        bonusCredits += GAME.CREDITS_PER_WAVE + w * GAME.CREDITS_PER_WAVE_GROWTH;
+        // Estimated kill income: enemy count × avg credit value × sqrt(hpScale)
+        const idx = w - 1;
+        const hpScale = idx < curve.length ? curve[idx] : curve[curve.length - 1] * Math.pow(1.15, idx - curve.length + 1);
+        const diffRatio = hpScale / curve[0];
+        const enemyCount = this.state.settings.firstWaveEnemies * (1 + (w - 1) * 0.2) * diffRatio;
+        const avgCreditValue = 15; // weighted average across enemy types
+        bonusCredits += Math.round(enemyCount * avgCreditValue * Math.sqrt(hpScale));
+      }
+      for (const player of Object.values(this.state.players)) {
+        player.credits += bonusCredits;
+      }
+      log(`[START] Wave ${startWave}: +${bonusCredits}c bonus per player for skipped waves`);
+    }
+
+    this.initWaveStats();
     log(`Game started in room ${this.roomId}`);
     this.startLoop();
   }
@@ -353,6 +380,20 @@ export class GameRoom {
       }
     }
 
+    // Check for AI respawn event
+    if (this.state.pendingAiRespawn) {
+      const r = this.state.pendingAiRespawn;
+      this.broadcast({
+        type: 'AI_DEFEATED',
+        defeatCount: this.state.aiDefeatedCount,
+        aiName: r.aiName,
+        wave: r.wave,
+        newAiName: r.newAiName,
+        newBudget: r.newBudget,
+      });
+      delete this.state.pendingAiRespawn;
+    }
+
     this.broadcast({ type: 'GAME_STATE', state: this.state });
 
     if (this.state.phase === GamePhase.GAME_OVER) {
@@ -406,7 +447,7 @@ export class GameRoom {
       this.state.waveEconomy[playerId] = {
         startingCredits: 0,
         killRewards: 0, waveBonus: 0, towerIncome: 0, sellRefunds: 0,
-        towerPurchases: 0, towerUpgrades: 0, repairCosts: 0, restockCosts: 0, maintenanceCosts: 0,
+        towerPurchases: 0, towerUpgrades: 0, repairCosts: 0, restockCosts: 0, maintenanceCosts: 0, ammoUsed: 0, shotsFired: 0,
       };
     }
     return this.state.waveEconomy[playerId];
@@ -461,6 +502,7 @@ export class GameRoom {
           settings: structuredClone(this.state.settings),
           difficultyFactor: computeDifficultyFactor(this.state.settings),
           adjustedScore: Math.round(this.state.waveNumber * computeDifficultyFactor(this.state.settings) * 100) / 100,
+          aiDefeatedCount: !player.isAI ? this.state.aiDefeatedCount : undefined,
         });
       }
       this.onGameOver(results);
@@ -514,6 +556,9 @@ export class GameRoom {
         break;
       case 'TOGGLE_AUTO_REPAIR':
         this.handleToggleAutoRepair(playerId);
+        break;
+      case 'TOGGLE_AUTO_RESTOCK':
+        this.handleToggleAutoRestock(playerId);
         break;
       case 'TOGGLE_AUTO_REBUILD':
         this.handleToggleAutoRebuild(playerId);
@@ -911,6 +956,12 @@ export class GameRoom {
     player.autoRepairEnabled = !player.autoRepairEnabled;
   }
 
+  private handleToggleAutoRestock(playerId: string): void {
+    const player = this.state.players[playerId];
+    if (!player) return;
+    player.autoRestockEnabled = !player.autoRestockEnabled;
+  }
+
   private handleToggleAutoRebuild(playerId: string): void {
     const player = this.state.players[playerId];
     if (!player) return;
@@ -1003,13 +1054,17 @@ export class GameRoom {
   }
 
   private processAutoRepair(): void {
-    if (this.state.phase !== GamePhase.BUILD && this.state.phase !== GamePhase.COMBAT) return;
+    // Only auto-repair during combat — don't drain credits during build phase
+    // when the player is trying to buy/sell/manage towers
+    if (this.state.phase !== GamePhase.COMBAT) return;
 
-    // Reserve 100 credits so auto-repair never drains the player dry
-    const AUTO_REPAIR_RESERVE = 100;
+    // Reserve credits so auto-repair never drains the player dry
+    const AUTO_REPAIR_RESERVE = 200;
 
     for (const player of Object.values(this.state.players)) {
-      if (!player.autoRepairEnabled || player.credits <= AUTO_REPAIR_RESERVE) continue;
+      const wantsRepair = player.autoRepairEnabled;
+      const wantsRestock = player.autoRestockEnabled;
+      if ((!wantsRepair && !wantsRestock) || player.credits <= AUTO_REPAIR_RESERVE) continue;
 
       const econ = this.getPlayerEconomy(player.id);
       const ownedTowers = Object.values(this.state.towers).filter(t => t.ownerId === player.id);
@@ -1028,7 +1083,7 @@ export class GameRoom {
         }
         return empty;
       };
-      const damagedTowers = ownedTowers
+      const damagedTowers = !wantsRepair ? [] : ownedTowers
         .filter(t => t.health < t.maxHealth)
         .sort((a, b) => {
           // More empty neighbors = more structural importance (repair first)
@@ -1052,7 +1107,7 @@ export class GameRoom {
       }
 
       // Restock: sort by ammo ratio ascending (least ammo first)
-      const lowAmmoTowers = ownedTowers
+      const lowAmmoTowers = !wantsRestock ? [] : ownedTowers
         .filter(t => t.ammo < t.maxAmmo)
         .sort((a, b) => (a.ammo / a.maxAmmo) - (b.ammo / b.maxAmmo));
 

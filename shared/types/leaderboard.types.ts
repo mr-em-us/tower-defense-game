@@ -10,6 +10,7 @@ export interface GameResultRecord {
   settings: GameSettings;
   difficultyFactor: number;
   adjustedScore: number;
+  aiDefeatedCount?: number;
 }
 
 export interface LeaderboardEntry {
@@ -22,6 +23,7 @@ export interface LeaderboardEntry {
   gameMode: GameMode;
   timestamp: number;
   settings: GameSettings;
+  aiDefeatedCount?: number;
 }
 
 export interface LeaderboardData {

@@ -1,30 +1,38 @@
-# Session — 2026-03-20 Morning
+# Session — 2026-03-21
 
-- 09:35 AM — Session started. Resuming from emergent maze builder (median wave 16).
-- 09:36 AM — Investigated "Watch AI doesn't match test results" — user was checking Render deployment, not local. Code is pushed, likely Render redeploy issue.
-- 09:38 AM — Saved feedback: always start local server on session boot, output URL.
-- 09:46 AM — Implemented mutation mechanism (mechanism #1): sell weakest walls to escape local optima.
-- 10:00 AM — Mutation v1 (individual weak walls): no improvement, greedy fills same spots
-- 10:05 AM — Mutation v2 (cluster sell+rebuild): path went to 90-92 but "before path" drops between waves — sells cause coordination problem with re-validation
-- 10:15 AM — Changed SELL_REFUND_RATIO to 1.0 (Jason approved removing sell penalty)
-- 10:20 AM — Tried generations approach (mechanism #3): Gen 0 deterministic wins every time, random makes things worse. 86 is true local optimum for greedy.
-- 10:26 AM — Abandoned mutations and generations. Implemented catalyst approach instead: 2-step lookahead finds delta=0 placements that unlock delta>0 follow-ups
-- 10:35 AM — Also changed tower type logic: BASIC instead of WALL when path >= 90 (adds DPS), lowered coverage threshold to 3
-- 10:42 AM — Catalyst breakthrough: path 86→88→96→100→106→110→116! But AI dies wave 8-9 from insufficient DPS despite longer path. Tower destruction during combat + AA over-allocation eating too much budget.
-- 10:48 AM — Switched to BASIC towers for delta>0 placements (blocks AND fires). Reduced AA targets, earlier upgrade ramp.
-- 10:59 AM — BREAKTHROUGH: Wave 14+ (timed out)! Path hits 118 by wave 6, 0 leaks through wave 12. BASIC-first means every tower deals damage. Key: 37 BASIC + 6 WALL on wave 1 vs 44 WALL + 15 BASIC before.
-- 11:00 AM — Full BASIC: waves 14, 14, 16, 14, 13 (median 14). Lower density = more leaks despite better DPS.
-- 11:25 AM — Hybrid 50/50 WALL+BASIC: waves 9, 10. Worse — neither enough density nor DPS.
-- 11:35 AM — Reduced AA targets caused wave 8 death with WALL approach. AA defense is critical!
-- 11:40 AM — Reverted ALL economy/AA changes. Only change from baseline: catalyst 2-step lookahead.
-- 11:45 AM — Catalyst-only with WALL: waves 8,8,8. Catalyst actively hurts WALL approach (steals DPS budget).
-- 11:50 AM — Reverted to clean baseline. Only lasting code change: SELL_REFUND_RATIO=1.0. Pushed to GitHub.
-- 12:00 PM — /learn knowledge sweep: routed 7 failed approaches to maze-strategy-history, 2 dead-ends, 1 decision (sell refund), fixed stale economy docs.
-- 12:10 PM — Jason asks: "what's the next GoL-inspired algorithm tweak?" Discussion about cellular automaton birth rules.
-- 12:30 PM — Built sandbox.html: visual tool for testing automaton rules on the game grid. Served at /sandbox.html.
-- 12:40 PM — First sandbox run: all 32 birth rules produce path 30. Local rules can't see global pathfinding.
-- 12:50 PM — Extended sweep (160 configs): **B0 +onPath = path 128!** Place on path with zero tower neighbors. Isolation forces spread, each tower independently reroutes. Best result by far.
-- Key finding: neighbor count alone is useless. The "+onPath" constraint is what matters — placing directly ON the BFS path forces reroutes. The "0 neighbors" constraint prevents clustering.
-- Hierarchy: B0+onPath=128 > B0,1+onPath=101 > B0+pathAdj=62 > everything else=30
-- 11:00 PM — Implemented B0+onPath skeleton (50% budget) + greedy DPS fill (50%). Wave 1: 40 skeleton WALLs, path 89, 18 DPS towers. Result: wave 8. Path better than baseline (89 vs 86) but marginal, and DPS split hurts.
-- Reverted maze.ts to proven baseline for save. Sandbox remains for future research.
+- 8:34 AM — Session started
+- 8:35 AM — Reworked sandbox.html layout for half-screen preview pane
+- 8:40 AM — Added Dev Sandbox link to main menu
+- 9:00 AM — Brainstormed maze improvement algorithms (simulated annealing, spacing, beam search, etc.)
+- 9:15 AM — Rebuilt sandbox as multi-algorithm testing platform (15 algorithms)
+- 9:30 AM — **KEY FINDING: S=2 spacing = path 98 (+14 over baseline 84)**
+- 9:40 AM — Added rightward penalty / column frontier / left bias algorithms to sandbox
+- 9:50 AM — **S=2 + LeftBias=50 at 500 towers = path 380! Beautiful intestine pattern**
+- 10:00 AM — Integrated S=2 spacing + leftBias into game's maze.ts
+- 10:10 AM — Fixed leftBias bug (was making scores negative, breaking wave 1)
+- 10:15 AM — Added ROI-based tower type selection (WALL where enemies don't pass, best DPS/cost where they do)
+- 10:20 AM — Fixed coverage check to use current path, not post-placement path
+- 10:30 AM — Added AA splash damage (radius 2, flying-only)
+- 10:35 AM — Starting credits changed to 5000c
+- 10:40 AM — Implemented AI respawn system (AI dies → respawns with 120% of human tower value)
+- 10:45 AM — Added AI_DEFEATED modal + leaderboard integration with aiDefeatedCount
+- 10:50 AM — Economy investigation: added comprehensive per-player wave-end logging
+- 11:00 AM — Split "Auto Fix" into three toggles: Repair, Reload, Rebuild
+- 11:10 AM — Fixed auto-repair to only run during combat (was draining credits during build)
+- 11:15 AM — AI now has all three autos enabled by default
+- 11:20 AM — Fixed AI economy: towerCount < 50 → all budget to building (respawn fix)
+- 11:25 AM — Fixed AI candidate set: uses ALL empty cells when spacing active (matches sandbox)
+- 11:30 AM — Added remaining-budget fill pass after AA (spend close to 0c)
+- 11:35 AM — Fixed aiDefeatedCount: was counting every tick, now counts once per death
+- 11:40 AM — Fixed AI respawn: deferred to build phase (was mid-combat)
+- 11:45 AM — Fixed AI defeated modal: dedicated element instead of shared overlay
+- 11:50 AM — Removed dense phase entirely: S=2 + leftBias from tower 1
+- 11:55 AM — Added start-wave selector (1/5/10/15/20/25/30) with scaled credits
+- 11:55 AM — Hardcoded AI difficulty to HARD, removed dropdown
+- 12:00 PM — Fixed canvas scaling: reserves space for HUD + tower bar
+- 12:10 PM — Added click-and-drag tower placement
+- 12:15 PM — Fixed drag placement bugs (GridCell arg, suppress click after drag)
+- 12:20 PM — Fixed tower button sizing (fixed 70px width, more compact)
+- 12:30 PM — Toggle buttons show RDY during build phase, ON during combat
+- 12:40 PM — Added rebuild debug logging
+- 12:52 PM — Save

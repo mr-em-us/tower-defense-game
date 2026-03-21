@@ -1,5 +1,22 @@
 # Session Log Archive
 
+## Session — 2026-03-21 (Intestine Maze + AI Respawn + UI Overhaul)
+- Rebuilt sandbox as multi-algorithm testing platform (15 algorithms sweepable)
+- **Breakthrough: S=2 spacing + leftBias = path 380 intestine pattern** (vs 84 baseline)
+- Integrated into game: S=2 from tower 1, all-cell candidates, ROI tower type selection
+- AA splash damage (flying-only, radius 2)
+- AI respawn system: dies → respawns at build phase with 120% of human tower value
+- Fixed aiDefeatedCount (was counting every tick), deferred respawn to build phase
+- Split "Auto Fix" into Repair/Reload/Rebuild toggles (only run during combat)
+- AI gets all three autos enabled by default
+- Comprehensive economy logging: per-player kills, shots, ammo, repair, restock, tower value
+- Starting credits: 5000c, AI difficulty: HARD only
+- Start-wave selector (1/5/10/15/20/25/30 with scaled credits)
+- Click-and-drag tower placement (5px threshold, suppresses click after drag)
+- Canvas scaling: reserves space for HUD + tower bar (no more hidden bottom rows)
+- Tower buttons: fixed 70px width, compact padding
+- Leaderboard: AI Kills column added
+
 ## Session — 2026-03-20 (Plateau Research + Cellular Automaton Discovery)
 - Tried 5 approaches to break wave-16 plateau: mutation (sell/rebuild), catalyst (2-step lookahead), BASIC-first, hybrid 50/50, reduced AA
 - None beat baseline median 16. Path vs DPS is zero-sum tradeoff.

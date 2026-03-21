@@ -121,7 +121,7 @@ export const TOWER_STATS: Record<TowerType, {
     fireRate: 4.5,
     upgradeCostMultiplier: 1.0,
     upgradeStatMultiplier: 1.5,
-    splashRadius: 0,
+    splashRadius: 2,
     slowAmount: 0,
     slowDuration: 0,
     maxHealth: 100,
@@ -191,7 +191,7 @@ export const VISUAL = {
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
   startingHealth: 500,
-  startingCredits: 2000,
+  startingCredits: 5000,
   firstWaveEnemies: 15,
   difficultyCurve: [
     // Waves 1-10: gentle ramp
@@ -210,5 +210,6 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   towerOverrides: {},
   enemyOverrides: {},
   aiEnabled: false,
-  aiDifficulty: AIDifficulty.MEDIUM,
+  aiDifficulty: AIDifficulty.HARD,
+  startWave: 1,
 };

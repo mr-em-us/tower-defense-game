@@ -76,50 +76,70 @@ export function generateMazeLayout(
   const xMax = side === PlayerSide.RIGHT ? GRID.WIDTH - 1 : GRID.LEFT_ZONE_END;
 
   // === UNIFIED PLACEMENT LOOP ===
-  let towersPlaced = 0;
-  let consecutiveLowScore = 0;
-  const LOW_SCORE_LIMIT = 5;
-  const LOW_SCORE_THRESHOLD = 1.0;
+  // S=2 spacing + leftBias from the start — produces intestine/serpentine pattern
+  // Same algorithm that produced path 380 in the sandbox
+  const SPACING = 2;
+  const LEFT_BIAS = 50;
 
-  while (spent < mazeBudget && towersPlaced < 300) {
+  let towersPlaced = 0;
+
+  while (spent < mazeBudget) {
+    const spacing = SPACING;
+    const useBias = LEFT_BIAS;
+
     const currentPath = findPath(state.grid, side);
     if (!currentPath) break;
 
-    const candidates = scoreUnifiedCandidates(state, side, currentPath, xMin, xMax);
+    const candidates = scoreUnifiedCandidates(state, side, currentPath, xMin, xMax, spacing, useBias);
     if (candidates.length === 0) break;
 
     const best = candidates[0];
-    if (best.score <= 0) break;
 
-    if (best.score < LOW_SCORE_THRESHOLD) {
-      consecutiveLowScore++;
-      if (consecutiveLowScore >= LOW_SCORE_LIMIT) {
-        log(`[MAZE] Stopping: ${consecutiveLowScore} low-score placements`);
-        break;
-      }
-    } else {
-      consecutiveLowScore = 0;
-    }
-
-    // Choose tower type
+    // Choose tower type based on whether enemies will actually pass by
     let towerType: TowerType;
     let cost: number;
 
-    if (best.delta >= 1) {
-      // Positive delta → cheap WALL for structure
+    // Check: is this tower near where enemies currently walk?
+    // Use CURRENT path (before placement) — placing on the path pushes it away,
+    // but future placements will bring enemies back through this area.
+    let pathCoverage = 0;
+    const basicRange = TOWER_STATS[TowerType.BASIC].range;
+    const rSq = basicRange * basicRange;
+    for (const cell of currentPath) {
+      const dx = cell.x - best.x;
+      const dy = cell.y - best.y;
+      if (dx * dx + dy * dy <= rSq) pathCoverage++;
+    }
+
+    if (pathCoverage === 0) {
+      // Enemies won't pass by — cheap WALL for structure only
       towerType = TowerType.WALL;
       cost = getDynamicPrice(state, TowerType.WALL);
-    } else if (best.coverage >= 4) {
-      // Good coverage position — specialized tower
-      towerType = chooseTowerType(state, playerId, depth, towerTypeCounts);
-      cost = getDynamicPrice(state, towerType);
-      if (spent + cost > mazeBudget) {
-        towerType = TowerType.BASIC;
-        cost = getDynamicPrice(state, TowerType.BASIC);
-      }
     } else {
+      // Enemies WILL pass by — pick best DPS/cost ROI at current prices
+      const dpsTypes: TowerType[] = [TowerType.BASIC, TowerType.SNIPER, TowerType.SPLASH, TowerType.SLOW];
+      let bestRoi = 0;
       towerType = TowerType.BASIC;
       cost = getDynamicPrice(state, TowerType.BASIC);
+
+      for (const t of dpsTypes) {
+        const stats = TOWER_STATS[t];
+        const price = getDynamicPrice(state, t);
+        if (spent + price > mazeBudget) continue;
+
+        // Effective DPS: damage × fireRate. SPLASH gets bonus for AoE.
+        let dps = stats.damage * stats.fireRate;
+        if (stats.splashRadius > 0) dps *= 2; // splash hits multiple enemies
+        // SLOW has utility value beyond raw DPS
+        if (stats.slowAmount > 0) dps += 10;
+
+        const roi = dps / price;
+        if (roi > bestRoi) {
+          bestRoi = roi;
+          towerType = t;
+          cost = price;
+        }
+      }
     }
 
     if (spent + cost > mazeBudget) {
@@ -139,7 +159,7 @@ export function generateMazeLayout(
     towersPlaced++;
     towerTypeCounts[towerType] = (towerTypeCounts[towerType] ?? 0) + 1;
 
-    if (towersPlaced % 20 === 0) {
+    if (towersPlaced % 50 === 0) {
       const newPath = findPath(state.grid, side);
       log(`[MAZE] Placed: ${towersPlaced}, path: ${newPath?.length ?? 0}, spent: ${spent}c`);
     }
@@ -199,6 +219,33 @@ export function generateMazeLayout(
   const aaSpent = placeAADefense(state, playerId, side, aaBudget, wave, placements, simulated);
   spent += aaSpent;
 
+  // === SPEND REMAINING — fill any empty cell with BASIC ===
+  // After maze + AA, dump leftover budget into more towers
+  let fillCount = 0;
+  while (budget - spent >= getDynamicPrice(state, TowerType.BASIC)) {
+    const currentPath = findPath(state.grid, side);
+    if (!currentPath) break;
+    // Use full candidate set with no spacing — just fill everything
+    const candidates = scoreUnifiedCandidates(state, side, currentPath, xMin, xMax, 0, 0);
+    if (candidates.length === 0) break;
+    const best = candidates[0];
+    const cost = getDynamicPrice(state, TowerType.BASIC);
+    if (spent + cost > budget) break;
+    state.grid.cells[best.y][best.x] = CellType.TOWER;
+    if (!findPath(state.grid, side)) {
+      state.grid.cells[best.y][best.x] = CellType.EMPTY;
+      continue;
+    }
+    simulated.push({ x: best.x, y: best.y });
+    placements.push({ x: best.x, y: best.y, type: TowerType.BASIC, cost });
+    spent += cost;
+    fillCount++;
+    towerTypeCounts[TowerType.BASIC] = (towerTypeCounts[TowerType.BASIC] ?? 0) + 1;
+  }
+  if (fillCount > 0) {
+    log(`[MAZE] Remaining budget fill: +${fillCount} BASIC, spent ${Math.round(spent)}c / ${Math.round(budget)}c`);
+  }
+
   // Restore grid
   for (const cell of simulated) {
     state.grid.cells[cell.y][cell.x] = CellType.EMPTY;
@@ -236,12 +283,14 @@ function scoreUnifiedCandidates(
   currentPath: { x: number; y: number }[],
   xMin: number,
   xMax: number,
+  minSpacing: number = 0,
+  leftBias: number = 0,
 ): { x: number; y: number; score: number; delta: number; coverage: number }[] {
   const currentLen = currentPath.length;
   const BASIC_RANGE = TOWER_STATS[TowerType.BASIC].range;
   const rangeSq = BASIC_RANGE * BASIC_RANGE;
 
-  const DELTA_WEIGHT = 15;     // Higher = more walls, longer path
+  const DELTA_WEIGHT = 15;
   const COVERAGE_WEIGHT = 2;
   const ADJACENCY_WEIGHT = 3;
   const PROXIMITY_WEIGHT = 1;
@@ -252,28 +301,41 @@ function scoreUnifiedCandidates(
     pathSet.add(`${cell.x},${cell.y}`);
   }
 
-  // Collect candidates: on/near path + adjacent to existing towers
+  // Collect candidates
   const candidateSet = new Set<string>();
 
-  // Cells on the path
-  for (const cell of currentPath) {
-    if (cell.x >= xMin && cell.x <= xMax && !isInSpawnZone(cell.x, cell.y)) {
-      candidateSet.add(`${cell.x},${cell.y}`);
+  if (minSpacing > 0) {
+    // Spacing mode (intestine growth): consider ALL empty cells in zone
+    // This matches the sandbox behavior that produced the intestine pattern
+    for (let y = 0; y < GRID.HEIGHT; y++) {
+      for (let x = xMin; x <= xMax; x++) {
+        if (state.grid.cells[y][x] !== CellType.EMPTY) continue;
+        if (isInSpawnZone(x, y)) continue;
+        candidateSet.add(`${x},${y}`);
+      }
     }
-  }
+  } else {
+    // Dense mode (early game): narrow candidate set for focused building
+    // Cells on the path
+    for (const cell of currentPath) {
+      if (cell.x >= xMin && cell.x <= xMax && !isInSpawnZone(cell.x, cell.y)) {
+        candidateSet.add(`${cell.x},${cell.y}`);
+      }
+    }
 
-  // Cells within 3 of path
-  for (const cell of currentPath) {
-    for (let dx = -3; dx <= 3; dx++) {
-      for (let dy = -3; dy <= 3; dy++) {
-        if (dx === 0 && dy === 0) continue;
-        if (Math.abs(dx) + Math.abs(dy) > 3) continue;
-        const nx = cell.x + dx;
-        const ny = cell.y + dy;
-        if (nx < xMin || nx > xMax || ny < 0 || ny >= GRID.HEIGHT) continue;
-        if (state.grid.cells[ny][nx] !== CellType.EMPTY) continue;
-        if (isInSpawnZone(nx, ny)) continue;
-        candidateSet.add(`${nx},${ny}`);
+    // Cells within 3 of path
+    for (const cell of currentPath) {
+      for (let dx = -3; dx <= 3; dx++) {
+        for (let dy = -3; dy <= 3; dy++) {
+          if (dx === 0 && dy === 0) continue;
+          if (Math.abs(dx) + Math.abs(dy) > 3) continue;
+          const nx = cell.x + dx;
+          const ny = cell.y + dy;
+          if (nx < xMin || nx > xMax || ny < 0 || ny >= GRID.HEIGHT) continue;
+          if (state.grid.cells[ny][nx] !== CellType.EMPTY) continue;
+          if (isInSpawnZone(nx, ny)) continue;
+          candidateSet.add(`${nx},${ny}`);
+        }
       }
     }
   }
@@ -301,6 +363,22 @@ function scoreUnifiedCandidates(
     const y = parseInt(yStr);
 
     if (state.grid.cells[y][x] !== CellType.EMPTY) continue;
+
+    // Spacing constraint: Manhattan distance to nearest tower
+    if (minSpacing > 0) {
+      let tooClose = false;
+      for (let dy2 = -minSpacing + 1; dy2 < minSpacing && !tooClose; dy2++) {
+        for (let dx2 = -minSpacing + 1; dx2 < minSpacing && !tooClose; dx2++) {
+          if (dx2 === 0 && dy2 === 0) continue;
+          if (Math.abs(dx2) + Math.abs(dy2) >= minSpacing) continue;
+          const nx2 = x + dx2, ny2 = y + dy2;
+          if (nx2 >= 0 && nx2 < GRID.WIDTH && ny2 >= 0 && ny2 < GRID.HEIGHT) {
+            if (state.grid.cells[ny2][nx2] === CellType.TOWER) tooClose = true;
+          }
+        }
+      }
+      if (tooClose) continue;
+    }
 
     // Path delta
     state.grid.cells[y][x] = CellType.TOWER;
@@ -343,11 +421,16 @@ function scoreUnifiedCandidates(
   }
 
   // Lexicographic sort: delta>0 ALWAYS first (path extension priority),
-  // then by composite score within each tier.
+  // then within delta>0: prefer leftmost column (intestine pattern),
+  // then by composite score as tiebreaker.
   results.sort((a, b) => {
     const aTier = a.delta > 0 ? 1 : 0;
     const bTier = b.delta > 0 ? 1 : 0;
     if (aTier !== bTier) return bTier - aTier;
+    if (aTier === 1 && bTier === 1 && leftBias > 0) {
+      // Both delta>0: prefer leftmost column
+      if (a.x !== b.x) return a.x - b.x;
+    }
     return b.score - a.score;
   });
   return results;

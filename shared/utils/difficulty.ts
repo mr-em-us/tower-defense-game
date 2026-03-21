@@ -159,7 +159,8 @@ export const EASY_SETTINGS: GameSettings = {
   towerOverrides: {},
   enemyOverrides: {},
   aiEnabled: false,
-  aiDifficulty: AIDifficulty.MEDIUM,
+  aiDifficulty: AIDifficulty.HARD,
+  startWave: 1,
 };
 
 export const HARD_SETTINGS: GameSettings = {
@@ -175,5 +176,6 @@ export const HARD_SETTINGS: GameSettings = {
   towerOverrides: {},
   enemyOverrides: {},
   aiEnabled: false,
-  aiDifficulty: AIDifficulty.MEDIUM,
+  aiDifficulty: AIDifficulty.HARD,
+  startWave: 1,
 };

@@ -62,6 +62,7 @@ export class LeaderboardStore {
       gameMode: r.gameMode,
       timestamp: r.timestamp,
       settings: r.settings,
+      aiDefeatedCount: r.aiDefeatedCount,
     }));
   }
 

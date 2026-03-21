@@ -38,6 +38,10 @@ export class TowerSystem {
       tower.lastFireTime = this.gameTime;
       tower.ammo--;
 
+      // Track ammo usage per player
+      const econ = state.waveEconomy[tower.ownerId];
+      if (econ) { econ.ammoUsed++; econ.shotsFired++; }
+
       // Create projectile
       const projectile: Projectile = {
         id: uuid(),

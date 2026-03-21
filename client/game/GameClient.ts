@@ -204,6 +204,15 @@ export class GameClient {
     return this.gameState.players[this.playerId]?.autoRepairEnabled ?? false;
   }
 
+  toggleAutoRestock(): void {
+    this.network.send({ type: 'TOGGLE_AUTO_RESTOCK' });
+  }
+
+  isAutoRestockEnabled(): boolean {
+    if (!this.gameState || !this.playerId) return false;
+    return this.gameState.players[this.playerId]?.autoRestockEnabled ?? false;
+  }
+
   toggleFastMode(): void {
     this.network.send({ type: 'TOGGLE_FAST_MODE' });
   }
@@ -361,6 +370,9 @@ export class GameClient {
         this.showError(msg.reason);
         this.sound.actionFailed();
         break;
+      case 'AI_DEFEATED':
+        this.showAIDefeatedModal(msg.defeatCount, msg.aiName, msg.wave, msg.newAiName, msg.newBudget);
+        break;
     }
   }
 
@@ -448,6 +460,29 @@ export class GameClient {
         break;
       }
     }
+  }
+
+  private showAIDefeatedModal(defeatCount: number, aiName: string, wave: number, newAiName: string, newBudget: number): void {
+    // Use a dedicated modal that won't get clobbered by HUD updates
+    let modal = document.getElementById('ai-defeated-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'ai-defeated-modal';
+      modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.92);border:2px solid #4ADE80;border-radius:12px;padding:32px 48px;z-index:9999;text-align:center;font-family:"DM Mono",monospace;color:#fff;pointer-events:none;';
+      document.body.appendChild(modal);
+    }
+    modal.style.display = 'block';
+    modal.innerHTML = `
+      <div style="font-size:24px;font-weight:bold;color:#4ADE80;margin-bottom:12px">AI DEFEATED x${defeatCount}</div>
+      <div>You outlasted <strong>${aiName}</strong> past wave ${wave}!</div>
+      <div style="margin-top:12px;opacity:0.7">A new challenger approaches...</div>
+      <div style="margin-top:8px"><span style="color:#F59E0B;font-weight:bold">${newAiName}</span> enters with a budget of <span style="color:#4ADE80">${newBudget.toLocaleString()}c</span></div>
+      <div style="margin-top:16px;opacity:0.5;font-style:italic">How long can you survive?</div>
+    `;
+
+    setTimeout(() => {
+      modal.style.display = 'none';
+    }, 5000);
   }
 
   private showError(message: string): void {

@@ -115,7 +115,7 @@ export class LeaderboardPanel {
     // Header
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
-    const headers = ['Rank', 'Player', 'Best Wave', 'Difficulty', 'Score', 'Date', ''];
+    const headers = ['Rank', 'Player', 'Best Wave', 'AI Kills', 'Difficulty', 'Score', 'Date', ''];
     for (const h of headers) {
       const th = document.createElement('th');
       th.textContent = h;
@@ -147,6 +147,12 @@ export class LeaderboardPanel {
       const waveTd = document.createElement('td');
       waveTd.textContent = String(entry.bestWave);
       tr.appendChild(waveTd);
+
+      // AI Kills
+      const aiTd = document.createElement('td');
+      aiTd.textContent = entry.aiDefeatedCount ? String(entry.aiDefeatedCount) : '—';
+      if (entry.aiDefeatedCount && entry.aiDefeatedCount > 0) aiTd.style.color = '#FBBF24';
+      tr.appendChild(aiTd);
 
       // Difficulty
       const diffTd = document.createElement('td');

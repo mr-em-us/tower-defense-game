@@ -110,6 +110,7 @@ export interface Player {
   maxHealth: number;
   isReady: boolean;
   autoRepairEnabled: boolean;
+  autoRestockEnabled: boolean;
   autoRebuildEnabled: boolean;
   requestedSpeed: number;  // 1 = normal, 2 = fast, 4 = turbo
   isAI: boolean;
@@ -146,6 +147,8 @@ export interface WaveEconomy {
   repairCosts: number;
   restockCosts: number;
   maintenanceCosts: number;
+  ammoUsed: number;
+  shotsFired: number;
 }
 
 export interface GridState {
@@ -178,6 +181,8 @@ export interface GameState {
   settings: GameSettings;
   waveEconomy: Record<string, WaveEconomy>;
   airWaveCountdown: number; // -1 = no air scheduled, 0 = this wave has air, 1-3 = air in N waves
+  aiDefeatedCount: number;  // how many times the human has defeated the AI
+  pendingAiRespawn?: { aiName: string; newAiName: string; wave: number; newBudget: number }; // set by PhaseSystem, consumed by GameRoom
 }
 
 export interface TowerStatOverrides {
@@ -210,4 +215,5 @@ export interface GameSettings {
   enemyOverrides: Partial<Record<EnemyType, Partial<EnemyStatOverrides>>>;
   aiEnabled: boolean;
   aiDifficulty: AIDifficulty;
+  startWave: number;
 }

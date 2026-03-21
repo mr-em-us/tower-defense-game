@@ -61,32 +61,26 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
     updateDifficultyIndicator();
 
     const aiToggle = document.getElementById('ai-toggle') as HTMLInputElement;
-    const aiDiffSelect = document.getElementById('ai-difficulty') as HTMLSelectElement;
-
-    // Show/hide difficulty dropdown when checkbox toggled
-    const onAIToggle = () => {
-      aiDiffSelect.style.display = aiToggle.checked ? '' : 'none';
-    };
-    aiToggle.addEventListener('change', onAIToggle);
+    const startWaveSelect = document.getElementById('start-wave-select') as HTMLSelectElement;
 
     const onSingle = () => {
       currentSettings.aiEnabled = aiToggle.checked;
-      if (aiToggle.checked) {
-        currentSettings.aiDifficulty = (aiDiffSelect.value as AIDifficulty) || AIDifficulty.MEDIUM;
-      }
+      currentSettings.aiDifficulty = AIDifficulty.HARD;
+      currentSettings.startWave = parseInt(startWaveSelect.value) || 1;
       menu.classList.add('hidden');
       cleanup();
       resolve({ type: 'new', gameMode: GameMode.SINGLE });
     };
     const onMulti = () => {
+      currentSettings.startWave = parseInt(startWaveSelect.value) || 1;
       menu.classList.add('hidden');
       cleanup();
       resolve({ type: 'new', gameMode: GameMode.MULTI });
     };
     const onObserver = () => {
-      const obsDiffSelect = document.getElementById('observer-difficulty') as HTMLSelectElement;
       currentSettings.aiEnabled = true;
-      currentSettings.aiDifficulty = (obsDiffSelect.value as AIDifficulty) || AIDifficulty.HARD;
+      currentSettings.aiDifficulty = AIDifficulty.HARD;
+      currentSettings.startWave = parseInt(startWaveSelect.value) || 1;
       menu.classList.add('hidden');
       cleanup();
       resolve({ type: 'new', gameMode: GameMode.OBSERVER });
@@ -156,7 +150,6 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
       btnSingle.removeEventListener('click', onSingle);
       btnMulti.removeEventListener('click', onMulti);
       btnObserver.removeEventListener('click', onObserver);
-      aiToggle.removeEventListener('change', onAIToggle);
       btnSettings.removeEventListener('click', onSettings);
       btnLeaderboard.removeEventListener('click', onLeaderboard);
       btnLoadSave.removeEventListener('click', onLoadSave);
@@ -169,11 +162,16 @@ function applyResponsiveScaling(canvas: HTMLCanvasElement): void {
   const gameWidth = GRID.WIDTH * GRID.CELL_SIZE;
   const gameHeight = GRID.HEIGHT * GRID.CELL_SIZE;
   const availWidth = window.innerWidth;
-  const availHeight = window.innerHeight;
+  // Reserve space for HUD (top) and tower bar + action bar (bottom)
+  const hudHeight = document.getElementById('hud')?.offsetHeight || 48;
+  const towerBar = document.getElementById('tower-bar');
+  // Use max of measured height and a safe minimum to prevent overlap
+  const towerBarHeight = Math.max(towerBar?.offsetHeight || 0, 90);
+  const availHeight = window.innerHeight - hudHeight - towerBarHeight;
   const scale = Math.min(availWidth / gameWidth, availHeight / gameHeight);
   canvas.style.width = `${gameWidth * scale}px`;
   canvas.style.height = `${gameHeight * scale}px`;
-  canvas.style.marginTop = `${Math.max(0, (availHeight - gameHeight * scale) / 2)}px`;
+  canvas.style.marginTop = `${hudHeight + Math.max(0, (availHeight - gameHeight * scale) / 2)}px`;
 }
 
 async function main(): Promise<void> {
@@ -185,6 +183,9 @@ async function main(): Promise<void> {
 
   applyResponsiveScaling(canvas);
   window.addEventListener('resize', () => applyResponsiveScaling(canvas));
+  // Re-run after UI elements render (tower bar height may change)
+  setTimeout(() => applyResponsiveScaling(canvas), 500);
+  setTimeout(() => applyResponsiveScaling(canvas), 2000);
 
   const playerName = await usernamePanel.show();
   settingsPanel.setUsername(playerName);

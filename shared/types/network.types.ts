@@ -16,6 +16,7 @@ export type ClientMessage =
   | { type: 'SET_STARTING_CREDITS'; credits: number }
   | { type: 'SET_GAME_SETTINGS'; settings: GameSettings }
   | { type: 'TOGGLE_AUTO_REPAIR' }
+  | { type: 'TOGGLE_AUTO_RESTOCK' }
   | { type: 'TOGGLE_AUTO_REBUILD' }
   | { type: 'TOGGLE_FAST_MODE' }
   | { type: 'LOAD_SAVE'; saveId: string };
@@ -28,4 +29,5 @@ export type ServerMessage =
   | { type: 'TOWER_PLACED'; towerId: string }
   | { type: 'ACTION_FAILED'; reason: string }
   | { type: 'PLAYER_DISCONNECTED'; playerId: string }
-  | { type: 'GAME_OVER'; winnerId: string | null; finalWave: number; waveStats: WaveStats[] };
+  | { type: 'GAME_OVER'; winnerId: string | null; finalWave: number; waveStats: WaveStats[] }
+  | { type: 'AI_DEFEATED'; defeatCount: number; aiName: string; wave: number; newAiName: string; newBudget: number };

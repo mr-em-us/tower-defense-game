@@ -12,19 +12,22 @@
     "dev:server": "npx tsx server/index.ts",
     "dev:client": "npx esbuild client/main.ts --bundle --outfile=dist/client/bundle.js --format=esm --platform=browser --tsconfig=tsconfig.client.json --watch --servedir=dist/client",
     "dev": "npm run build && concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "tunnel": "npm run build && concurrently \"npm start\" \"npx localtunnel --port 9090\""
+    "tunnel": "npm run build && concurrently \"npm start\" \"npx localtunnel --port 9090\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "ws": "^8.16.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "ws": "^8.16.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.10",
-    "@types/uuid": "^9.0.7",
     "@types/node": "^20.10.0",
-    "typescript": "^5.3.0",
+    "@types/uuid": "^9.0.7",
+    "@types/ws": "^8.5.10",
+    "concurrently": "^8.2.0",
     "esbuild": "^0.19.0",
     "tsx": "^4.7.0",
-    "concurrently": "^8.2.0"
+    "typescript": "^5.3.0",
+    "vitest": "^4.1.1"
   }
 }

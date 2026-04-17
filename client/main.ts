@@ -13,6 +13,9 @@ import { SavePanel } from './ui/SavePanel.js';
 import { TemplatePanel } from './ui/TemplatePanel.js';
 import { TowerTemplate } from './data/TemplateStore.js';
 
+// Injected by scripts/build-client.mjs via esbuild --define.
+declare const __VERSION__: string;
+
 const HUD_HEIGHT = window.innerWidth <= 900 ? 36 : 48;
 
 function getServerUrl(): string {
@@ -222,6 +225,9 @@ function applyResponsiveScaling(canvas: HTMLCanvasElement): void {
 }
 
 async function main(): Promise<void> {
+  const versionEl = document.getElementById('version-stamp');
+  if (versionEl) versionEl.textContent = __VERSION__;
+
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
   const ctx = canvas.getContext('2d')!;
 

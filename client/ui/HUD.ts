@@ -696,13 +696,13 @@ export class HUD {
     const saveTplBtn = document.createElement('button');
     saveTplBtn.id = 'save-tpl-btn';
     saveTplBtn.className = 'action-btn';
-    saveTplBtn.textContent = 'Save Tpl';
+    saveTplBtn.textContent = 'Save Template';
     saveTplBtn.title = 'Save the current tower layout as a reusable template (localStorage).';
     saveTplBtn.addEventListener('click', () => {
       const success = this.gameClient.saveCurrentAsTemplate();
       if (success) {
         saveTplBtn.textContent = 'Saved!';
-        setTimeout(() => { saveTplBtn.textContent = 'Save Tpl'; }, 1500);
+        setTimeout(() => { saveTplBtn.textContent = 'Save Template'; }, 1500);
       }
     });
     rightGroup.appendChild(saveTplBtn);

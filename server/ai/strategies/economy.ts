@@ -1,5 +1,6 @@
 import { GameState, TowerType, Tower } from '../../../shared/types/game.types.js';
-import { TOWER_STATS, REPAIR_COST_RATIO, AI, PRICE_ESCALATION, MIN_DYNAMIC_PRICE } from '../../../shared/types/constants.js';
+import { TOWER_STATS, AI, PRICE_ESCALATION, MIN_DYNAMIC_PRICE } from '../../../shared/types/constants.js';
+import { computeRepairCost } from '../../../shared/utils/economy.js';
 import { ClientMessage } from '../../../shared/types/network.types.js';
 
 export interface EconomyPlan {
@@ -46,9 +47,7 @@ export function planEconomy(
 
   for (const tower of ownedTowers) {
     if (tower.health < tower.maxHealth) {
-      const stats = TOWER_STATS[tower.type];
-      const damageRatio = 1 - tower.health / tower.maxHealth;
-      repairCost += Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+      repairCost += computeRepairCost(tower.type, tower.health, tower.maxHealth);
     }
     if (tower.ammo < tower.maxAmmo) {
       const stats = TOWER_STATS[tower.type];

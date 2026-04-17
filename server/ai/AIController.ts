@@ -1,7 +1,8 @@
 import { GameState, GamePhase, PlayerSide, AIDifficulty, TowerType, CellType } from '../../shared/types/game.types.js';
 import { ClientMessage } from '../../shared/types/network.types.js';
-import { AI, GRID, TOWER_STATS, REPAIR_COST_RATIO } from '../../shared/types/constants.js';
+import { AI, GRID, TOWER_STATS } from '../../shared/types/constants.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
+import { computeRepairCost } from '../../shared/utils/economy.js';
 import { planEconomy, getMaintenanceActions, getUpgradeActions, getDynamicPrice } from './strategies/economy.js';
 import { generateMazeLayout } from './strategies/maze.js';
 import { log } from '../utils/logger.js';
@@ -81,9 +82,7 @@ export class AIController {
       if (action.type === 'REPAIR_TOWER') {
         const tower = state.towers[(action as { towerId: string }).towerId];
         if (tower) {
-          const stats = TOWER_STATS[tower.type];
-          const damageRatio = 1 - tower.health / tower.maxHealth;
-          maintenanceBudget -= Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+          maintenanceBudget -= computeRepairCost(tower.type, tower.health, tower.maxHealth);
         }
       } else if (action.type === 'RESTOCK_TOWER') {
         const tower = state.towers[(action as { towerId: string }).towerId];
@@ -183,9 +182,7 @@ export class AIController {
       .sort((a, b) => (a.health / a.maxHealth) - (b.health / b.maxHealth))[0];
 
     if (criticalTower) {
-      const stats = TOWER_STATS[criticalTower.type];
-      const damageRatio = 1 - criticalTower.health / criticalTower.maxHealth;
-      const cost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+      const cost = computeRepairCost(criticalTower.type, criticalTower.health, criticalTower.maxHealth);
       if (player.credits >= cost) {
         return { type: 'REPAIR_TOWER', towerId: criticalTower.id };
       }

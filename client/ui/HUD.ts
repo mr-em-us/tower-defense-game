@@ -614,7 +614,7 @@ export class HUD {
       if (type === TowerType.AA) {
         btn.title = `AA — ${stats.damage} ground / ${stats.damage * 3} air dmg\nRange: ${stats.range} | Rate: ${stats.fireRate}/s\nAmmo: ${stats.maxAmmo}`;
       } else if (type === TowerType.WALL) {
-        btn.title = `Wall — HP: ${stats.maxHealth}\nBlocks enemy paths`;
+        btn.title = `Wall — HP: ${stats.maxHealth}\nBlocks enemy paths\nRepair: FREE (replacement still costs ${stats.cost}c)`;
       } else {
         btn.title = `${TOWER_LABELS[type]} — ${stats.damage} dmg\nRange: ${stats.range} | Rate: ${stats.fireRate}/s\nAmmo: ${stats.maxAmmo}`;
       }

@@ -7,6 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GamePhase, GameMode, PlayerSide, CellType, TowerType } from '../../../shared/types/game.types.js';
 import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION, MIN_DYNAMIC_PRICE, DEFAULT_GAME_SETTINGS } from '../../../shared/types/constants.js';
+import { computeRepairCost } from '../../../shared/utils/economy.js';
 import { validateTowerPlacement } from '../../../shared/logic/pathfinding.js';
 import { createGameState, createPlayer, createTower, placeTowerOnGrid, createWaveEconomy, createSettings } from '../../helpers.js';
 
@@ -84,23 +85,26 @@ describe('Tower sell logic', () => {
 describe('Tower repair logic', () => {
   it('repair cost scales with damage ratio', () => {
     const stats = TOWER_STATS[TowerType.BASIC];
-    // 50% damaged
-    const damageRatio = 0.5;
-    const cost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+    const cost = computeRepairCost(TowerType.BASIC, stats.maxHealth * 0.5, stats.maxHealth);
     expect(cost).toBe(Math.ceil(0.5 * stats.cost * REPAIR_COST_RATIO));
   });
 
   it('repair cost is 0 for undamaged tower', () => {
-    const damageRatio = 0;
-    const cost = Math.ceil(damageRatio * TOWER_STATS[TowerType.BASIC].cost * REPAIR_COST_RATIO);
-    expect(cost).toBe(0);
+    const stats = TOWER_STATS[TowerType.BASIC];
+    expect(computeRepairCost(TowerType.BASIC, stats.maxHealth, stats.maxHealth)).toBe(0);
   });
 
   it('fully damaged tower costs 50% of base cost to repair', () => {
     const stats = TOWER_STATS[TowerType.BASIC];
-    const damageRatio = 1.0;
-    const cost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
-    expect(cost).toBe(Math.ceil(stats.cost * REPAIR_COST_RATIO));
+    expect(computeRepairCost(TowerType.BASIC, 0, stats.maxHealth))
+      .toBe(Math.ceil(stats.cost * REPAIR_COST_RATIO));
+  });
+
+  it('walls repair free at any damage level', () => {
+    const stats = TOWER_STATS[TowerType.WALL];
+    expect(computeRepairCost(TowerType.WALL, 0, stats.maxHealth)).toBe(0);
+    expect(computeRepairCost(TowerType.WALL, 1, stats.maxHealth)).toBe(0);
+    expect(computeRepairCost(TowerType.WALL, stats.maxHealth * 0.5, stats.maxHealth)).toBe(0);
   });
 });
 

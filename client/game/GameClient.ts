@@ -1,7 +1,8 @@
 import { GameState, GameMode, GameSettings, PlayerSide, TowerType, EnemyType, GridCell, GamePhase, WaveStats } from '../../shared/types/game.types.js';
 import { ServerMessage } from '../../shared/types/network.types.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
-import { TOWER_STATS, PRICE_ESCALATION, REPAIR_COST_RATIO } from '../../shared/types/constants.js';
+import { TOWER_STATS, PRICE_ESCALATION } from '../../shared/types/constants.js';
+import { computeRepairCost } from '../../shared/utils/economy.js';
 import { NetworkClient } from '../network/NetworkClient.js';
 import { SoundManager } from '../audio/SoundManager.js';
 import { StatsTracker } from './StatsTracker.js';
@@ -344,9 +345,7 @@ export class GameClient {
     if (!this.gameState) return null;
     const tower = this.gameState.towers[towerId];
     if (!tower || tower.health >= tower.maxHealth) return null;
-    const stats = TOWER_STATS[tower.type];
-    const damageRatio = 1 - tower.health / tower.maxHealth;
-    return Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+    return computeRepairCost(tower.type, tower.health, tower.maxHealth);
   }
 
   getUpgradeCost(towerId: string): number | null {

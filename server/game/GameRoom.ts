@@ -4,7 +4,7 @@ import {
   GameState, GamePhase, GameMode, Player, PlayerSide,
   CellType, TowerType, Tower, GameSettings, WaveStats, WaveEconomy, AIDifficulty,
 } from '../../shared/types/game.types.js';
-import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, PRICE_ESCALATION, MIN_DYNAMIC_PRICE, DEFAULT_GAME_SETTINGS } from '../../shared/types/constants.js';
+import { GRID, GAME, TOWER_STATS, SELL_REFUND_RATIO, PRICE_ESCALATION, MIN_DYNAMIC_PRICE, DEFAULT_GAME_SETTINGS } from '../../shared/types/constants.js';
 import { AIController } from '../ai/AIController.js';
 import { pickAIName } from '../ai/names.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
@@ -18,6 +18,7 @@ import { TowerSystem } from '../systems/TowerSystem.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
 import { EnemySpatialIndex } from './SpatialIndex.js';
 import { createTower } from './towerFactory.js';
+import { computeRepairCost } from '../../shared/utils/economy.js';
 import { log } from '../utils/logger.js';
 
 export class GameRoom {
@@ -803,9 +804,7 @@ export class GameRoom {
       return;
     }
 
-    const stats = TOWER_STATS[tower.type];
-    const damageRatio = 1 - tower.health / tower.maxHealth;
-    const cost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+    const cost = computeRepairCost(tower.type, tower.health, tower.maxHealth);
 
     if (player.credits < cost) {
       this.sendTo(playerId, { type: 'ACTION_FAILED', reason: 'Not enough credits' });
@@ -917,8 +916,7 @@ export class GameRoom {
 
       // Repair if damaged
       if (tower.health < tower.maxHealth) {
-        const damageRatio = 1 - tower.health / tower.maxHealth;
-        const repairCost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+        const repairCost = computeRepairCost(tower.type, tower.health, tower.maxHealth);
         if (player.credits >= repairCost) {
           player.credits -= repairCost;
           if (this.currentWaveStats) this.currentWaveStats.creditsSpent += repairCost;
@@ -1075,11 +1073,10 @@ export class GameRoom {
         }
       }
 
-      if (player.credits <= AUTO_REPAIR_RESERVE) {
-        if (!player.isAI && wantsRepair) {
-          log(`[AUTO-REPAIR] ${player.name}: SKIPPED — credits ${Math.round(player.credits)}c <= reserve ${AUTO_REPAIR_RESERVE}c`);
-        }
-        continue;
+      const belowReserve = player.credits <= AUTO_REPAIR_RESERVE;
+      if (belowReserve && !player.isAI && wantsRepair) {
+        // Paid repairs and restock will skip; free wall repairs still run below.
+        log(`[AUTO-REPAIR] ${player.name}: BELOW-RESERVE ${Math.round(player.credits)}c <= ${AUTO_REPAIR_RESERVE}c — walls still repair free`);
       }
 
       const econ = this.getPlayerEconomy(player.id);
@@ -1112,10 +1109,13 @@ export class GameRoom {
       let repaired = 0;
       let skippedCost = 0;
       for (const tower of damagedTowers) {
-        if (player.credits <= AUTO_REPAIR_RESERVE) break;
-        const stats = TOWER_STATS[tower.type];
-        const damageRatio = 1 - tower.health / tower.maxHealth;
-        const cost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+        const cost = computeRepairCost(tower.type, tower.health, tower.maxHealth);
+        // Free repairs (walls) always proceed, even below the reserve.
+        if (cost === 0) {
+          tower.health = tower.maxHealth;
+          repaired++;
+          continue;
+        }
         if (player.credits - cost >= AUTO_REPAIR_RESERVE) {
           player.credits -= cost;
           if (this.currentWaveStats) this.currentWaveStats.creditsSpent += cost;

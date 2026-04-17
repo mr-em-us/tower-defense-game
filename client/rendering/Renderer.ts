@@ -1,7 +1,8 @@
 import {
   GameState, GamePhase, PlayerSide, TowerType, CellType, GridCell,
 } from '../../shared/types/game.types.js';
-import { GRID, VISUAL, TOWER_STATS, SELL_REFUND_RATIO, REPAIR_COST_RATIO, CENTER_SPAWN, PRICE_ESCALATION } from '../../shared/types/constants.js';
+import { GRID, VISUAL, TOWER_STATS, SELL_REFUND_RATIO, CENTER_SPAWN, PRICE_ESCALATION } from '../../shared/types/constants.js';
+import { computeRepairCost } from '../../shared/utils/economy.js';
 import { findPath } from '../../shared/logic/pathfinding.js';
 import { TOWER_CHARS, getEnemyChar } from './AsciiArt.js';
 import { GameClient } from '../game/GameClient.js';
@@ -622,10 +623,10 @@ export class Renderer {
       ctx.fillText(`Ammo cost: ${stats.ammoCostPerRound.toLocaleString()}c/round`, panelX + 8, y); y += 16;
 
       if (hasDamage) {
-        const damageRatio = 1 - tower.health / tower.maxHealth;
-        const repairCost = Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
-        ctx.fillStyle = '#FBBF24';
-        ctx.fillText(`Repair: ${repairCost.toLocaleString()}c`, panelX + 8, y); y += 16;
+        const repairCost = computeRepairCost(tower.type, tower.health, tower.maxHealth);
+        ctx.fillStyle = repairCost === 0 ? '#4ADE80' : '#FBBF24';
+        const label = repairCost === 0 ? 'Repair: FREE' : `Repair: ${repairCost.toLocaleString()}c`;
+        ctx.fillText(label, panelX + 8, y); y += 16;
       }
 
       if (needsAmmo) {
@@ -644,10 +645,9 @@ export class Renderer {
 
       for (const t of towers) {
         const stats = TOWER_STATS[t.type];
-        // Repair cost
+        // Repair cost (walls are free — see shared/utils/economy.ts)
         if (t.health < t.maxHealth) {
-          const damageRatio = 1 - t.health / t.maxHealth;
-          totalRepairCost += Math.ceil(damageRatio * stats.cost * REPAIR_COST_RATIO);
+          totalRepairCost += computeRepairCost(t.type, t.health, t.maxHealth);
         }
         // Restock cost
         if (t.ammo < t.maxAmmo) {

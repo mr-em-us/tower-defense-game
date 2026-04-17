@@ -306,6 +306,10 @@ export class HUD {
     const readyBtn = document.getElementById('ready-btn');
     if (readyBtn) {
       readyBtn.classList.toggle('disabled', !isBuild);
+      const me = playerId ? state.players[playerId] : null;
+      const amReady = !!me?.isReady && isBuild;
+      readyBtn.classList.toggle('is-ready', amReady);
+      readyBtn.textContent = amReady ? 'Ready ✓' : 'Ready';
     }
 
     const saveBtn = document.getElementById('save-btn');

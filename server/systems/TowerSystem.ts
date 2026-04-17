@@ -1,13 +1,20 @@
-import { GameState, GamePhase, Projectile, Tower, Enemy, PlayerSide, TowerType, EnemyType } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, Projectile, Tower, Enemy, PlayerSide } from '../../shared/types/game.types.js';
 import { PROJECTILE_SPEED, TOWER_STATS, GRID } from '../../shared/types/constants.js';
-import { distance } from '../../shared/utils/math.js';
+import { EnemySpatialIndex } from '../game/SpatialIndex.js';
 import { v4 as uuid } from 'uuid';
 
 export class TowerSystem {
   private gameTime = 0;
 
-  update(state: GameState, dt: number, now: number): void {
+  update(state: GameState, dt: number, now: number, index?: EnemySpatialIndex): void {
     if (state.phase !== GamePhase.COMBAT) return;
+
+    // Tests may omit the index — build one on the fly
+    let idx = index;
+    if (!idx) {
+      idx = new EnemySpatialIndex();
+      idx.rebuild(state.enemies);
+    }
 
     // Use game-time (adjusted by gameSpeed) for fire timing,
     // not wall-clock. Wall-clock + speed-adjusted intervals cause
@@ -28,7 +35,7 @@ export class TowerSystem {
       const ownerSide = owner?.side ?? null;
 
       // Find closest enemy in range on the same half
-      const target = this.findTarget(tower, state, ownerSide);
+      const target = this.findTarget(tower, ownerSide, idx);
       if (!target) {
         tower.targetId = null;
         continue;
@@ -61,30 +68,26 @@ export class TowerSystem {
     }
   }
 
-  private findTarget(tower: Tower, state: GameState, ownerSide: PlayerSide | null): Enemy | null {
+  private findTarget(tower: Tower, ownerSide: PlayerSide | null, index: EnemySpatialIndex): Enemy | null {
     let closest: Enemy | null = null;
-    let closestDist = Infinity;
+    let closestDistSq = Infinity;
+    const tx = tower.position.x;
+    const ty = tower.position.y;
+    const rangeSq = tower.range * tower.range;
+    // Squared distance avoids sqrt per candidate.
 
-    for (const enemy of Object.values(state.enemies)) {
-      if (!enemy.spawned || enemy.health <= 0) continue;
-
-      // Non-AA towers deal reduced damage to flying (handled in ProjectileSystem)
-      // AA towers can target both ground and flying enemies
-
-      // Only target enemies on the tower owner's half of the board
-      if (ownerSide === PlayerSide.LEFT && enemy.position.x > GRID.LEFT_ZONE_END) continue;
-      if (ownerSide === PlayerSide.RIGHT && enemy.position.x < GRID.RIGHT_ZONE_START) continue;
-
-      const dist = distance(
-        { x: tower.position.x, y: tower.position.y },
-        enemy.position,
-      );
-
-      if (dist <= tower.range && dist < closestDist) {
+    index.forEachInRadius(tower.position, tower.range, (enemy) => {
+      if (enemy.health <= 0) return;
+      if (ownerSide === PlayerSide.LEFT && enemy.position.x > GRID.LEFT_ZONE_END) return;
+      if (ownerSide === PlayerSide.RIGHT && enemy.position.x < GRID.RIGHT_ZONE_START) return;
+      const dx = enemy.position.x - tx;
+      const dy = enemy.position.y - ty;
+      const dSq = dx * dx + dy * dy;
+      if (dSq <= rangeSq && dSq < closestDistSq) {
         closest = enemy;
-        closestDist = dist;
+        closestDistSq = dSq;
       }
-    }
+    });
 
     return closest;
   }

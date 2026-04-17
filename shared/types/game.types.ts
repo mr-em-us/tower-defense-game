@@ -183,6 +183,7 @@ export interface GameState {
   airWaveCountdown: number; // -1 = no air scheduled, 0 = this wave has air, 1-3 = air in N waves
   aiDefeatedCount: number;  // how many times the human has defeated the AI
   pendingAiRespawn?: { aiName: string; newAiName: string; wave: number; newBudget: number }; // set by PhaseSystem, consumed by GameRoom
+  gridVersion: number;  // incremented whenever a tower is placed or removed; used to invalidate path caches
 }
 
 export interface TowerStatOverrides {

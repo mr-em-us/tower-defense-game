@@ -1,4 +1,4 @@
-import { GameState, GamePhase, PlayerSide, CellType, EnemyType } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, PlayerSide, CellType, EnemyType, Tower } from '../../shared/types/game.types.js';
 import { ENEMY_STATS, GRID } from '../../shared/types/constants.js';
 
 const ADJ_DIRS = [
@@ -8,12 +8,21 @@ const ADJ_DIRS = [
   { x: -1, y: 0 },
 ];
 
+const MAX_TOWER_TRACES = 300;
+
 export class EnemySystem {
   update(state: GameState, dt: number): void {
     if (state.phase !== GamePhase.COMBAT) return;
 
     const toRemove: string[] = [];
-    const towersToRemove: string[] = [];
+    const towersToRemoveSet = new Set<string>();
+
+    // Build tower position lookup: "x,y" -> Tower. O(towers) once,
+    // then O(1) per enemy adjacency check instead of O(towers) linear scan.
+    const towerAt = new Map<number, Tower>();
+    for (const tower of Object.values(state.towers)) {
+      towerAt.set(tower.position.y * GRID.WIDTH + tower.position.x, tower);
+    }
 
     for (const enemy of Object.values(state.enemies)) {
       if (!enemy.spawned) continue;
@@ -45,15 +54,10 @@ export class EnemySystem {
           const ay = ey + dir.y;
           if (ax < 0 || ax >= GRID.WIDTH || ay < 0 || ay >= GRID.HEIGHT) continue;
 
-          // Find tower at this adjacent cell
-          for (const tower of Object.values(state.towers)) {
-            if (tower.position.x === ax && tower.position.y === ay) {
-              tower.health -= contactDmg;
-              if (tower.health <= 0 && !towersToRemove.includes(tower.id)) {
-                towersToRemove.push(tower.id);
-              }
-            }
-          }
+          const tower = towerAt.get(ay * GRID.WIDTH + ax);
+          if (!tower) continue;
+          tower.health -= contactDmg;
+          if (tower.health <= 0) towersToRemoveSet.add(tower.id);
         }
       }
 
@@ -88,18 +92,26 @@ export class EnemySystem {
     }
 
     // Remove destroyed towers (leave ghost traces)
-    for (const id of towersToRemove) {
-      const tower = state.towers[id];
-      if (tower) {
-        state.destroyedTowerTraces.push({
-          position: { x: tower.position.x, y: tower.position.y },
-          type: tower.type,
-          ownerId: tower.ownerId,
-        });
-        state.waveTowersDestroyed++;
-        state.grid.cells[tower.position.y][tower.position.x] = CellType.EMPTY;
-        delete state.towers[id];
+    if (towersToRemoveSet.size > 0) {
+      for (const id of towersToRemoveSet) {
+        const tower = state.towers[id];
+        if (tower) {
+          state.destroyedTowerTraces.push({
+            position: { x: tower.position.x, y: tower.position.y },
+            type: tower.type,
+            ownerId: tower.ownerId,
+          });
+          state.waveTowersDestroyed++;
+          state.grid.cells[tower.position.y][tower.position.x] = CellType.EMPTY;
+          delete state.towers[id];
+        }
       }
+      // Cap traces to avoid unbounded growth in long games
+      if (state.destroyedTowerTraces.length > MAX_TOWER_TRACES) {
+        state.destroyedTowerTraces.splice(0, state.destroyedTowerTraces.length - MAX_TOWER_TRACES);
+      }
+      // Signal path-cache invalidation for new enemy spawns
+      state.gridVersion++;
     }
   }
 

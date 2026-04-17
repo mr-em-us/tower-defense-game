@@ -16,6 +16,7 @@ import { WaveSystem } from '../systems/WaveSystem.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { TowerSystem } from '../systems/TowerSystem.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
+import { EnemySpatialIndex } from './SpatialIndex.js';
 import { log } from '../utils/logger.js';
 
 export class GameRoom {
@@ -32,6 +33,7 @@ export class GameRoom {
   private enemySystem = new EnemySystem();
   private towerSystem = new TowerSystem();
   private projectileSystem = new ProjectileSystem();
+  private spatialIndex = new EnemySpatialIndex();
 
   // Wave stats tracking
   private waveStatsHistory: WaveStats[] = [];
@@ -98,6 +100,7 @@ export class GameRoom {
     restored.waveEnemiesKilled = 0;
     restored.waveLeakedByType = {};
     restored.phase = GamePhase.BUILD;
+    if (typeof restored.gridVersion !== 'number') restored.gridVersion = 0;
 
     room.state = restored;
     room.connections.set(newPlayerId, ws);
@@ -155,6 +158,7 @@ export class GameRoom {
       waveEconomy: {},
       airWaveCountdown: -1,
       aiDefeatedCount: 0,
+      gridVersion: 0,
     };
   }
 
@@ -335,8 +339,12 @@ export class GameRoom {
     this.phaseSystem.update(this.state, adjustedDt);
     this.waveSystem.update(this.state, adjustedDt);
     this.enemySystem.update(this.state, adjustedDt);
-    this.towerSystem.update(this.state, adjustedDt, now);
-    this.projectileSystem.update(this.state, adjustedDt);
+    // Rebuild spatial index once after enemy movement, reused by tower + projectile systems
+    if (this.state.phase === GamePhase.COMBAT) {
+      this.spatialIndex.rebuild(this.state.enemies);
+    }
+    this.towerSystem.update(this.state, adjustedDt, now, this.spatialIndex);
+    this.projectileSystem.update(this.state, adjustedDt, this.spatialIndex);
     const elapsed = performance.now() - t0;
     this.tickCounter++;
     if (this.tickCounter % 200 === 0) {
@@ -637,6 +645,7 @@ export class GameRoom {
     }
     this.state.towers[tower.id] = tower;
     this.state.grid.cells[y][x] = CellType.TOWER;
+    this.state.gridVersion++;
     // Clear any ghost trace at this position
     this.state.destroyedTowerTraces = this.state.destroyedTowerTraces.filter(
       t => !(t.position.x === x && t.position.y === y)
@@ -781,6 +790,7 @@ export class GameRoom {
 
     this.state.grid.cells[tower.position.y][tower.position.x] = CellType.EMPTY;
     delete this.state.towers[towerId];
+    this.state.gridVersion++;
   }
 
   private handleRepairTower(playerId: string, towerId: string): void {
@@ -1064,7 +1074,23 @@ export class GameRoom {
     for (const player of Object.values(this.state.players)) {
       const wantsRepair = player.autoRepairEnabled;
       const wantsRestock = player.autoRestockEnabled;
-      if ((!wantsRepair && !wantsRestock) || player.credits <= AUTO_REPAIR_RESERVE) continue;
+      if (!wantsRepair && !wantsRestock) continue;
+
+      // Log diagnostic info for human players
+      if (!player.isAI && (wantsRepair || wantsRestock)) {
+        const ownedTowers = Object.values(this.state.towers).filter(t => t.ownerId === player.id);
+        const damagedCount = ownedTowers.filter(t => t.health < t.maxHealth).length;
+        if (damagedCount > 0) {
+          log(`[AUTO-REPAIR] ${player.name}: repair=${wantsRepair} restock=${wantsRestock} credits=${Math.round(player.credits)}c reserve=${AUTO_REPAIR_RESERVE} damaged=${damagedCount}/${ownedTowers.length}`);
+        }
+      }
+
+      if (player.credits <= AUTO_REPAIR_RESERVE) {
+        if (!player.isAI && wantsRepair) {
+          log(`[AUTO-REPAIR] ${player.name}: SKIPPED — credits ${Math.round(player.credits)}c <= reserve ${AUTO_REPAIR_RESERVE}c`);
+        }
+        continue;
+      }
 
       const econ = this.getPlayerEconomy(player.id);
       const ownedTowers = Object.values(this.state.towers).filter(t => t.ownerId === player.id);
@@ -1093,6 +1119,8 @@ export class GameRoom {
           return (a.health / a.maxHealth) - (b.health / b.maxHealth);
         });
 
+      let repaired = 0;
+      let skippedCost = 0;
       for (const tower of damagedTowers) {
         if (player.credits <= AUTO_REPAIR_RESERVE) break;
         const stats = TOWER_STATS[tower.type];
@@ -1103,7 +1131,13 @@ export class GameRoom {
           if (this.currentWaveStats) this.currentWaveStats.creditsSpent += cost;
           econ.repairCosts += cost;
           tower.health = tower.maxHealth;
+          repaired++;
+        } else {
+          skippedCost++;
         }
+      }
+      if (!player.isAI && damagedTowers.length > 0) {
+        log(`[AUTO-REPAIR] ${player.name}: repaired=${repaired} skippedCost=${skippedCost} remaining=${damagedTowers.length - repaired - skippedCost} creditsAfter=${Math.round(player.credits)}c`);
       }
 
       // Restock: sort by ammo ratio ascending (least ammo first)

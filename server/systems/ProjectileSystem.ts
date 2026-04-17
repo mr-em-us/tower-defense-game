@@ -1,10 +1,17 @@
 import { GameState, GamePhase, TowerType, EnemyType } from '../../shared/types/game.types.js';
 import { ENEMY_STATS } from '../../shared/types/constants.js';
-import { distance } from '../../shared/utils/math.js';
+import { EnemySpatialIndex } from '../game/SpatialIndex.js';
 
 export class ProjectileSystem {
-  update(state: GameState, dt: number): void {
+  update(state: GameState, dt: number, index?: EnemySpatialIndex): void {
     if (state.phase !== GamePhase.COMBAT) return;
+
+    // Tests may omit the index — build one on the fly
+    let idx = index;
+    if (!idx) {
+      idx = new EnemySpatialIndex();
+      idx.rebuild(state.enemies);
+    }
 
     const toRemove: string[] = [];
 
@@ -30,13 +37,19 @@ export class ProjectileSystem {
           // AA splash only hits flying enemies
           const splashTower = proj.towerId ? state.towers[proj.towerId] : null;
           const isAASplash = splashTower?.type === TowerType.AA;
-          for (const enemy of Object.values(state.enemies)) {
-            if (enemy.id === proj.targetId) continue;
-            if (isAASplash && enemy.type !== EnemyType.FLYING) continue;
-            if (distance(enemy.position, proj.position) <= proj.splashRadius) {
-              this.applyDamage(state, enemy.id, Math.round(proj.damage * 0.5), proj.towerId);
+          const splashDmg = Math.round(proj.damage * 0.5);
+          const radiusSq = proj.splashRadius * proj.splashRadius;
+          const px = proj.position.x;
+          const py = proj.position.y;
+          idx.forEachInRadius(proj.position, proj.splashRadius, (enemy) => {
+            if (enemy.id === proj.targetId) return;
+            if (isAASplash && enemy.type !== EnemyType.FLYING) return;
+            const dx = enemy.position.x - px;
+            const dy = enemy.position.y - py;
+            if (dx * dx + dy * dy <= radiusSq) {
+              this.applyDamage(state, enemy.id, splashDmg, proj.towerId);
             }
-          }
+          });
         }
 
         // Slow effect - apply slow with duration tracking

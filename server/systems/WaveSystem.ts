@@ -1,4 +1,4 @@
-import { GameState, GamePhase, GameMode, Enemy, EnemyType, PlayerSide, GameSettings } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, GameMode, Enemy, EnemyType, PlayerSide, GameSettings, GridCell } from '../../shared/types/game.types.js';
 import { ENEMY_STATS, GOAL_ROWS, CENTER_SPAWN, GRID } from '../../shared/types/constants.js';
 import { findPath } from '../../shared/logic/pathfinding.js';
 import { v4 as uuid } from 'uuid';
@@ -69,6 +69,10 @@ export class WaveSystem {
   private spawnTimer = 0;
   private waveQueue: Array<{ type: EnemyType; side: PlayerSide; delay: number }> = [];
   private waveStarted = false;
+  // Path cache — avoids recomputing BFS for every enemy spawn.
+  // Invalidated when state.gridVersion changes (tower placed or destroyed).
+  private pathCache: Partial<Record<PlayerSide, GridCell[] | null>> = {};
+  private pathCacheVersion = -1;
 
   update(state: GameState, dt: number): void {
     if (state.phase !== GamePhase.COMBAT) {
@@ -161,7 +165,7 @@ export class WaveSystem {
     const contactDamage = stats.contactDamage * (overrides?.contactDamage ?? 1);
 
     // Flying enemies go straight from spawn to goal (no BFS pathfinding)
-    let path;
+    let path: GridCell[] | null | undefined;
     if (type === EnemyType.FLYING) {
       const goalRow = GOAL_ROWS[Math.floor(Math.random() * GOAL_ROWS.length)];
       const goalX = targetSide === PlayerSide.LEFT ? 0 : GRID.WIDTH - 1;
@@ -174,7 +178,18 @@ export class WaveSystem {
         { x: goalX, y: goalRow },
       ];
     } else {
-      path = findPath(state.grid, targetSide);
+      // Cache BFS per (gridVersion, side). Invalidate whole cache on any grid change.
+      if (state.gridVersion !== this.pathCacheVersion) {
+        this.pathCache = {};
+        this.pathCacheVersion = state.gridVersion;
+      }
+      let cached = this.pathCache[targetSide];
+      if (cached === undefined) {
+        cached = findPath(state.grid, targetSide);
+        this.pathCache[targetSide] = cached;
+      }
+      // Path waypoints are read-only; pathIndex lives on Enemy, so sharing is safe.
+      path = cached;
     }
     if (!path || path.length === 0) return;
 

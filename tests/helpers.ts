@@ -42,6 +42,7 @@ export function createGameState(overrides: Partial<GameState> = {}): GameState {
     waveEconomy: {},
     airWaveCountdown: -1,
     aiDefeatedCount: 0,
+    gridVersion: 0,
     ...overrides,
   };
 }
@@ -150,4 +151,5 @@ export function createSettings(overrides: Partial<GameSettings> = {}): GameSetti
 export function placeTowerOnGrid(state: GameState, tower: Tower): void {
   state.towers[tower.id] = tower;
   state.grid.cells[tower.position.y][tower.position.x] = CellType.TOWER;
+  state.gridVersion++;
 }

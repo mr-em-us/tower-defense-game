@@ -1,5 +1,20 @@
 # Session Log Archive
 
+## Session — 2026-04-16 (Perf overhaul, UX polish, tower templates, free wall repair)
+
+- 07:40 PM — Session resumed. Last save 2026-03-23 09:54 PM PST.
+- 07:50 PM — User reports late-wave crashes (~wave 15+). Spawned Explore agent to find server bottlenecks. Top 5: full-state broadcast, O(N*M) tower targeting, O(enemies × towers) contact damage, O(P × E) splash, per-enemy-spawn BFS + unbounded `destroyedTowerTraces`.
+- 08:15 PM — Shipped Tier 1+2 perf fix (commit cff12c1): EnemySpatialIndex, tower position map in EnemySystem, WaveSystem path cache keyed on `state.gridVersion`, trace cap at 300. Kept GameState broadcast format unchanged (no Tier 3 delta refactor). 192 tests pass.
+- 08:30 PM — Shipped UX + perf batch (f4cdaf2): real player names in HUD/charts, layered-oscillator air raid siren, slow towers now scale contact damage by speed ratio, HUD.update() dirty-checks state + client stamp (was 60Hz DOM churn), Renderer path preview cached per (gridVersion, hover, towerType).
+- 08:55 PM — Uncommitted legacy fixes preserved separately.
+- 09:00 PM — Session of improvements + template feature (a419a33): right-click clears selection, air-raid siren also plays on warning appearance, drawTowers/drawEnemies batched into passes (font/fillStyle changes cut drastically), TowerTrace now carries level so rebuild (auto + manual same-cell) restores upgrade level at base cost, tower bar no longer letterboxes canvas (overlay center-bottom), tower templates (save + load via localStorage, applied at first BUILD of a SP game).
+- 09:10 PM — Auto-version stamp via `scripts/build-client.mjs` (886dbb6) — esbuild `--define __VERSION__` from git short SHA + date. No more manual edits.
+- 09:25 PM — Ready button visual state (37c1843): bright saturated green + ✓ + glow when server has registered player as ready.
+- 09:40 PM — **Walls repair for free** (b25a681): all 11 repair-cost sites centralized in `shared/utils/economy.ts`. Walls return 0, non-walls same formula. Tooltip discloses "Repair: FREE (replacement still costs 25c)". Auto-repair no longer aborts below reserve — walls still heal free, paid repairs gated as before. New test locks in invariant. 193 tests pass.
+- 09:50 PM — Investigated splash cross-lane bug (NO FIX YET). Confirmed: direct fire is side-gated in `TowerSystem.findTarget`, but `ProjectileSystem` splash loop has no side filter. Cross-lane splash kills credit the firing tower's owner. Explains user's friend earning way more from splash near midline.
+- 09:53 PM — User documented future work: templates in MP (easy unblock), wall repair rebalance (free repair is too strong meta), cross-lane isolation invariant, laser tower design, three heatmaps, EU4-style map layers.
+
+
 ## Session — 2026-03-21 (Intestine Maze + AI Respawn + UI Overhaul)
 - Rebuilt sandbox as multi-algorithm testing platform (15 algorithms sweepable)
 - **Breakthrough: S=2 spacing + leftBias = path 380 intestine pattern** (vs 84 baseline)

@@ -1,38 +1,13 @@
-# Session — 2026-03-21
+# Session — 2026-04-16
 
-- 8:34 AM — Session started
-- 8:35 AM — Reworked sandbox.html layout for half-screen preview pane
-- 8:40 AM — Added Dev Sandbox link to main menu
-- 9:00 AM — Brainstormed maze improvement algorithms (simulated annealing, spacing, beam search, etc.)
-- 9:15 AM — Rebuilt sandbox as multi-algorithm testing platform (15 algorithms)
-- 9:30 AM — **KEY FINDING: S=2 spacing = path 98 (+14 over baseline 84)**
-- 9:40 AM — Added rightward penalty / column frontier / left bias algorithms to sandbox
-- 9:50 AM — **S=2 + LeftBias=50 at 500 towers = path 380! Beautiful intestine pattern**
-- 10:00 AM — Integrated S=2 spacing + leftBias into game's maze.ts
-- 10:10 AM — Fixed leftBias bug (was making scores negative, breaking wave 1)
-- 10:15 AM — Added ROI-based tower type selection (WALL where enemies don't pass, best DPS/cost where they do)
-- 10:20 AM — Fixed coverage check to use current path, not post-placement path
-- 10:30 AM — Added AA splash damage (radius 2, flying-only)
-- 10:35 AM — Starting credits changed to 5000c
-- 10:40 AM — Implemented AI respawn system (AI dies → respawns with 120% of human tower value)
-- 10:45 AM — Added AI_DEFEATED modal + leaderboard integration with aiDefeatedCount
-- 10:50 AM — Economy investigation: added comprehensive per-player wave-end logging
-- 11:00 AM — Split "Auto Fix" into three toggles: Repair, Reload, Rebuild
-- 11:10 AM — Fixed auto-repair to only run during combat (was draining credits during build)
-- 11:15 AM — AI now has all three autos enabled by default
-- 11:20 AM — Fixed AI economy: towerCount < 50 → all budget to building (respawn fix)
-- 11:25 AM — Fixed AI candidate set: uses ALL empty cells when spacing active (matches sandbox)
-- 11:30 AM — Added remaining-budget fill pass after AA (spend close to 0c)
-- 11:35 AM — Fixed aiDefeatedCount: was counting every tick, now counts once per death
-- 11:40 AM — Fixed AI respawn: deferred to build phase (was mid-combat)
-- 11:45 AM — Fixed AI defeated modal: dedicated element instead of shared overlay
-- 11:50 AM — Removed dense phase entirely: S=2 + leftBias from tower 1
-- 11:55 AM — Added start-wave selector (1/5/10/15/20/25/30) with scaled credits
-- 11:55 AM — Hardcoded AI difficulty to HARD, removed dropdown
-- 12:00 PM — Fixed canvas scaling: reserves space for HUD + tower bar
-- 12:10 PM — Added click-and-drag tower placement
-- 12:15 PM — Fixed drag placement bugs (GridCell arg, suppress click after drag)
-- 12:20 PM — Fixed tower button sizing (fixed 70px width, more compact)
-- 12:30 PM — Toggle buttons show RDY during build phase, ON during combat
-- 12:40 PM — Added rebuild debug logging
-- 12:52 PM — Save
+- 07:40 PM — Session resumed. Last save 2026-03-23 09:54 PM PST.
+- 07:50 PM — User reports late-wave crashes (~wave 15+). Spawned Explore agent to find server bottlenecks. Top 5: full-state broadcast, O(N*M) tower targeting, O(enemies × towers) contact damage, O(P × E) splash, per-enemy-spawn BFS + unbounded `destroyedTowerTraces`.
+- 08:15 PM — Shipped Tier 1+2 perf fix (commit cff12c1): EnemySpatialIndex, tower position map in EnemySystem, WaveSystem path cache keyed on `state.gridVersion`, trace cap at 300. Kept GameState broadcast format unchanged (no Tier 3 delta refactor). 192 tests pass.
+- 08:30 PM — Shipped UX + perf batch (f4cdaf2): real player names in HUD/charts, layered-oscillator air raid siren, slow towers now scale contact damage by speed ratio, HUD.update() dirty-checks state + client stamp (was 60Hz DOM churn), Renderer path preview cached per (gridVersion, hover, towerType).
+- 08:55 PM — Uncommitted legacy fixes preserved separately.
+- 09:00 PM — Session of improvements + template feature (a419a33): right-click clears selection, air-raid siren also plays on warning appearance, drawTowers/drawEnemies batched into passes (font/fillStyle changes cut drastically), TowerTrace now carries level so rebuild (auto + manual same-cell) restores upgrade level at base cost, tower bar no longer letterboxes canvas (overlay center-bottom), tower templates (save + load via localStorage, applied at first BUILD of a SP game).
+- 09:10 PM — Auto-version stamp via `scripts/build-client.mjs` (886dbb6) — esbuild `--define __VERSION__` from git short SHA + date. No more manual edits.
+- 09:25 PM — Ready button visual state (37c1843): bright saturated green + ✓ + glow when server has registered player as ready.
+- 09:40 PM — **Walls repair for free** (b25a681): all 11 repair-cost sites centralized in `shared/utils/economy.ts`. Walls return 0, non-walls same formula. Tooltip discloses "Repair: FREE (replacement still costs 25c)". Auto-repair no longer aborts below reserve — walls still heal free, paid repairs gated as before. New test locks in invariant. 193 tests pass.
+- 09:50 PM — Investigated splash cross-lane bug (NO FIX YET). Confirmed: direct fire is side-gated in `TowerSystem.findTarget`, but `ProjectileSystem` splash loop has no side filter. Cross-lane splash kills credit the firing tower's owner. Explains user's friend earning way more from splash near midline.
+- 09:53 PM — User documented future work: templates in MP (easy unblock), wall repair rebalance (free repair is too strong meta), cross-lane isolation invariant, laser tower design, three heatmaps, EU4-style map layers.

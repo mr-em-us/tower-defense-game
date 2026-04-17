@@ -17,6 +17,7 @@ import { EnemySystem } from '../systems/EnemySystem.js';
 import { TowerSystem } from '../systems/TowerSystem.js';
 import { ProjectileSystem } from '../systems/ProjectileSystem.js';
 import { EnemySpatialIndex } from './SpatialIndex.js';
+import { createTower } from './towerFactory.js';
 import { log } from '../utils/logger.js';
 
 export class GameRoom {
@@ -614,24 +615,13 @@ export class GameRoom {
       if (!zoneOk) return;
     }
 
-    const overrides = this.state.settings.towerOverrides?.[type];
-    const tower: Tower = {
-      id: uuid(),
-      type,
-      position: { x, y },
-      ownerId: playerId,
-      level: 1,
-      damage: Math.round(stats.damage * (overrides?.damage ?? 1)),
-      range: +(stats.range * (overrides?.range ?? 1)).toFixed(1),
-      fireRate: +(stats.fireRate * (overrides?.fireRate ?? 1)).toFixed(2),
-      lastFireTime: 0,
-      targetId: null,
-      health: Math.round(stats.maxHealth * (overrides?.maxHealth ?? 1)),
-      maxHealth: Math.round(stats.maxHealth * (overrides?.maxHealth ?? 1)),
-      ammo: Math.round(stats.maxAmmo * (overrides?.maxAmmo ?? 1)),
-      maxAmmo: Math.round(stats.maxAmmo * (overrides?.maxAmmo ?? 1)),
-      placedWave: this.state.waveNumber,
-    };
+    // If a trace exists at this cell (same type + owner), restore its upgrade level.
+    // The player pays only base cost — upgrades come "free" from the destroyed tower.
+    const traceIdx = this.state.destroyedTowerTraces.findIndex(
+      t => t.position.x === x && t.position.y === y && t.type === type && t.ownerId === playerId,
+    );
+    const restoredLevel = traceIdx >= 0 ? this.state.destroyedTowerTraces[traceIdx].level : 1;
+    const tower = createTower(this.state, playerId, type, { x, y }, restoredLevel);
 
     player.credits -= actualCost;
     if (this.currentWaveStats) {

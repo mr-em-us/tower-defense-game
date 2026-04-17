@@ -23,6 +23,15 @@ export class InputHandler {
     canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
     canvas.addEventListener('click', (e) => this.onClick(e));
 
+    // Right-click clears selection (same as Escape). Suppresses the browser context menu.
+    canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const cs = this.gameClient.clientState;
+      cs.selectedTowerIds = [];
+      cs.selectedTowerType = null;
+      cs.activeTool = 'place';
+    });
+
     // Brush drag support
     canvas.addEventListener('mousedown', (e) => {
       if (this.gameClient.clientState.activeTool === 'brush') {

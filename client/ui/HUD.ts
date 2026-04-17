@@ -222,8 +222,10 @@ export class HUD {
       // Hide save and ready buttons
       const saveBtn = document.getElementById('save-btn');
       const readyBtn = document.getElementById('ready-btn');
+      const saveTplBtn = document.getElementById('save-tpl-btn');
       if (saveBtn) saveBtn.style.display = 'none';
       if (readyBtn) readyBtn.style.display = 'none';
+      if (saveTplBtn) saveTplBtn.style.display = 'none';
       // Update speed button
       const fastModeBtn = document.getElementById('fast-mode-btn');
       if (fastModeBtn) {
@@ -309,6 +311,12 @@ export class HUD {
     const saveBtn = document.getElementById('save-btn');
     if (saveBtn) {
       saveBtn.style.display = (isBuild && state.gameMode === GameMode.SINGLE && state.gameMode !== GameMode.OBSERVER) ? '' : 'none';
+    }
+
+    const saveTplBtn = document.getElementById('save-tpl-btn');
+    if (saveTplBtn) {
+      // Templates only make sense during build, and not in observer mode
+      saveTplBtn.style.display = (isBuild && state.gameMode !== GameMode.OBSERVER) ? '' : 'none';
     }
 
     // Repair / Reload / Rebuild toggle buttons
@@ -684,6 +692,20 @@ export class HUD {
       setTimeout(() => { saveBtn.textContent = 'Save'; }, 1500);
     });
     rightGroup.appendChild(saveBtn);
+
+    const saveTplBtn = document.createElement('button');
+    saveTplBtn.id = 'save-tpl-btn';
+    saveTplBtn.className = 'action-btn';
+    saveTplBtn.textContent = 'Save Tpl';
+    saveTplBtn.title = 'Save the current tower layout as a reusable template (localStorage).';
+    saveTplBtn.addEventListener('click', () => {
+      const success = this.gameClient.saveCurrentAsTemplate();
+      if (success) {
+        saveTplBtn.textContent = 'Saved!';
+        setTimeout(() => { saveTplBtn.textContent = 'Save Tpl'; }, 1500);
+      }
+    });
+    rightGroup.appendChild(saveTplBtn);
 
     const readyBtn = document.createElement('button');
     readyBtn.id = 'ready-btn';

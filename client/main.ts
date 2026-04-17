@@ -10,6 +10,8 @@ import { SettingsPanel } from './ui/SettingsPanel.js';
 import { UsernamePanel } from './ui/UsernamePanel.js';
 import { LeaderboardPanel } from './ui/LeaderboardPanel.js';
 import { SavePanel } from './ui/SavePanel.js';
+import { TemplatePanel } from './ui/TemplatePanel.js';
+import { TowerTemplate } from './data/TemplateStore.js';
 
 const HUD_HEIGHT = window.innerWidth <= 900 ? 36 : 48;
 
@@ -50,9 +52,13 @@ function updateDifficultyIndicator(): void {
   el.classList.remove('hidden');
 }
 
-type MenuResult = { type: 'new'; gameMode: GameMode } | { type: 'load'; saveId: string };
+type MenuResult =
+  | { type: 'new'; gameMode: GameMode; template?: TowerTemplate }
+  | { type: 'load'; saveId: string };
 
 let savePanel: SavePanel | null = null;
+let templatePanel: TemplatePanel | null = null;
+let pendingTemplate: TowerTemplate | null = null;
 
 function showModeMenu(playerName: string): Promise<MenuResult> {
   return new Promise((resolve) => {
@@ -69,7 +75,8 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
       currentSettings.startWave = parseInt(startWaveSelect.value) || 1;
       menu.classList.add('hidden');
       cleanup();
-      resolve({ type: 'new', gameMode: GameMode.SINGLE });
+      resolve({ type: 'new', gameMode: GameMode.SINGLE, template: pendingTemplate ?? undefined });
+      pendingTemplate = null;
     };
     const onMulti = () => {
       currentSettings.startWave = parseInt(startWaveSelect.value) || 1;
@@ -104,11 +111,14 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
       });
       observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
     };
+    let saveLoadResolved = false;
     const onLoadSave = () => {
       menu.classList.add('hidden');
       if (!savePanel) {
         savePanel = new SavePanel('save-panel', (saveId: string) => {
+          saveLoadResolved = true;
           cleanup();
+          menu.classList.add('hidden');
           resolve({ type: 'load', saveId });
         });
       }
@@ -118,7 +128,10 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
       const observer = new MutationObserver(() => {
         if (panel.classList.contains('hidden')) {
           observer.disconnect();
-          menu.classList.remove('hidden');
+          // Only re-show menu if user pressed Back, not if they loaded a save
+          if (!saveLoadResolved) {
+            menu.classList.remove('hidden');
+          }
         }
       });
       observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
@@ -130,13 +143,41 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
       updateDifficultyIndicator();
     };
 
+    const onLoadTemplate = () => {
+      menu.classList.add('hidden');
+      if (!templatePanel) {
+        templatePanel = new TemplatePanel('template-panel', (tpl) => {
+          pendingTemplate = tpl;
+          refreshTemplateButtonLabel();
+        });
+      }
+      templatePanel.show(playerName);
+
+      const panel = document.getElementById('template-panel')!;
+      const observer = new MutationObserver(() => {
+        if (panel.classList.contains('hidden')) {
+          observer.disconnect();
+          menu.classList.remove('hidden');
+        }
+      });
+      observer.observe(panel, { attributes: true, attributeFilter: ['class'] });
+    };
+
     const btnSingle = document.getElementById('btn-single')!;
     const btnMulti = document.getElementById('btn-multi')!;
     const btnObserver = document.getElementById('btn-observer')!;
     const btnSettings = document.getElementById('btn-settings')!;
     const btnLeaderboard = document.getElementById('btn-leaderboard')!;
     const btnLoadSave = document.getElementById('btn-load-save')!;
+    const btnLoadTemplate = document.getElementById('btn-load-template')!;
     const diffIndicator = document.getElementById('menu-difficulty')!;
+
+    const refreshTemplateButtonLabel = () => {
+      btnLoadTemplate.textContent = pendingTemplate
+        ? `Template: ${pendingTemplate.name} (${pendingTemplate.cost.toLocaleString()}c) ✓`
+        : 'Load Template';
+    };
+    refreshTemplateButtonLabel();
 
     btnSingle.addEventListener('click', onSingle);
     btnMulti.addEventListener('click', onMulti);
@@ -144,6 +185,7 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
     btnSettings.addEventListener('click', onSettings);
     btnLeaderboard.addEventListener('click', onLeaderboard);
     btnLoadSave.addEventListener('click', onLoadSave);
+    btnLoadTemplate.addEventListener('click', onLoadTemplate);
     diffIndicator.addEventListener('click', onDifficultyClick);
 
     function cleanup() {
@@ -153,6 +195,7 @@ function showModeMenu(playerName: string): Promise<MenuResult> {
       btnSettings.removeEventListener('click', onSettings);
       btnLeaderboard.removeEventListener('click', onLeaderboard);
       btnLoadSave.removeEventListener('click', onLoadSave);
+      btnLoadTemplate.removeEventListener('click', onLoadTemplate);
       diffIndicator.removeEventListener('click', onDifficultyClick);
     }
   });
@@ -162,12 +205,16 @@ function applyResponsiveScaling(canvas: HTMLCanvasElement): void {
   const gameWidth = GRID.WIDTH * GRID.CELL_SIZE;
   const gameHeight = GRID.HEIGHT * GRID.CELL_SIZE;
   const availWidth = window.innerWidth;
-  // Reserve space for HUD (top) and tower bar + action bar (bottom)
+  // Only reserve HUD at top. Tower bar is position:fixed center-bottom and lets
+  // the canvas run behind it — reserving its full height letterboxes the sides.
   const hudHeight = document.getElementById('hud')?.offsetHeight || 48;
   const towerBar = document.getElementById('tower-bar');
-  // Use max of measured height and a safe minimum to prevent overlap
-  const towerBarHeight = Math.max(towerBar?.offsetHeight || 0, 90);
-  const availHeight = window.innerHeight - hudHeight - towerBarHeight;
+  const towerBarHeight = towerBar?.offsetHeight || 90;
+  // Reserve a small bottom strip so some playable grid stays visible below the tower bar
+  // on narrower displays; on wider displays the canvas can run full-width with tower bar
+  // overlapping the center-bottom (tower bar doesn't span full width).
+  const bottomReserve = Math.min(towerBarHeight * 0.35, 40);
+  const availHeight = window.innerHeight - hudHeight - bottomReserve;
   const scale = Math.min(availWidth / gameWidth, availHeight / gameHeight);
   canvas.style.width = `${gameWidth * scale}px`;
   canvas.style.height = `${gameHeight * scale}px`;
@@ -201,6 +248,7 @@ async function main(): Promise<void> {
   if (menuResult.type === 'load') {
     gameClient.loadSave(menuResult.saveId);
   } else {
+    if (menuResult.template) gameClient.setPendingTemplate(menuResult.template);
     gameClient.joinGame(menuResult.gameMode, playerName, currentSettings);
   }
 

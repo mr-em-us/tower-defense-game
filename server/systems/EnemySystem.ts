@@ -105,6 +105,7 @@ export class EnemySystem {
             position: { x: tower.position.x, y: tower.position.y },
             type: tower.type,
             ownerId: tower.ownerId,
+            level: tower.level,
           });
           state.waveTowersDestroyed++;
           state.grid.cells[tower.position.y][tower.position.x] = CellType.EMPTY;

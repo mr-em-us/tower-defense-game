@@ -178,62 +178,88 @@ export class Renderer {
     const cs = GRID.CELL_SIZE;
     const playerId = this.gameClient.getPlayerId();
     const selectedIds = this.gameClient.clientState.selectedTowerIds;
+    const towers = Object.values(state.towers);
+    const isCombat = state.phase === GamePhase.COMBAT;
 
-    for (const tower of Object.values(state.towers)) {
-      const cx = tower.position.x * cs + cs / 2;
-      const cy = tower.position.y * cs + cs / 2;
-
-      const isOwn = tower.ownerId === playerId;
-      const isSelected = selectedIds.includes(tower.id);
-
-      // Background highlight
-      if (isSelected) {
-        ctx.fillStyle = 'rgba(74, 222, 128, 0.2)';
-      } else {
-        ctx.fillStyle = isOwn ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 200, 200, 0.1)';
-      }
+    // Pass 1: background highlights (grouped fillRect — one fillStyle change per group)
+    // Selected towers
+    ctx.fillStyle = 'rgba(74, 222, 128, 0.2)';
+    for (const tower of towers) {
+      if (!selectedIds.includes(tower.id)) continue;
       ctx.fillRect(tower.position.x * cs + 1, tower.position.y * cs + 1, cs - 2, cs - 2);
+    }
+    // Own (not selected)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    for (const tower of towers) {
+      if (tower.ownerId !== playerId || selectedIds.includes(tower.id)) continue;
+      ctx.fillRect(tower.position.x * cs + 1, tower.position.y * cs + 1, cs - 2, cs - 2);
+    }
+    // Opponent (not selected)
+    ctx.fillStyle = 'rgba(255, 200, 200, 0.1)';
+    for (const tower of towers) {
+      if (tower.ownerId === playerId || selectedIds.includes(tower.id)) continue;
+      ctx.fillRect(tower.position.x * cs + 1, tower.position.y * cs + 1, cs - 2, cs - 2);
+    }
 
-      // Tower character - dim if out of ammo (walls don't use ammo, never dim)
-      ctx.fillStyle = (tower.ammo > 0 || tower.type === TowerType.WALL) ? VISUAL.FG_COLOR : 'rgba(255, 255, 255, 0.35)';
-      ctx.font = `bold ${cs - 4}px ${VISUAL.FONT}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(TOWER_CHARS[tower.type], cx, cy);
+    // Pass 2: tower characters — set font ONCE, switch fillStyle at most twice.
+    ctx.font = `bold ${cs - 4}px ${VISUAL.FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Active (has ammo or wall)
+    ctx.fillStyle = VISUAL.FG_COLOR;
+    for (const tower of towers) {
+      if (tower.ammo <= 0 && tower.type !== TowerType.WALL) continue;
+      ctx.fillText(TOWER_CHARS[tower.type], tower.position.x * cs + cs / 2, tower.position.y * cs + cs / 2);
+    }
+    // Dimmed (out of ammo, non-wall)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    for (const tower of towers) {
+      if (tower.ammo > 0 || tower.type === TowerType.WALL) continue;
+      ctx.fillText(TOWER_CHARS[tower.type], tower.position.x * cs + cs / 2, tower.position.y * cs + cs / 2);
+    }
 
-      // Level indicator
-      if (tower.level > 1) {
-        ctx.font = `${cs * 0.35}px ${VISUAL.FONT}`;
-        ctx.fillStyle = 'rgba(255, 255, 150, 0.9)';
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'top';
-        ctx.fillText(`${tower.level}`, (tower.position.x + 1) * cs - 2, tower.position.y * cs + 1);
-      }
+    // Pass 3: level indicators
+    ctx.font = `${cs * 0.35}px ${VISUAL.FONT}`;
+    ctx.fillStyle = 'rgba(255, 255, 150, 0.9)';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    for (const tower of towers) {
+      if (tower.level <= 1) continue;
+      ctx.fillText(`${tower.level}`, (tower.position.x + 1) * cs - 2, tower.position.y * cs + 1);
+    }
 
-      // Health bar (below tower)
+    // Pass 4: HP bars for damaged towers
+    for (const tower of towers) {
       const hpRatio = tower.health / tower.maxHealth;
-      if (hpRatio < 1) {
-        const barW = cs - 4;
-        const barH = 2;
-        const barX = tower.position.x * cs + 2;
-        const barY = (tower.position.y + 1) * cs - 3;
+      if (hpRatio >= 1) continue;
+      const barW = cs - 4;
+      const barH = 2;
+      const barX = tower.position.x * cs + 2;
+      const barY = (tower.position.y + 1) * cs - 3;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(barX, barY, barW, barH);
+      ctx.fillStyle = hpRatio > 0.5 ? '#4ADE80' : hpRatio > 0.25 ? '#FBBF24' : '#EF4444';
+      ctx.fillRect(barX, barY, barW * hpRatio, barH);
+    }
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(barX, barY, barW, barH);
-        ctx.fillStyle = hpRatio > 0.5 ? '#4ADE80' : hpRatio > 0.25 ? '#FBBF24' : '#EF4444';
-        ctx.fillRect(barX, barY, barW * hpRatio, barH);
+    // Pass 5: ammo counts (combat only, own towers, has ammo capacity)
+    if (isCombat) {
+      ctx.font = `${cs * 0.3}px ${VISUAL.FONT}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      // High-ammo
+      ctx.fillStyle = 'rgba(255, 200, 50, 0.7)';
+      for (const tower of towers) {
+        if (tower.ownerId !== playerId || tower.maxAmmo <= 0) continue;
+        if (tower.ammo / tower.maxAmmo <= 0.3) continue;
+        ctx.fillText(`${tower.ammo}`, tower.position.x * cs + 2, tower.position.y * cs + 2);
       }
-
-      // Ammo count (left side of tower during combat) - skip for walls
-      if (isOwn && state.phase === GamePhase.COMBAT && tower.maxAmmo > 0) {
-        const ammoRatio = tower.ammo / tower.maxAmmo;
-        const dotY = tower.position.y * cs + 2;
-        const dotX = tower.position.x * cs + 2;
-        ctx.fillStyle = ammoRatio > 0.3 ? 'rgba(255, 200, 50, 0.7)' : 'rgba(239, 68, 68, 0.8)';
-        ctx.font = `${cs * 0.3}px ${VISUAL.FONT}`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText(`${tower.ammo}`, dotX, dotY);
+      // Low-ammo
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.8)';
+      for (const tower of towers) {
+        if (tower.ownerId !== playerId || tower.maxAmmo <= 0) continue;
+        if (tower.ammo / tower.maxAmmo > 0.3) continue;
+        ctx.fillText(`${tower.ammo}`, tower.position.x * cs + 2, tower.position.y * cs + 2);
       }
     }
 
@@ -375,30 +401,50 @@ export class Renderer {
   private drawEnemies(state: GameState): void {
     const ctx = this.ctx;
     const cs = GRID.CELL_SIZE;
+    const enemies = Object.values(state.enemies);
 
-    for (const enemy of Object.values(state.enemies)) {
+    // Pass 1: enemy characters — font/fillStyle set once
+    ctx.font = `bold ${cs - 2}px ${VISUAL.FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FF6B6B';
+    for (const enemy of enemies) {
       if (!enemy.spawned) continue;
+      ctx.fillText(
+        getEnemyChar(enemy.type, this.time),
+        enemy.position.x * cs + cs / 2,
+        enemy.position.y * cs + cs / 2,
+      );
+    }
 
-      const cx = enemy.position.x * cs + cs / 2;
-      const cy = enemy.position.y * cs + cs / 2;
-
-      const ch = getEnemyChar(enemy.type, this.time);
-      ctx.fillStyle = '#FF6B6B';
-      ctx.font = `bold ${cs - 2}px ${VISUAL.FONT}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(ch, cx, cy);
-
-      const hpRatio = enemy.health / enemy.maxHealth;
-      const barW = cs - 4;
-      const barH = 3;
-      const barX = cx - barW / 2;
-      const barY = cy - cs / 2 - 2;
-
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    // Pass 2: HP bar backgrounds
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    const barW = cs - 4;
+    const barH = 3;
+    for (const enemy of enemies) {
+      if (!enemy.spawned) continue;
+      const barX = enemy.position.x * cs + cs / 2 - barW / 2;
+      const barY = enemy.position.y * cs - 2;
       ctx.fillRect(barX, barY, barW, barH);
-      ctx.fillStyle = hpRatio > 0.5 ? '#4ADE80' : hpRatio > 0.25 ? '#FBBF24' : '#EF4444';
-      ctx.fillRect(barX, barY, barW * hpRatio, barH);
+    }
+
+    // Pass 3: HP bar fill — group by color to minimize fillStyle switches
+    // Split by tier; three-pass with ~10-15% style switches on average.
+    const fills: Array<{ color: string; test: (hp: number) => boolean }> = [
+      { color: '#4ADE80', test: (hp) => hp > 0.5 },
+      { color: '#FBBF24', test: (hp) => hp > 0.25 && hp <= 0.5 },
+      { color: '#EF4444', test: (hp) => hp <= 0.25 },
+    ];
+    for (const { color, test } of fills) {
+      ctx.fillStyle = color;
+      for (const enemy of enemies) {
+        if (!enemy.spawned) continue;
+        const hpRatio = enemy.health / enemy.maxHealth;
+        if (!test(hpRatio)) continue;
+        const barX = enemy.position.x * cs + cs / 2 - barW / 2;
+        const barY = enemy.position.y * cs - 2;
+        ctx.fillRect(barX, barY, barW * hpRatio, barH);
+      }
     }
   }
 

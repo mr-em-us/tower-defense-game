@@ -142,27 +142,36 @@ export class SoundManager {
 
   airRaidSiren(): void {
     // Classic two-tone air raid siren: oscillate between ~400 Hz and ~800 Hz
-    // across three cycles, then tail off.
+    // across three cycles, then tail off. Layered sine+square for presence.
     const ctx = this.ensureContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sawtooth';
     const t0 = ctx.currentTime;
-    const cycle = 0.45;
-    for (let i = 0; i < 3; i++) {
-      const cStart = t0 + i * cycle;
-      osc.frequency.setValueAtTime(420, cStart);
-      osc.frequency.linearRampToValueAtTime(820, cStart + cycle * 0.5);
-      osc.frequency.linearRampToValueAtTime(420, cStart + cycle);
-    }
-    const total = cycle * 3;
-    gain.gain.setValueAtTime(0.18, t0);
-    gain.gain.setValueAtTime(0.18, t0 + total - 0.1);
-    gain.gain.linearRampToValueAtTime(0, t0 + total);
-    osc.connect(gain);
-    gain.connect(this.getMaster());
-    osc.start(t0);
-    osc.stop(t0 + total);
+    const cycle = 0.5;
+    const cycles = 3;
+    const total = cycle * cycles;
+
+    const playLayer = (type: OscillatorType, gainVal: number, detuneCents = 0) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.detune.value = detuneCents;
+      for (let i = 0; i < cycles; i++) {
+        const cStart = t0 + i * cycle;
+        osc.frequency.setValueAtTime(420, cStart);
+        osc.frequency.linearRampToValueAtTime(860, cStart + cycle * 0.5);
+        osc.frequency.linearRampToValueAtTime(420, cStart + cycle);
+      }
+      gain.gain.setValueAtTime(gainVal, t0);
+      gain.gain.setValueAtTime(gainVal, t0 + total - 0.15);
+      gain.gain.linearRampToValueAtTime(0, t0 + total);
+      osc.connect(gain);
+      gain.connect(this.getMaster());
+      osc.start(t0);
+      osc.stop(t0 + total);
+    };
+
+    // Louder, layered: square provides presence, sawtooth gives grit.
+    playLayer('square', 0.45);
+    playLayer('sawtooth', 0.30, 7);
   }
 
   waveComplete(): void {

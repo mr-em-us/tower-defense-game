@@ -1,8 +1,8 @@
-import { GameState, GamePhase, GameMode, PlayerSide, TowerType, CellType, Tower, Player, WaveEconomy } from '../../shared/types/game.types.js';
+import { GameState, GamePhase, GameMode, PlayerSide, TowerType, CellType, Player, WaveEconomy } from '../../shared/types/game.types.js';
 import { GAME, GRID, TOWER_STATS, PRICE_ESCALATION, PRICE_DECAY_RATE, MIN_DYNAMIC_PRICE } from '../../shared/types/constants.js';
 import { wouldBlockPath } from '../../shared/logic/pathfinding.js';
 import { pickAIName } from '../ai/names.js';
-import { v4 as uuid } from 'uuid';
+import { createTower } from '../game/towerFactory.js';
 import { log } from '../utils/logger.js';
 
 export class PhaseSystem {
@@ -197,11 +197,10 @@ export class PhaseSystem {
       // Count down to scheduled air wave
       state.airWaveCountdown--;
     } else if (state.airWaveCountdown === 0) {
-      // Air wave just happened, reset
+      // Air wave just happened, reset. Wait one wave before re-scheduling
+      // so the siren warning doesn't fire immediately after an air wave ends.
       state.airWaveCountdown = -1;
-    }
-    // Schedule new air wave if none pending and wave >= 2 (will arrive wave >= 5)
-    if (state.airWaveCountdown === -1 && state.waveNumber >= 2) {
+    } else if (state.airWaveCountdown === -1 && state.waveNumber >= 2) {
       // ~35% chance each wave to schedule air 3 waves from now
       if (Math.random() < 0.35) {
         state.airWaveCountdown = 3;
@@ -240,26 +239,12 @@ export class PhaseSystem {
 
         player.credits -= cost;
 
-        // Place tower with stat overrides applied
-        const tower: Tower = {
-          id: uuid(),
-          type: trace.type,
-          position: { x: trace.position.x, y: trace.position.y },
-          ownerId: player.id,
-          level: 1,
-          damage: Math.round(stats.damage * (overrides?.damage ?? 1)),
-          range: +(stats.range * (overrides?.range ?? 1)).toFixed(1),
-          fireRate: +(stats.fireRate * (overrides?.fireRate ?? 1)).toFixed(2),
-          lastFireTime: 0,
-          targetId: null,
-          health: Math.round(stats.maxHealth * (overrides?.maxHealth ?? 1)),
-          maxHealth: Math.round(stats.maxHealth * (overrides?.maxHealth ?? 1)),
-          ammo: Math.round(stats.maxAmmo * (overrides?.maxAmmo ?? 1)),
-          maxAmmo: Math.round(stats.maxAmmo * (overrides?.maxAmmo ?? 1)),
-          placedWave: state.waveNumber,
-        };
+        // Rebuild at the trace's original level — player pays only base cost but
+        // gets back the tower with all its upgrades intact.
+        const tower = createTower(state, player.id, trace.type, trace.position, trace.level);
         state.towers[tower.id] = tower;
         state.grid.cells[trace.position.y][trace.position.x] = CellType.TOWER;
+        state.gridVersion++;
 
         // Track economy
         const econ = state.waveEconomy[player.id];

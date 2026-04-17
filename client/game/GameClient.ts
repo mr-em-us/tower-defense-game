@@ -6,6 +6,7 @@ import { NetworkClient } from '../network/NetworkClient.js';
 import { SoundManager } from '../audio/SoundManager.js';
 import { StatsTracker } from './StatsTracker.js';
 import { ChartsOverlay } from '../ui/ChartsOverlay.js';
+import { TowerTemplate, fromState as templateFromState, save as saveTemplate } from '../data/TemplateStore.js';
 
 export interface ClientState {
   selectedTowerType: TowerType | null;
@@ -40,6 +41,8 @@ export class GameClient {
   readonly statsTracker = new StatsTracker();
   readonly chartsOverlay: ChartsOverlay;
   private waveStats: WaveStats[] = [];
+  private pendingTemplate: TowerTemplate | null = null;
+  private templateApplied = false;
 
   readonly clientState: ClientState = {
     selectedTowerType: TowerType.BASIC,
@@ -62,6 +65,72 @@ export class GameClient {
 
   joinGame(gameMode: GameMode, playerName = 'Player', settings?: GameSettings): void {
     this.network.send({ type: 'JOIN_GAME', playerName, gameMode, settings });
+  }
+
+  setPendingTemplate(tpl: TowerTemplate): void {
+    this.pendingTemplate = tpl;
+    this.templateApplied = false;
+  }
+
+  /** Snapshot current tower layout + save to localStorage. Returns true on success. */
+  saveCurrentAsTemplate(): boolean {
+    if (!this.gameState || !this.playerId) return false;
+    const myTowers = Object.values(this.gameState.towers).filter(t => t.ownerId === this.playerId);
+    if (myTowers.length === 0) {
+      this.showError('No towers to save');
+      return false;
+    }
+    const player = this.gameState.players[this.playerId];
+    const playerName = player?.name ?? 'Player';
+    const name = prompt(`Template name (${myTowers.length} towers):`);
+    if (!name || !name.trim()) return false;
+    const tpl = templateFromState(this.gameState, this.playerId, name.trim());
+    saveTemplate(playerName, tpl);
+    return true;
+  }
+
+  /**
+   * Apply a template by firing individual PLACE_TOWER + UPGRADE_TOWER messages.
+   * The server validates each one (cost, path) — partial apply is possible if
+   * credits run out. Must be called during the first BUILD phase before any
+   * other towers are placed.
+   */
+  private applyTemplate(tpl: TowerTemplate): void {
+    // Fire all placements in original order, upgrades last so tower IDs exist.
+    // We don't have the server-assigned tower ID until after TOWER_PLACED arrives;
+    // instead, upgrade each tower by finding it in state.towers by position.
+    for (const t of tpl.towers) {
+      this.network.send({
+        type: 'PLACE_TOWER',
+        position: { x: t.x, y: t.y },
+        towerType: t.type,
+      });
+    }
+    // After all placements, queue upgrade messages. They'll be processed after
+    // the server has created the towers (messages are ordered per-connection).
+    // We look up tower IDs by position from the *current* state; since the
+    // placement messages haven't been processed yet, we send by position-hint
+    // via a small delayed retry loop.
+    const tryUpgrade = (attempt: number) => {
+      if (!this.gameState) return;
+      let stillPending = 0;
+      for (const t of tpl.towers) {
+        if (t.level <= 1) continue;
+        const tower = Object.values(this.gameState.towers).find(
+          tw => tw.position.x === t.x && tw.position.y === t.y && tw.ownerId === this.playerId,
+        );
+        if (!tower) { stillPending++; continue; }
+        // Send (target level - current level) upgrade messages
+        const needed = t.level - tower.level;
+        for (let i = 0; i < needed; i++) {
+          this.network.send({ type: 'UPGRADE_TOWER', towerId: tower.id });
+        }
+      }
+      if (stillPending > 0 && attempt < 20) {
+        setTimeout(() => tryUpgrade(attempt + 1), 150);
+      }
+    };
+    setTimeout(() => tryUpgrade(0), 200);
   }
 
   getState(): GameState | null {
@@ -362,6 +431,15 @@ export class GameClient {
         this.detectSoundEvents(msg.state);
         this.prevState = this.gameState;
         this.gameState = msg.state;
+        // Apply pending template on the first BUILD-phase snapshot where no towers exist yet.
+        if (this.pendingTemplate && !this.templateApplied
+            && msg.state.phase === GamePhase.BUILD
+            && this.playerId
+            && !Object.values(msg.state.towers).some(t => t.ownerId === this.playerId)) {
+          this.templateApplied = true;
+          this.applyTemplate(this.pendingTemplate);
+          this.pendingTemplate = null;
+        }
         break;
       case 'GAME_OVER':
         if (msg.waveStats) this.waveStats = msg.waveStats;
@@ -396,7 +474,11 @@ export class GameClient {
       }
     }
 
-    // Air raid siren: play once per wave, the moment a flying enemy first appears.
+    // Air raid siren: play when the "Air in N" warning first appears (countdown
+    // goes from -1 → positive), AND again when flying enemies actually spawn.
+    if (prev.airWaveCountdown < 0 && next.airWaveCountdown > 0) {
+      this.sound.airRaidSiren();
+    }
     if (next.phase === GamePhase.COMBAT && next.waveNumber !== this.airRaidWave) {
       for (const enemy of Object.values(next.enemies)) {
         if (enemy.type === EnemyType.FLYING) {

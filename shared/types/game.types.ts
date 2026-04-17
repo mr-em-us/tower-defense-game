@@ -120,6 +120,9 @@ export interface TowerTrace {
   position: GridCell;
   type: TowerType;
   ownerId: string;
+  // Level the tower had when it was destroyed. Rebuilds restore this level
+  // at only the base cost — essentially free upgrades if you can reclaim the cell.
+  level: number;
 }
 
 export interface WaveStats {

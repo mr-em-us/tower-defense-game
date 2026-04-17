@@ -140,6 +140,31 @@ export class SoundManager {
     });
   }
 
+  airRaidSiren(): void {
+    // Classic two-tone air raid siren: oscillate between ~400 Hz and ~800 Hz
+    // across three cycles, then tail off.
+    const ctx = this.ensureContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    const t0 = ctx.currentTime;
+    const cycle = 0.45;
+    for (let i = 0; i < 3; i++) {
+      const cStart = t0 + i * cycle;
+      osc.frequency.setValueAtTime(420, cStart);
+      osc.frequency.linearRampToValueAtTime(820, cStart + cycle * 0.5);
+      osc.frequency.linearRampToValueAtTime(420, cStart + cycle);
+    }
+    const total = cycle * 3;
+    gain.gain.setValueAtTime(0.18, t0);
+    gain.gain.setValueAtTime(0.18, t0 + total - 0.1);
+    gain.gain.linearRampToValueAtTime(0, t0 + total);
+    osc.connect(gain);
+    gain.connect(this.getMaster());
+    osc.start(t0);
+    osc.stop(t0 + total);
+  }
+
   waveComplete(): void {
     // Victory jingle
     const notes = [523, 659, 784, 1047];

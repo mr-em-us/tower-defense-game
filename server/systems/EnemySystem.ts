@@ -47,7 +47,12 @@ export class EnemySystem {
         const ey = Math.round(enemy.position.y);
         const baseContactDmg = ENEMY_STATS[enemy.type].contactDamage;
         const contactOverride = state.settings?.enemyOverrides?.[enemy.type]?.contactDamage ?? 1;
-        const contactDmg = baseContactDmg * contactOverride;
+        // Scale contact damage by speed ratio: slowed enemies deal proportionally less
+        // damage per tick so total damage over a tile is unchanged (otherwise slow
+        // effectively buffs enemy DPS by keeping them adjacent longer).
+        const baseSpeed = ENEMY_STATS[enemy.type].speed * (state.settings?.enemyOverrides?.[enemy.type]?.speed ?? 1);
+        const speedRatio = baseSpeed > 0 ? enemy.speed / baseSpeed : 1;
+        const contactDmg = baseContactDmg * contactOverride * speedRatio;
 
         for (const dir of ADJ_DIRS) {
           const ax = ex + dir.x;

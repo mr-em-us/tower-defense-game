@@ -28,6 +28,10 @@ export class HUD {
   private drawerOpen = false;
   private brushDrawerOpen = false;
   private brushMode: 'repair' | 'upgrade' | 'sell' = 'repair';
+  // Skip DOM updates when nothing relevant changed — HUD.update() runs at 60fps
+  // but state only changes 20x/sec and user input is sparse, so most frames are no-ops.
+  private lastStateRef: GameState | null = null;
+  private lastClientStamp = '';
 
   constructor(private gameClient: GameClient) {
     this.postGameOverlay = new PostGameOverlay(gameClient);
@@ -46,6 +50,14 @@ export class HUD {
       this.showOverlay('Waiting for server...');
       return;
     }
+
+    // Dirty-check: skip all DOM work if nothing relevant has changed.
+    // state identity changes on each broadcast; client-side UI state is stamped manually.
+    const cs = this.gameClient.clientState;
+    const clientStamp = `${cs.selectedTowerType}|${cs.activeTool}|${cs.brushMode}|${this.drawerOpen}|${this.brushDrawerOpen}|${this.brushMode}`;
+    if (state === this.lastStateRef && clientStamp === this.lastClientStamp) return;
+    this.lastStateRef = state;
+    this.lastClientStamp = clientStamp;
 
     if (state.phase === GamePhase.WAITING) {
       if (state.gameMode === GameMode.SINGLE || state.gameMode === GameMode.OBSERVER) {
@@ -94,7 +106,11 @@ export class HUD {
       }
     } else {
       // My info on my side
-      myPanel.appendChild(span(side === PlayerSide.LEFT ? '< You' : 'You >'));
+      const myPlayer = state.players[this.gameClient.getPlayerId() ?? ''];
+      const myName = myPlayer?.name ?? 'You';
+      const myArrow = side === PlayerSide.LEFT ? '< ' : ' >';
+      const myLabel = side === PlayerSide.LEFT ? `${myArrow}${myName}` : `${myName}${myArrow}`;
+      myPanel.appendChild(span(myLabel));
       myPanel.appendChild(span(`${Math.ceil(myHp.current).toLocaleString()}HP`, hpColor));
       myPanel.appendChild(span(`${Math.floor(credits).toLocaleString()}c`, credits > 0 ? 'color:#4ADE80' : 'color:#EF4444'));
 
@@ -103,8 +119,8 @@ export class HUD {
       const opponent = players.find(p => p.id !== this.gameClient.getPlayerId());
       if (opponent) {
         const oppHp = this.gameClient.getOpponentHealth();
-        const oppSide = side === PlayerSide.LEFT ? '>' : '<';
-        const oppLabel = opponent.isAI ? `${oppSide} ${opponent.name}` : `${oppSide} Opp`;
+        const oppArrow = side === PlayerSide.LEFT ? '> ' : ' <';
+        const oppLabel = side === PlayerSide.LEFT ? `${oppArrow}${opponent.name}` : `${opponent.name}${oppArrow}`;
         oppPanel.appendChild(span(oppLabel, 'opacity:0.6'));
         oppPanel.appendChild(span(`${Math.ceil(oppHp.current).toLocaleString()}HP`, 'opacity:0.6'));
         oppPanel.appendChild(span(`${Math.floor(oppCredits).toLocaleString()}c`, 'opacity:0.6'));

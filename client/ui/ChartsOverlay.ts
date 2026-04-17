@@ -111,9 +111,12 @@ export class ChartsOverlay {
     // Legend (inline after tabs, only if multiplayer and on single-field chart tab)
     if (this.activeTab !== 'ledger' && histories.length > 1) {
       tx += 4;
+      const state = this.gameClient.getState();
       for (const h of histories) {
         const color = PLAYER_COLORS[h.side] || '#fff';
-        const label = h.side === this.gameClient.getPlayerSide() ? 'You' : 'Opp';
+        // Look up current player name from state; fall back to history.name (playerId).
+        const matching = state ? Object.values(state.players).find(p => p.side === h.side) : null;
+        const label = matching?.name ?? (h.side === this.gameClient.getPlayerSide() ? 'You' : 'Opp');
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.beginPath();

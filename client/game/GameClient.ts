@@ -1,4 +1,4 @@
-import { GameState, GameMode, GameSettings, PlayerSide, TowerType, GridCell, GamePhase, WaveStats } from '../../shared/types/game.types.js';
+import { GameState, GameMode, GameSettings, PlayerSide, TowerType, EnemyType, GridCell, GamePhase, WaveStats } from '../../shared/types/game.types.js';
 import { ServerMessage } from '../../shared/types/network.types.js';
 import { validateTowerPlacement } from '../../shared/logic/pathfinding.js';
 import { TOWER_STATS, PRICE_ESCALATION, REPAIR_COST_RATIO } from '../../shared/types/constants.js';
@@ -378,6 +378,8 @@ export class GameClient {
 
   // --- Sound event detection via state diffing ---
 
+  private airRaidWave = -1;
+
   private detectSoundEvents(next: GameState): void {
     const prev = this.prevState;
     if (!prev) return;
@@ -391,6 +393,17 @@ export class GameClient {
         const oppTowers = Object.values(next.towers).filter(t => t.ownerId !== this.playerId).length;
         if (myTowers > 0 && oppTowers === 0) this.sound.victory();
         else this.sound.gameOver();
+      }
+    }
+
+    // Air raid siren: play once per wave, the moment a flying enemy first appears.
+    if (next.phase === GamePhase.COMBAT && next.waveNumber !== this.airRaidWave) {
+      for (const enemy of Object.values(next.enemies)) {
+        if (enemy.type === EnemyType.FLYING) {
+          this.sound.airRaidSiren();
+          this.airRaidWave = next.waveNumber;
+          break;
+        }
       }
     }
 

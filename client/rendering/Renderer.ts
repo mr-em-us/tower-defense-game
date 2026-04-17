@@ -10,6 +10,10 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private gameClient: GameClient;
   private time = 0;
+  // Path preview cache — BFS runs twice per frame during BUILD otherwise.
+  private pathCacheKey = '';
+  private pathCacheLeft: ReturnType<typeof findPath> = null;
+  private pathCacheRight: ReturnType<typeof findPath> = null;
 
   constructor(ctx: CanvasRenderingContext2D, gameClient: GameClient) {
     this.ctx = ctx;
@@ -118,23 +122,36 @@ export class Renderer {
     const hover = this.gameClient.clientState.hoveredCell;
     const towerType = this.gameClient.clientState.selectedTowerType;
 
-    // Temporarily place tower in grid if hovering a valid spot
-    let simulated = false;
-    if (hover && towerType && state.grid.cells[hover.y]?.[hover.x] === CellType.EMPTY) {
-      state.grid.cells[hover.y][hover.x] = CellType.TOWER;
-      simulated = true;
-    }
-
-    let leftPath: ReturnType<typeof findPath> = null;
-    let rightPath: ReturnType<typeof findPath> = null;
-    try {
-      leftPath = findPath(state.grid, PlayerSide.LEFT);
-      rightPath = findPath(state.grid, PlayerSide.RIGHT);
-    } finally {
-      // Always restore grid even if findPath throws
-      if (simulated && hover) {
-        state.grid.cells[hover.y][hover.x] = CellType.EMPTY;
+    // Cache BFS output keyed on (gridVersion, hover, towerType). Without this,
+    // BFS runs twice per animation frame during BUILD — ~200k cell visits/sec.
+    const hoverKey = hover ? `${hover.x},${hover.y}` : 'none';
+    const key = `${state.gridVersion}|${hoverKey}|${towerType ?? ''}`;
+    let leftPath: ReturnType<typeof findPath>;
+    let rightPath: ReturnType<typeof findPath>;
+    if (key === this.pathCacheKey) {
+      leftPath = this.pathCacheLeft;
+      rightPath = this.pathCacheRight;
+    } else {
+      // Temporarily place tower in grid if hovering a valid spot
+      let simulated = false;
+      if (hover && towerType && state.grid.cells[hover.y]?.[hover.x] === CellType.EMPTY) {
+        state.grid.cells[hover.y][hover.x] = CellType.TOWER;
+        simulated = true;
       }
+
+      try {
+        leftPath = findPath(state.grid, PlayerSide.LEFT);
+        rightPath = findPath(state.grid, PlayerSide.RIGHT);
+      } finally {
+        // Always restore grid even if findPath throws
+        if (simulated && hover) {
+          state.grid.cells[hover.y][hover.x] = CellType.EMPTY;
+        }
+      }
+
+      this.pathCacheKey = key;
+      this.pathCacheLeft = leftPath;
+      this.pathCacheRight = rightPath;
     }
 
     // Draw paths as translucent red lines through cell centers
